@@ -1,0 +1,10 @@
+MGMSG_MOT_MOVE_ABSOLUTE
+
+Example: Move the motor associated with chan 2 to 10 mm:
+TX 53, 04, 06, 00, A2(destination 'or' 0x80, 0x50 'or' 0x80 which is A2 for example), 01(source is host), (01, 00, channel id, 10, 00 for chan1)
+ 40, 0D, 03, 00, u16bit for length, In the BBD10X series controllers the encoder resolution is 20,000 counts per mm, therefore to set an absolute move
+distance of 100 mm, set this parameter to 2,000,000
+
+MGMSG_HW_DISCONNECT
+
+TX 02, 00, 00, 00, 50, 01
