@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QDoubleSpinBox, QPushB
 import pyqtgraph as pg
 import time
 import sys
+sys.path.append('../')
 import numpy as np
 import math
 from scipy.optimize import curve_fit
