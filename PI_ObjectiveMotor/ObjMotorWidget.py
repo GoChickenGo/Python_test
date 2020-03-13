@@ -14,7 +14,7 @@ from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit)
+                             QFileDialog, QProgressBar, QTextEdit, QScrollBar)
 from PyQt5.QtCore import QThread
 import pyqtgraph as pg
 import numpy as np
@@ -100,12 +100,13 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_step, 3, 1)
         self.ObjMotorcontrolLayout.addWidget(QLabel("Step: "), 3, 0)  
         
-        self.FocusSlider = QSlider(Qt.Horizontal)
+        self.FocusSlider = QScrollBar(Qt.Horizontal)
         self.FocusSlider.setMinimum(0)
         self.FocusSlider.setMaximum(5000000)
-        self.FocusSlider.setTickPosition(QSlider.TicksBothSides)
-        self.FocusSlider.setTickInterval(1000000)
-        self.FocusSlider.setSingleStep(1)
+#        self.FocusSlider.setTickPosition(QSlider.TicksBothSides)
+#        self.FocusSlider.setTickInterval(1000000)
+        self.FocusSlider.setStyleSheet('color:white; background: lightblue')
+        self.FocusSlider.setSingleStep(10000)
 #        self.line640 = QLineEdit(self)
 #        self.line640.setFixedWidth(60)
 #        self.FocusSlider.sliderReleased.connect(lambda:self.updatelinevalue(640))
