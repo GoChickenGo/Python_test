@@ -5,6 +5,7 @@ Created on Thu Nov  8 12:55:22 2018
 @author: lhuismans
 """
 import serial
+import time
 
 class ELL9Filter:
     """
@@ -50,16 +51,31 @@ class ELL9Filter:
         """
         assert position < 4, "Choose a position 0, 1, 2 or 3"
         
-        with serial.Serial(self.address, self.baudrate, timeout = 1) as motor:
-            if position == 0:
-                command = '0ma00000000'
-            elif position == 1:
-                command = "0ma0000001F"
-            elif position == 2:
-                command = "0ma0000003E"
-            elif position == 3:
-                command = "0ma0000005D"
-            motor.write(command.encode())
+        success = None
+        failnumber = 0
+        
+        while success is None:
+            if failnumber <6:
+                try:
+                    with serial.Serial(self.address, self.baudrate, timeout = 1) as motor:
+                        if position == 0:
+                            command = '0ma00000000'
+                        elif position == 1:
+                            command = "0ma0000001F"
+                        elif position == 2:
+                            command = "0ma0000003E"
+                        elif position == 3:
+                            command = "0ma0000005D"
+                        motor.write(command.encode())
+                    success = True
+                except:
+
+                    failnumber += 1                    
+                    print('filter move failed, failnumber: {}'.format(failnumber))
+                    time.sleep(0.2)
+            else:
+                print('Fail for 6 times, give up - -')
+                success = False
     
     def getPosition(self):
         """
