@@ -20,16 +20,19 @@ Created on Sat Aug 10 20:54:40 2019
     ============================== ==============================================
 """
 from __future__ import division
+import os
+import sys
+sys.path.append('../')
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject
 from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit)
+                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory)
 
 import pyqtgraph as pg
-import sys
+
 
 #from GalvoWidget.pmt_thread import pmtimagingTest, pmtimagingTest_contour
 
@@ -38,7 +41,6 @@ import sys
 from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thread, execute_tread_singlesample_analog,
                                 execute_tread_singlesample_digital, execute_analog_and_readin_digital_optional_camtrig_thread, DaqProgressBar)
 
-import os
 import PatchClamp.ui_patchclamp_sealtest
 import NIDAQ.Waveformer_for_screening
 import GalvoWidget.PMTWidget
@@ -66,21 +68,27 @@ class EmittingStream(QObject): #https://stackoverflow.com/questions/8356336/how-
 
 class Mainbody(QWidget):
     
-    waveforms_generated = pyqtSignal(object, object, list, int)
+#    waveforms_generated = pyqtSignal(object, object, list, int)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
         os.chdir(os.path.dirname(sys.argv[0]))# Set directory to current folder.
         self.setWindowIcon(QIcon('./Icons/Icon.png'))
         self.setFont(QFont("Arial"))
         self.OC = 0.1
+        
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
-        self.setMinimumSize(1710,1200)
-        self.setWindowTitle("Tupolev v1.0")
+        self.setMinimumSize(1600,1050)
+        self.setWindowTitle("Tupolev v2.0")
         self.layout = QGridLayout(self)
-        # Setting tabs
+        """
+        # =============================================================================
+        #         GUI for right tabs panel-Creating instances of each widget showing on right side tabs.
+        # =============================================================================
+        """
         self.tabs = QTabWidget()
         self.Galvo_WidgetInstance = GalvoWidget.PMTWidget.PMTWidgetUI()
         self.Waveformer_WidgetInstance = NIDAQ.Waveformer_for_screening.WaveformGenerator()
@@ -94,19 +102,25 @@ class Mainbody(QWidget):
         self.tabs.addTab(self.PatchClamp_WidgetInstance,"Patch clamp")
         #self.tabs.addTab(self.tab4,"Camera")        
         self.tabs.addTab(self.Analysis_WidgetInstance,"Image analysis")
+        # =============================================================================
         
         self.savedirectory = os.path.join(os.path.expanduser("~"), "Desktop") #'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'
         
-        # Establishing communication betweeb widgets.
+        # =============================================================================
+        #         Establishing communication betweeb widgets.
+        # =============================================================================
         self.Galvo_WidgetInstance.SignalForContourScanning.connect(self.PassVariable_GalvoWidget2Waveformer)
         self.Galvo_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
         self.Analysis_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
         
-        #**************************************************************************************************************************************
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        #-----------------------------------------------------------GUI for set directory------------------------------------------------------
-        #--------------------------------------------------------------------------------------------------------------------------------------          
-        #**************************************************************************************************************************************
+        """
+        # =============================================================================
+        #         GUI for left panel.
+        # =============================================================================        
+        """
+        # =============================================================================
+        #         GUI for set directory
+        # =============================================================================
         setdirectoryContainer = QGroupBox("Set directory")
         self.setdirectorycontrolLayout = QGridLayout()        
         
@@ -135,22 +149,33 @@ class Mainbody(QWidget):
         
         self.layout.addWidget(setdirectoryContainer, 0, 0)
         
-        #======================================================================================================================================
+        # =============================================================================
+        #         GUI for sample stage
+        # =============================================================================
         StageMoveWidgetInstance = SampleStageControl.StageMoveWidget.StageWidgetUI()
         self.layout.addWidget(StageMoveWidgetInstance, 2, 0)
-             
+
+        # =============================================================================
+        #         GUI for AOTF
+        # =============================================================================             
         AOTFWidgetInstance = NIDAQ.AOTFWidget.AOTFWidgetUI()
         self.layout.addWidget(AOTFWidgetInstance, 1, 0)
-        
+
+        # =============================================================================
+        #         GUI for fliter silder
+        # =============================================================================        
         FilterSliderWidgetInstance = ThorlabsFilterSlider.FilterSliderWidget.FilterSliderWidgetUI()
         self.layout.addWidget(FilterSliderWidgetInstance, 3, 0)    
-        
+
+        # =============================================================================
+        #         GUI for objective motor
+        # =============================================================================        
         ObjMotorInstance = PI_ObjectiveMotor.ObjMotorWidget.ObjMotorWidgetUI()
         self.layout.addWidget(ObjMotorInstance, 4, 0)         
 
-        #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for camera button------------------------------------------------------
-       
+        # =============================================================================
+        #         GUI for camera button       
+        # =============================================================================
         self.open_cam = QPushButton('Open Camera')
         self.open_cam.clicked.connect(self.open_camera)
         self.layout.addWidget(self.open_cam,5,0)
@@ -187,12 +212,9 @@ class Mainbody(QWidget):
         self.Waveformer_WidgetInstance.handle_viewbox_coordinate_position_array_expanded_y = handle_viewbox_coordinate_y
         self.Waveformer_WidgetInstance.time_per_contour = time_per_contour
         
-                
-        #**************************************************************************************************************************************
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        #-----------------------------------------------------------Fucs for set directory-----------------------------------------------------
-        #--------------------------------------------------------------------------------------------------------------------------------------          
-        #**************************************************************************************************************************************
+    # =============================================================================
+    #     Fucs for set directory
+    # =============================================================================
     def _open_file_dialog(self):
         self.savedirectory = str(QtWidgets.QFileDialog.getExistingDirectory())
         self.savedirectorytextbox.setText(self.savedirectory)
@@ -204,12 +226,10 @@ class Mainbody(QWidget):
         
         self.Waveformer_WidgetInstance.savedirectory = self.savedirectory
         self.Waveformer_WidgetInstance.saving_prefix = self.saving_prefix
-
-        #**************************************************************************************************************************************
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        #-----------------------------------------------------------Fucs for camera options---------------------------------------------------
-        #--------------------------------------------------------------------------------------------------------------------------------------          
-        #************************************************************************************************************************************** 
+        
+    # =============================================================================
+    #     Fucs for camera options
+    # =============================================================================
     def open_camera(self):
         self.camWindow = ui_camera_lab.CameraUI()
         
@@ -221,11 +241,9 @@ class Mainbody(QWidget):
         self.camWindow.setGeometry(QRect(100, 100, 600, 600))
         self.camWindow.show()
         
-        #**************************************************************************************************************************************
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        #-----------------------------------------------------------Fucs for console display---------------------------------------------------
-        #--------------------------------------------------------------------------------------------------------------------------------------          
-        #************************************************************************************************************************************** 
+    # =============================================================================
+    #     Fucs for console display
+    # =============================================================================
     def normalOutputWritten(self, text):
         """Append text to the QTextEdit."""
         # Maybe QTextEdit.append() works as well, but this is how I do it:
@@ -239,6 +257,7 @@ class Mainbody(QWidget):
 if __name__ == "__main__":
     def run_app():
         app = QtWidgets.QApplication(sys.argv)
+        QtWidgets.QApplication.setStyle(QStyleFactory.create('Fusion'))
         pg.setConfigOptions(imageAxisOrder='row-major')
         mainwin = Mainbody()
         mainwin.show()
