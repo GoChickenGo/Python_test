@@ -56,15 +56,15 @@ class PMTWidgetUI(QWidget):
 #        os.chdir('./')# Set directory to current folder.
         self.setFont(QFont("Arial"))
         
-        self.setMinimumSize(1350,900)
+        self.setMinimumSize(1150,850)
         self.setWindowTitle("PMTWidget")
         self.layout = QGridLayout(self)
         #------------------------Initiating class-------------------
         self.pmtTest = pmtimagingTest()
         self.pmtTest_contour = pmtimagingTest_contour()
         
-        self.savedirectory = None
-        self.prefixtextboxtext = None
+        self.savedirectory = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\pmt_image_default_dump'
+        self.prefixtextboxtext = '_fromGalvoWidget'
 
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ class PMTWidgetUI(QWidget):
         self.pmtimageroiLayout = QGridLayout()
         
         self.pmt_roiwidget = pg.GraphicsLayoutWidget()
-        self.pmtvideoWidget.resize(150,150)
+        self.pmt_roiwidget.resize(150,150)
         self.pmt_roiwidget.addLabel('ROI', row=0, col=0) 
         # create ROI
         self.vb_2 = self.pmt_roiwidget.addViewBox(row=1, col=0, lockAspect=True, colspan=1)
@@ -104,9 +104,9 @@ class PMTWidgetUI(QWidget):
         
         self.pmtimageroiLayout.addWidget(self.pmt_roiwidget, 0, 0)
         
-        pmtimageContainer.setMinimumWidth(1000)
+        pmtimageContainer.setMinimumWidth(850)
         pmtroiContainer.setMaximumHeight(380)
-        pmtroiContainer.setMaximumWidth(300)
+#        pmtroiContainer.setMaximumWidth(300)
         
         pmtimageContainer.setLayout(self.pmtimageLayout)
         pmtroiContainer.setLayout(self.pmtimageroiLayout)
@@ -166,13 +166,13 @@ class PMTWidgetUI(QWidget):
         self.controlLayout = QGridLayout()
         
         self.pmt_fps_Label = QLabel("Per frame: ")
-        self.controlLayout.addWidget(self.pmt_fps_Label, 3, 5)
+        self.controlLayout.addWidget(self.pmt_fps_Label, 5, 0)
     
         self.saveButton_pmt = QPushButton("Save image")
         self.saveButton_pmt.setStyleSheet("QPushButton {color:DarkGreen;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                           "QPushButton:pressed {color:DarkGreen;background-color: DarkOliveGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.saveButton_pmt.clicked.connect(lambda: self.saveimage_pmt())
-        self.controlLayout.addWidget(self.saveButton_pmt, 3, 6)
+        self.controlLayout.addWidget(self.saveButton_pmt, 5, 1)
     
         self.startButton_pmt = QPushButton("Start")
         self.startButton_pmt.setStyleSheet("QPushButton {color:black;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
@@ -181,14 +181,14 @@ class PMTWidgetUI(QWidget):
         self.startButton_pmt.clicked.connect(lambda:self.buttonenabled('rasterscan', 'start'))
         self.startButton_pmt.clicked.connect(lambda: self.measure_pmt())
 
-        self.controlLayout.addWidget(self.startButton_pmt, 3, 7)
+        self.controlLayout.addWidget(self.startButton_pmt, 6, 0)
         
         self.stopButton = QPushButton("Stop")
         self.stopButton.setStyleSheet("QPushButton {color:white;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                       "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.stopButton.clicked.connect(lambda:self.buttonenabled('rasterscan', 'stop'))
         self.stopButton.clicked.connect(lambda: self.stopMeasurement_pmt())
-        self.controlLayout.addWidget(self.stopButton, 3, 8)
+        self.controlLayout.addWidget(self.stopButton, 6, 1)
         
         #-----------------------------------Galvo scanning------------------------------------------------------------------------
         self.textboxAA_pmt = QSpinBox(self)
@@ -196,68 +196,66 @@ class PMTWidgetUI(QWidget):
         self.textboxAA_pmt.setMaximum(1000000)
         self.textboxAA_pmt.setValue(500000)
         self.textboxAA_pmt.setSingleStep(100000)        
-        self.controlLayout.addWidget(self.textboxAA_pmt, 2, 0)        
+        self.controlLayout.addWidget(self.textboxAA_pmt, 1, 1)        
         self.controlLayout.addWidget(QLabel("Sampling rate:"), 1, 0)
         
         #self.controlLayout.addWidget(QLabel("Galvo raster scanning : "), 1, 0)
         self.textbox1B_pmt = QSpinBox(self)
         self.textbox1B_pmt.setMinimum(-10)
         self.textbox1B_pmt.setMaximum(10)
-        self.textbox1B_pmt.setValue(-3)
+        self.textbox1B_pmt.setValue(3)
         self.textbox1B_pmt.setSingleStep(1)        
-        self.controlLayout.addWidget(self.textbox1B_pmt, 1, 2)
-        self.controlLayout.addWidget(QLabel("voltXMin"), 1, 1)
+        self.controlLayout.addWidget(self.textbox1B_pmt, 2, 1)
+        self.controlLayout.addWidget(QLabel("Volt range:"), 2, 0)
 
-        self.textbox1C_pmt = QSpinBox(self)
-        self.textbox1C_pmt.setMinimum(-10)
-        self.textbox1C_pmt.setMaximum(10)
-        self.textbox1C_pmt.setValue(3)
-        self.textbox1C_pmt.setSingleStep(1)   
-        self.controlLayout.addWidget(self.textbox1C_pmt, 2, 2)
-        self.controlLayout.addWidget(QLabel("voltXMax"), 2, 1)
-
-        self.textbox1D_pmt = QSpinBox(self)
-        self.textbox1D_pmt.setMinimum(-10)
-        self.textbox1D_pmt.setMaximum(10)
-        self.textbox1D_pmt.setValue(-3)
-        self.textbox1D_pmt.setSingleStep(1)   
-        self.controlLayout.addWidget(self.textbox1D_pmt, 1, 4)
-        self.controlLayout.addWidget(QLabel("voltYMin"), 1, 3)
-
-        self.textbox1E_pmt = QSpinBox(self)
-        self.textbox1E_pmt.setMinimum(-10)
-        self.textbox1E_pmt.setMaximum(10)
-        self.textbox1E_pmt.setValue(3)
-        self.textbox1E_pmt.setSingleStep(1)   
-        self.controlLayout.addWidget(self.textbox1E_pmt, 2, 4)
-        self.controlLayout.addWidget(QLabel("voltYMax"), 2, 3)
-
-        self.textbox1F_pmt = QComboBox()
-        self.textbox1F_pmt.addItems(['500','256'])
-        self.controlLayout.addWidget(self.textbox1F_pmt, 1, 6)
-        self.controlLayout.addWidget(QLabel("X pixel number"), 1, 5)
-
-        self.textbox1G_pmt = QComboBox()
-        self.textbox1G_pmt.addItems(['500','256'])
-        self.controlLayout.addWidget(self.textbox1G_pmt, 2, 6)
-        self.controlLayout.addWidget(QLabel("Y pixel number"), 2, 5)
+#        self.textbox1C_pmt = QSpinBox(self)
+#        self.textbox1C_pmt.setMinimum(-10)
+#        self.textbox1C_pmt.setMaximum(10)
+#        self.textbox1C_pmt.setValue(3)
+#        self.textbox1C_pmt.setSingleStep(1)   
+#        self.controlLayout.addWidget(self.textbox1C_pmt, 2, 2)
+#        self.controlLayout.addWidget(QLabel("voltXMax"), 2, 1)
+#
+#        self.textbox1D_pmt = QSpinBox(self)
+#        self.textbox1D_pmt.setMinimum(-10)
+#        self.textbox1D_pmt.setMaximum(10)
+#        self.textbox1D_pmt.setValue(-3)
+#        self.textbox1D_pmt.setSingleStep(1)   
+#        self.controlLayout.addWidget(self.textbox1D_pmt, 1, 4)
+#        self.controlLayout.addWidget(QLabel("voltYMin"), 1, 3)
+#
+#        self.textbox1E_pmt = QSpinBox(self)
+#        self.textbox1E_pmt.setMinimum(-10)
+#        self.textbox1E_pmt.setMaximum(10)
+#        self.textbox1E_pmt.setValue(3)
+#        self.textbox1E_pmt.setSingleStep(1)   
+#        self.controlLayout.addWidget(self.textbox1E_pmt, 2, 4)
+#        self.controlLayout.addWidget(QLabel("voltYMax"), 2, 3)
+        
+        self.Scanning_pixel_num_combobox = QSpinBox(self)
+        self.Scanning_pixel_num_combobox.setMinimum(0)
+        self.Scanning_pixel_num_combobox.setMaximum(1000)
+        self.Scanning_pixel_num_combobox.setValue(500)
+        self.Scanning_pixel_num_combobox.setSingleStep(244)        
+        self.controlLayout.addWidget(self.Scanning_pixel_num_combobox, 3, 1)
+        self.controlLayout.addWidget(QLabel("Pixel number:"), 3, 0)
 
         self.textbox1H_pmt = QSpinBox(self)
         self.textbox1H_pmt.setMinimum(1)
         self.textbox1H_pmt.setMaximum(20)
         self.textbox1H_pmt.setValue(1)
         self.textbox1H_pmt.setSingleStep(1)
-        self.controlLayout.addWidget(self.textbox1H_pmt, 1, 8)
-        self.controlLayout.addWidget(QLabel("average over:"), 1, 7)
+        self.controlLayout.addWidget(self.textbox1H_pmt, 4, 1)
+        self.controlLayout.addWidget(QLabel("average over:"), 4, 0)
         
         controlContainer.setLayout(self.controlLayout)
         
         #---------------------------Set tab1 layout---------------------------
 #        pmtmaster = QGridLayout()
-        self.layout.addWidget(pmtimageContainer, 0,0,2,1)
-        self.layout.addWidget(pmtroiContainer,0,1)       
-        self.layout.addWidget(pmtContourContainer,1,1)
-        self.layout.addWidget(controlContainer,2,0,1,2)
+        self.layout.addWidget(pmtimageContainer, 0,0,3,1)
+        self.layout.addWidget(pmtroiContainer,1,1)       
+        self.layout.addWidget(pmtContourContainer,2,1)
+        self.layout.addWidget(controlContainer,0,1)
         
 #        self.layout.setLayout(pmtmaster)
         
@@ -307,16 +305,17 @@ class PMTWidgetUI(QWidget):
     def measure_pmt(self):
         self.Daq_sample_rate_pmt = int(self.textboxAA_pmt.value())
         
-        #Scanning settings
-        Value_voltXMin = int(self.textbox1B_pmt.value())
-        self.Value_voltXMax = int(self.textbox1C_pmt.value())
-        Value_voltYMin = int(self.textbox1D_pmt.value())
-        Value_voltYMax = int(self.textbox1E_pmt.value())
-        self.Value_xPixels = int(self.textbox1F_pmt.currentText())
-        Value_yPixels = int(self.textbox1G_pmt.currentText())
+        # Voltage settings, by default it's equal range square.
+        self.Value_voltXMax = self.textbox1B_pmt.value()
+        self.Value_voltXMin = self.Value_voltXMax*-1
+        Value_voltYMin = self.Value_voltXMin
+        Value_voltYMax = self.Value_voltXMax
+        
+        self.Value_xPixels = int(self.Scanning_pixel_num_combobox.value())
+        Value_yPixels = self.Value_xPixels
         self.averagenum =int(self.textbox1H_pmt.value())
         
-        Totalscansamples = self.pmtTest.setWave(self.Daq_sample_rate_pmt, Value_voltXMin, self.Value_voltXMax, Value_voltYMin, Value_voltYMax, self.Value_xPixels, Value_yPixels, self.averagenum)
+        Totalscansamples = self.pmtTest.setWave(self.Daq_sample_rate_pmt, self.Value_voltXMin, self.Value_voltXMax, Value_voltYMin, Value_voltYMax, self.Value_xPixels, Value_yPixels, self.averagenum)
         time_per_frame_pmt = Totalscansamples/self.Daq_sample_rate_pmt
         
         ScanArrayXnum=int((Totalscansamples/self.averagenum)/Value_yPixels)
