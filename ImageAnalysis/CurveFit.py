@@ -10,7 +10,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 from skimage.io import imread
 import os
-from EvolutionAnalysis import ImageStackAnalysis
+#from EvolutionAnalysis import ImageStackAnalysis
+from EvolutionAnalysis_v2 import ProcessImage
 
 class CurveAnalysis():
     
@@ -69,17 +70,22 @@ if __name__ == "__main__":
     def func(x, a, b, c):
         return a * np.exp(-b * x) + c
     CurveAnalysis_instance = CurveAnalysis()
-    ImageStackAnalysis_instance = ImageStackAnalysis()
+#    ImageStackAnalysis_instance = ProcessImage()
     
     PMT_image_wholetrace_stack = CurveAnalysis_instance.ReadinImgs('M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data/Octoscope/2020-2-26 Archon control EC/trial_1', rowIndex = 1500, colIndex = 0)
     
     KCtrac = np.array([1,1,1,1,1,1,1,1,1,1,1,1], dtype=bool)
     
-    RegionProposalMask, RegionProposalOriginalImage = ImageStackAnalysis_instance.generate_mask(PMT_image_wholetrace_stack, openingfactor=2, 
-                                                                                                closingfactor=3, binary_adaptive_block_size=335)#256(151) 500(335)
+    RegionProposalMask, RegionProposalOriginalImage = ProcessImage.generate_mask(PMT_image_wholetrace_stack, openingfactor=2, closingfactor=3, binary_adaptive_block_size=335)#256(151) 500(335)
     
-    CellPropDictEachRound = ImageStackAnalysis_instance.get_cell_properties_Roundstack(PMT_image_wholetrace_stack, RegionProposalMask, smallest_size=300, contour_thres=0.001, 
+    CellPropDictEachRound = ProcessImage.get_cell_properties_Roundstack(PMT_image_wholetrace_stack, RegionProposalMask, smallest_size=300, contour_thres=0.001, 
                                                                                        contour_dilationparameter=15, cell_region_opening_factor=1, cell_region_closing_factor=3)
+
+#    RegionProposalMask, RegionProposalOriginalImage = ImageStackAnalysis_instance.generate_mask(PMT_image_wholetrace_stack, openingfactor=2, 
+#                                                                                                closingfactor=3, binary_adaptive_block_size=335)#256(151) 500(335)
+#    
+#    CellPropDictEachRound = ImageStackAnalysis_instance.get_cell_properties_Roundstack(PMT_image_wholetrace_stack, RegionProposalMask, smallest_size=300, contour_thres=0.001, 
+#                                                                                       contour_dilationparameter=15, cell_region_opening_factor=1, cell_region_closing_factor=3)
     
     
     for EachCell in range(len(CellPropDictEachRound['RoundSequence1'])):

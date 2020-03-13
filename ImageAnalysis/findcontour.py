@@ -13,9 +13,10 @@ from skimage import data
 from skimage.filters import threshold_otsu
 from skimage.segmentation import clear_border
 from skimage.measure import label, perimeter, find_contours
-from skimage.morphology import opening, closing, square, dilation, reconstruction
+from skimage.morphology import opening, closing, square, dilation, reconstruction, binary_erosion
 from skimage.measure import regionprops
 from skimage.restoration import denoise_tv_chambolle
+from scipy.signal import convolve2d
 
 class imageanalysistoolbox():
     '''
@@ -44,6 +45,9 @@ class imageanalysistoolbox():
 
         filled_mask_bef = reconstruction(seed_bef, mask_bef, method='erosion')# The binary mask with filling holes
         
+        # Calculate the background
+        MeanIntensity_Background = np.mean(RawRegionImg[np.where(filled_mask_bef == 0)])
+
         #----------------------------------------------------Clean up parts that don't belong to cell of interest---------------------------------------
         SubCellClearUpSize = int(region_area*0.35) # Assume that trash parts won't take up 35% of the whole cell boundbox area
 #        print(region_area)
@@ -55,19 +59,62 @@ class imageanalysistoolbox():
         
         for subcellregion in regionprops(IndividualCell_label_image,intensity_image = RawRegionImg.copy()):
             
-            if subcellregion.area < SubCellClearUpSize:
+            if subcellregion.area < SubCellClearUpSize: # Clean parts that are smaller than SubCellClearUpSize, which should result in only one main part left.
 
                 for EachsubcellregionCoords in subcellregion.coords:
 #                                print(EachsubcellregionCoords.shape)
                     filled_mask_bef[EachsubcellregionCoords[0], EachsubcellregionCoords[1]] = 0
-                    
-        return filled_mask_bef
+        #------------------------------------------------------------------------------------------------------------------------------------------------         
+     
+        return filled_mask_bef, MeanIntensity_Background
     
-    '''
-    Return contour mask by eroding inward from filled cell mask.
-    '''
-    def contour(self, imagewithouthole, image, threshold):
+    
+    def smoothing_filled_mask(RawRegionImg, filled_mask_bef, region_area, threshold_factor):
+        '''
+        Given the cell filled mask, smooth the egde by convolution.
+        '''
         
+        # Shrink the image a bit.
+#        filled_mask_bef = binary_erosion(filled_mask_bef, square(1))
+        # Try to smooth the boundary.
+        kernel = np.ones((5,5))
+        filled_mask_convolve2d = convolve2d(filled_mask_bef, kernel, mode='same')                
+        try:
+            filled_mask_convolve2d = np.where(filled_mask_convolve2d >= threshold_otsu(filled_mask_convolve2d)*threshold_factor, 1, 0) # Here higher the threshold a bit to shrink the mask, make sure generated contour doesn't exceed.
+        except:
+            pass
+        # Get rid of little patches.
+#                self.filled_mask_convolve2d = opening(self.filled_mask_convolve2d, square(int(1)))
+        
+        #---------------------------------------------------fill in the holes, prepare for contour recognition-----------------------------------------------------------
+        seed_bef = np.copy(filled_mask_convolve2d)
+        seed_bef[1:-1, 1:-1] = filled_mask_convolve2d.max()
+        mask_bef = filled_mask_convolve2d
+
+        filled_mask_reconstructed = reconstruction(seed_bef, mask_bef, method='erosion')# The binary mask with filling holes        
+        #----------------------------------------------------Clean up parts that don't belong to cell of interest---------------------------------------
+        SubCellClearUpSize = int(region_area*0.30) # Assume that trash parts won't take up 35% of the whole cell boundbox area
+#                    print('minsize: '+str(SubCellClearUpSize))
+        IndividualCellCleared = filled_mask_reconstructed.copy()
+
+        clear_border(IndividualCellCleared)
+        # label image regions, prepare for regionprops
+        IndividualCell_label_image = label(IndividualCellCleared)
+        
+        for subcellregion_convolve2d in regionprops(IndividualCell_label_image,intensity_image = RawRegionImg.copy()):
+            
+            if subcellregion_convolve2d.area < SubCellClearUpSize:
+
+                for EachsubcellregionCoords in subcellregion_convolve2d.coords:
+#                                print(EachsubcellregionCoords.shape)
+                    filled_mask_reconstructed[EachsubcellregionCoords[0], EachsubcellregionCoords[1]] = 0
+        #------------------------------------------------------------------------------------------------------------------------------------------------
+        return filled_mask_reconstructed
+
+    def contour(imagewithouthole, image, threshold):
+        '''
+        Return contour mask by eroding inward from filled cell mask.
+        '''        
         contours = find_contours(imagewithouthole, threshold) # Find iso-valued contours in a 2D array for a given level value.
                 
         for n, contour in enumerate(contours):
@@ -84,7 +131,7 @@ class imageanalysistoolbox():
         binarycontour = np.where(image == 5, 1, 0)
         return binarycontour
     
-    def inwarddilationmask(self, binarycontour, imagewithouthole, dilationparameter):
+    def inwarddilationmask(binarycontour, imagewithouthole, dilationparameter):
         
         dilationimg = dilation(binarycontour, square(dilationparameter))
         

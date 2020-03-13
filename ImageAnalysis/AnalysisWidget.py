@@ -52,7 +52,7 @@ class AnalysisWidgetUI(QWidget):
 #        os.chdir('./')# Set directory to current folder.
         self.setFont(QFont("Arial"))
         
-        self.setMinimumSize(1350,900)
+        self.setMinimumSize(1250,850)
         self.setWindowTitle("AnalysisWidget")
         self.layout = QGridLayout(self)
         
