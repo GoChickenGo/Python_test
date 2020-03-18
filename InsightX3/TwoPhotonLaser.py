@@ -10,6 +10,8 @@ Created on Thu Mar 12 11:31:53 2020
 """
 
 import serial
+from PyQt5.QtCore import QThread
+from PyQt5.QtCore import pyqtSignal
 
 class InsightX3:
     """
@@ -47,9 +49,9 @@ class InsightX3:
         command = '*IDN?' + self.CRending
         
         with serial.Serial(self.address, self.baudrate) as Insight:
-            Insight.write(command.encode("ascii"))        
+            Insight.write(command.encode("ascii", errors='replace'))        
             LaserID_byte = Insight.readline() #Reads an '\n' terminated line
-            LaserID = LaserID_byte.decode("utf-8")
+            LaserID = LaserID_byte.decode("utf-8", errors='replace')
             
             print(LaserID)
             
@@ -76,9 +78,9 @@ class InsightX3:
         if Status_binary[30] == '1':
             Status_list.append('Pulsing')
         if Status_binary[29] == '1':
-            Status_list.append('Tubalbe beam shutter open')
+            Status_list.append('Tubable beam shutter open')
         elif Status_binary[29] == '0':
-            Status_list.append('Tubalbe beam shutter closed')
+            Status_list.append('Tubable beam shutter closed')
         # if Status_binary[28] == '1':
         #     Status_list.append('Fixed IP beam shutter open')# always 1 for our laser.
         if Status_binary[26] == '1':
@@ -112,7 +114,7 @@ class InsightX3:
         if 61 <= Laser_state <= 69:
             Status_list.append('Laser state:Exiting Align mode')
             
-        print(Status_list)
+#        print(Status_list)
         return Status_list
             
     def QueryWarmupTime(self):
@@ -170,6 +172,18 @@ class InsightX3:
             Insight.write(command.encode("ascii"))
             print('LaserWavelength going to {} nm...'.format(Wavelength))
             
+    def SetWatchdogTimer(self, timeout):
+        """
+        Sets the number of seconds for the software watchdog timer. A value of 0 disables the software watchdog timer. 
+        If the laser does not receive a valid command (or query) every n seconds, the pump laser is turned off and shutters are closed. 
+        A recommended value of 3 seconds should be used. Do not disable the timer except for programing support.
+        """
+        command = 'TIMer:WATChdog ' + str(timeout) + self.CRending
+        
+        with serial.Serial(self.address, self.baudrate) as Insight:
+            Insight.write(command.encode("ascii"))
+            print('TIMer:WATChdog set to {} s.'.format(timeout))
+            
     def Turn_On_PumpLaser(self):
         """
         Turns on the pump laser.
@@ -183,9 +197,9 @@ class InsightX3:
         
         with serial.Serial(self.address, self.baudrate) as Insight:
             Insight.write(command.encode("ascii"))        
-            ONresponse = (Insight.readline()).decode("utf-8")
+#            ONresponse = (Insight.readline()).decode("utf-8")
             
-            print('The response to ON is: {}'.format(ONresponse))
+#            print('The response to ON is: {}'.format(ONresponse))
             
     def Turn_Off_PumpLaser(self):
         """
@@ -230,13 +244,95 @@ class InsightX3:
             
             print(SAVeresponse)
             
+
+class QueryLaserStatusThread(QThread):
+    Thread_Status_list = pyqtSignal(list)
+    def __init__(self, Laserinstance, frequency, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.Laserinstance = Laserinstance
+        self.queryfreq = frequency
+        self.stopflag = False
+        self.Status_list = None
+        
+    def run(self):
+        while self.stopflag == False:
+            self.Status_list = self.Laserinstance.QueryStatus()
+            self.Thread_Status_list.emit(self.Status_list)
+            time.sleep(1/self.queryfreq)
+        if self.stopflag == True:
+            self.quit()
+            self.wait()
         
 if __name__ == "__main__":
+    import time
     
+#    def GrabLaserStatus(Status_list):
+#        Status_list = Status_list
+        
     Laserinstance = InsightX3('COM11')
-    Laserinstance.QueryLaserID()
-    Laserinstance.QueryStatus()
-    warmupstatus = Laserinstance.QueryWarmupTime()
-    Laserinstance.QueryWavelength()
+
+    # Laserinstance.QueryLaserID()
+    Laserinstance.SetWatchdogTimer(3)
     
-    # Laserinstance.SetWavelength(1280)
+    targetwavelength = 1280
+    
+    QueryWatchDog = QueryLaserStatusThread(Laserinstance, 1)
+#    QueryWatchDog.Thread_Status_list.connect(GrabLaserStatus)
+    QueryWatchDog.start()
+    print(Laserinstance.Status_list)
+    time.sleep(3)
+
+    QueryWatchDog.stopflag = True
+    time.sleep(0.8)
+    print(QueryWatchDog.isRunning())
+    
+#    Status_list = Laserinstance.QueryStatus()
+#    
+#    if 'Laser state:Initializing' in Status_list:
+#        while 'Laser state:Initializing' in Status_list:
+#            Status_list = Laserinstance.QueryStatus()
+#            time.sleep(0.5)
+#            
+#    if 'Laser state:Ready' in Status_list:
+#        warmupstatus = 0
+#        while int(warmupstatus) != 100:
+#            warmupstatus = Laserinstance.QueryWarmupTime()
+#            time.sleep(0.5)        
+#        #-Set the wavelength
+#        Laserinstance.SetWavelength(targetwavelength)
+#        LaserWavelength = Laserinstance.QueryWavelength()
+#        
+#        Status_list = Laserinstance.QueryStatus()
+#        if int(LaserWavelength) == targetwavelength and 'Laser state:Ready' in Status_list:
+#            while int(warmupstatus) != 100:
+#                warmupstatus = Laserinstance.QueryWarmupTime()
+#                time.sleep(0.5)
+#            if int(warmupstatus) == 100:
+#                print('try to turn on pump laser...')
+#                Laserinstance.Turn_On_PumpLaser()
+#            
+#                # Wait for the laser to be in running state.
+#                Status_list = Laserinstance.QueryStatus()
+#                while 'Laser state:RUN' not in Status_list:
+#                    Status_list = Laserinstance.QueryStatus()
+#                    time.sleep(1)
+#                print('Laser state:RUN')
+#                
+#                # Open the shutter.
+#                Status_list = Laserinstance.QueryStatus()
+#                if 'Tubable beam shutter closed' in Status_list:
+#                    Laserinstance.Open_TunableBeamShutter()
+#                print('Laser shutter open.')
+#                time.sleep(2)
+#                
+#                Status_list = Laserinstance.QueryStatus()
+#                if 'Tubable beam shutter open' in Status_list:
+#                    Laserinstance.Close_TunableBeamShutter()
+#                print('Laser shutter closed.')
+#                
+#                Status_list = Laserinstance.QueryStatus()
+#                Laserinstance.SaveVariables()
+#                
+#                Status_list = Laserinstance.QueryStatus()
+#                Laserinstance.Turn_Off_PumpLaser()
+#                print('Turn_Off_PumpLaser.')
