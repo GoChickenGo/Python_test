@@ -209,7 +209,7 @@ class WaveformGenerator(QWidget):
         # Tab for general block wave
         self.AnalogFreqTextbox = QLineEdit(self)
         self.wavetablayout.addWidget(self.AnalogFreqTextbox, 0, 1)
-        self.wavetablayout.addWidget(QLabel("Frequency in period:"), 0, 0)
+        self.wavetablayout.addWidget(QLabel("Frequency /s:"), 0, 0)
 
         self.AnalogOffsetTextbox = QLineEdit(self)
         self.AnalogOffsetTextbox.setPlaceholderText('0')
@@ -222,10 +222,10 @@ class WaveformGenerator(QWidget):
         
         self.AnalogRepeatTextbox = QLineEdit(self)
         self.AnalogRepeatTextbox.setPlaceholderText('1')
-        self.wavetablayout.addWidget(self.AnalogRepeatTextbox, 1, 3)
-        self.wavetablayout.addWidget(QLabel("Repeat:"), 1, 2) 
+        self.wavetablayout.addWidget(self.AnalogRepeatTextbox, 3, 3)
+        self.wavetablayout.addWidget(QLabel("Number of cycles:"), 3, 2) 
         
-        self.wavetablayout.addWidget(QLabel("DC (%):"), 0, 4)
+        self.wavetablayout.addWidget(QLabel("Duty cycle (%):"), 0, 4)
         self.AnalogDCTextbox = QComboBox()
         self.AnalogDCTextbox.addItems(['50','100','10','5','0'])
         self.wavetablayout.addWidget(self.AnalogDCTextbox, 0, 5)
@@ -233,7 +233,7 @@ class WaveformGenerator(QWidget):
         self.AnalogGapTextbox = QLineEdit(self)
         self.AnalogGapTextbox.setPlaceholderText('0')
         self.wavetablayout.addWidget(self.AnalogGapTextbox, 1, 5)
-        self.wavetablayout.addWidget(QLabel("Gap between repeat (samples):"), 1, 4)
+        self.wavetablayout.addWidget(QLabel("Gap between cycles (samples):"), 1, 4)
         
         self.wavetablayout.addWidget(QLabel("Starting amplitude (V):"), 2, 0)
         self.AnalogStartingAmpTextbox = QDoubleSpinBox(self)
@@ -248,7 +248,7 @@ class WaveformGenerator(QWidget):
         self.wavetablayout.addWidget(self.AnalogBaselineTextbox, 3, 1)
         self.wavetablayout.addWidget(QLabel("Baseline (V):"), 3, 0)
 
-        self.wavetablayout.addWidget(QLabel("Step (V):"), 2, 2)
+        self.wavetablayout.addWidget(QLabel("Change per step (V):"), 2, 2)
         self.AnalogStepTextbox = QDoubleSpinBox(self)
         self.AnalogStepTextbox.setMinimum(-10)
         self.AnalogStepTextbox.setMaximum(10)
@@ -256,13 +256,13 @@ class WaveformGenerator(QWidget):
         self.AnalogStepTextbox.setSingleStep(0.5)
         self.wavetablayout.addWidget(self.AnalogStepTextbox, 2, 3)
 
-        self.wavetablayout.addWidget(QLabel("Cycles:"), 3, 2)
+        self.wavetablayout.addWidget(QLabel("Steps in duration:"), 1, 2)
         self.AnalogCyclesTextbox = QSpinBox(self)
         self.AnalogCyclesTextbox.setMinimum(0)
         self.AnalogCyclesTextbox.setMaximum(100)
         self.AnalogCyclesTextbox.setValue(1)
         self.AnalogCyclesTextbox.setSingleStep(1) 
-        self.wavetablayout.addWidget(self.AnalogCyclesTextbox, 3, 3)
+        self.wavetablayout.addWidget(self.AnalogCyclesTextbox, 1, 3)
                 
         self.wavetab1.setLayout(self.wavetablayout)
         
@@ -333,7 +333,7 @@ class WaveformGenerator(QWidget):
         # Tab for general block wave
         self.textbox_photocycleA = QLineEdit(self)
         self.photocycletablayout.addWidget(self.textbox_photocycleA, 0, 1)
-        self.photocycletablayout.addWidget(QLabel("Frequency in period:"), 0, 0)
+        self.photocycletablayout.addWidget(QLabel("Frequency /s:"), 0, 0)
 
         self.textbox_photocycleB = QLineEdit(self)
         self.textbox_photocycleB.setPlaceholderText('100')
@@ -623,7 +623,7 @@ class WaveformGenerator(QWidget):
         
         self.DigFreqTextbox = QLineEdit(self)
         self.digitalwavetablayout.addWidget(self.DigFreqTextbox, 0, 1)
-        self.digitalwavetablayout.addWidget(QLabel("Frequency in period:"), 0, 0)
+        self.digitalwavetablayout.addWidget(QLabel("Frequency /s:"), 0, 0)
 
         self.DigOffsetTextbox = QLineEdit(self)
         self.DigOffsetTextbox.setPlaceholderText('0')
