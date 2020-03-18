@@ -62,6 +62,9 @@ class Mainbody(QWidget):
         
         self.WaveformQueueDict = {}
         self.RoundQueueDict = {}
+        self.RoundQueueDict['LaserEvents'] = []
+        self.RoundQueueDict['FilterEvents'] = []
+        
         self.RoundCoordsDict = {}
         self.WaveformQueueDict_GalvoInfor = {}
         self.GeneralSettingDict = {}
@@ -264,7 +267,7 @@ class Mainbody(QWidget):
         SelectionsettingContainer.setLayout(SelectionsettingLayout)
 
         #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for PiplineContainer---------------------------------------------------
+        #-----------------------------------------------------------GUI for Image processing settings------------------------------------------
         #**************************************************************************************************************************************
         ImageProcessingContainer = QGroupBox("Image processing settings")
         IPLayout = QGridLayout()
@@ -327,9 +330,11 @@ class Mainbody(QWidget):
         
         ImageProcessingContainer.setLayout(IPLayout)
         
-        #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for PiplineContainer---------------------------------------------------
-        #**************************************************************************************************************************************
+        # ==========================================================================================================================================================
+        #         #**************************************************************************************************************************************
+        #         #-----------------------------------------------------------GUI for PiplineContainer---------------------------------------------------
+        #         #**************************************************************************************************************************************
+        # ==========================================================================================================================================================
         PipelineContainer = QGroupBox("Pipeline settings")
         PipelineContainerLayout = QGridLayout()
         
@@ -428,11 +433,11 @@ class Mainbody(QWidget):
         
         PipelineContainerLayout.addWidget(RoundContainer, 3, 0, 4, 10)       
         #--------------------------------------------------------------------------------------------------------------------------------------     
-        
+
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for StageScanContainer-------------------------------------------------
         #**************************************************************************************************************************************        
-        ScanContainer = QGroupBox("Scanning settings")        
+        ScanContainer = QGroupBox()        
         ScanSettingLayout = QGridLayout() #Layout manager
         
         self.ScanStartRowIndexTextbox = QSpinBox(self)
@@ -489,7 +494,59 @@ class Mainbody(QWidget):
         
         ScanContainer.setLayout(ScanSettingLayout)
         
-        PipelineContainerLayout.addWidget(ScanContainer, 2, 0, 1, 10)       
+        #**************************************************************************************************************************************
+        #-----------------------------------------------------------GUI for StageScanContainer-------------------------------------------------
+        #**************************************************************************************************************************************  
+        TwoPLaserContainer = QGroupBox()        
+        TwoPLaserSettingLayout = QGridLayout() #Layout manager
+        
+        self.TwoPLaserCheckbox = QCheckBox("Two-photon control")
+        self.TwoPLaserCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
+        TwoPLaserSettingLayout.addWidget(self.TwoPLaserCheckbox, 0, 0)
+        
+        self.TwoPLaserWavelengthbox = QSpinBox(self)
+        self.TwoPLaserWavelengthbox.setMinimum(680)
+        self.TwoPLaserWavelengthbox.setMaximum(1300)
+        self.TwoPLaserWavelengthbox.setSingleStep(100)
+        self.TwoPLaserWavelengthbox.setValue(1280)
+        TwoPLaserSettingLayout.addWidget(self.TwoPLaserWavelengthbox, 1, 1)
+        TwoPLaserSettingLayout.addWidget(QLabel("Wavelength:"), 1, 0)
+        
+        self.TwoPLaserShutterCombox = QComboBox()
+        self.TwoPLaserShutterCombox.addItems(['Shutter Open', 'Shutter Close'])
+        TwoPLaserSettingLayout.addWidget(self.TwoPLaserShutterCombox, 0, 1)
+        
+        #--------filter------------
+        NDfilterlabel = QLabel("ND filter:")
+        TwoPLaserSettingLayout.addWidget(NDfilterlabel, 0, 2)
+        NDfilterlabel.setAlignment(Qt.AlignRight)
+        self.NDfilterCombox = QComboBox()
+        self.NDfilterCombox.addItems(['1', '2', '3', '0.5'])
+        TwoPLaserSettingLayout.addWidget(self.NDfilterCombox, 0, 3)
+        
+        Emifilterlabel = QLabel("Emission filter:")
+        TwoPLaserSettingLayout.addWidget(Emifilterlabel, 1, 2)
+        Emifilterlabel.setAlignment(Qt.AlignRight)
+        self.EmisfilterCombox = QComboBox()
+        self.EmisfilterCombox.addItems(['662~800', '2', '3', '0.5'])
+        TwoPLaserSettingLayout.addWidget(self.EmisfilterCombox, 1, 3)
+        
+        ButtonAddFilterEvent = QPushButton('Add filter event', self)
+        TwoPLaserSettingLayout.addWidget(ButtonAddFilterEvent, 0, 4)
+        ButtonAddFilterEvent.clicked.connect(self.AddFilterEvent)
+        
+        ButtonDelFilterEvent = QPushButton('Del filter event', self)
+        TwoPLaserSettingLayout.addWidget(ButtonDelFilterEvent, 0, 5) 
+        ButtonDelFilterEvent.clicked.connect(self.DelFilterEvent)
+        
+        TwoPLaserContainer.setLayout(TwoPLaserSettingLayout)
+                
+        #--------------------------------------------------------------------------------------------------------------------------------------
+        self.RoundGeneralSettingTabs = QTabWidget()
+        self.RoundGeneralSettingTabs.addTab(ScanContainer,"Scanning settings")
+        self.RoundGeneralSettingTabs.addTab(TwoPLaserContainer,"Pulse laser/Filter settings")
+
+        PipelineContainerLayout.addWidget(self.RoundGeneralSettingTabs, 2, 0, 1, 10)  
         #--------------------------------------------------------------------------------------------------------------------------------------
         
         PipelineContainer.setLayout(PipelineContainerLayout)
@@ -546,6 +603,21 @@ class Mainbody(QWidget):
         self.normalOutputWritten('Round{} added.\n'.format(CurrentRoundSequence))
         print('Round added.')
         
+    def AddFilterEvent(self):
+        CurrentRoundSequence = self.RoundOrderBox.value()
+
+        self.RoundQueueDict['FilterEvents'].append('Round_{}_ND_ToPos_{}'.format(CurrentRoundSequence, self.NDfilterCombox.currentText()))
+        self.RoundQueueDict['FilterEvents'].append('Round_{}_EM_ToPos_{}'.format(CurrentRoundSequence, self.EmisfilterCombox.currentText()))
+        print(self.RoundQueueDict['FilterEvents'])
+        
+    def DelFilterEvent(self):
+        CurrentRoundSequence = self.RoundOrderBox.value()
+        
+        if 'Round_{}_ND_ToPos_{}'.format(CurrentRoundSequence, self.NDfilterCombox.currentText()) in self.RoundQueueDict['FilterEvents']:
+            self.RoundQueueDict['FilterEvents'].remove('Round_{}_ND_ToPos_{}'.format(CurrentRoundSequence, self.NDfilterCombox.currentText()))
+            self.RoundQueueDict['FilterEvents'].remove('Round_{}_EM_ToPos_{}'.format(CurrentRoundSequence, self.EmisfilterCombox.currentText()))
+        print(self.RoundQueueDict['FilterEvents'])
+        
     def GenerateScanCoords(self):
         self.CoordContainer = np.array([])
         # settings for scanning index
@@ -589,7 +661,12 @@ class Mainbody(QWidget):
         
         self.normalOutputWritten('Rounds cleared.\n')
         print('Rounds cleared.')
-    #--------------------------------------------------------------Selection functions------------------------------------------------------------------------         
+        
+    """
+    # =============================================================================
+    #     Configure general settings, get ready for execution      
+    # =============================================================================
+    """
     def ConfigGeneralSettings(self):
         selectnum = int(self.selec_num_box.value())
         if self.ComBoxSelectionFactor_1.currentText() == 'Mean intensity in contour weight':

@@ -18,6 +18,7 @@ from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thr
 from ImageAnalysis.trymageAnalysis_v3 import ImageAnalysis
 import numpy.lib.recfunctions as rfn
 from PI_ObjectiveMotor.focuser import PIMotor
+from ThorlabsFilterSlider.filterpyserial import ELL9Filter
 import math
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 class ScanningExecutionThread(QThread):
@@ -42,6 +43,11 @@ class ScanningExecutionThread(QThread):
     def run(self):
         
 #        if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:# if focus correction matrix was generated.
+        """
+        # =============================================================================
+        #         connect the Objective motor
+        # =============================================================================
+        """
         print('----------------------Starting to connect the Objective motor-------------------------')
         self.pi_device_instance = PIMotor()
         print('Objective motor connected.')
@@ -52,27 +58,83 @@ class ScanningExecutionThread(QThread):
             print ('----------------------------------------------------------------------------')            
             print('Below is Round {}.'.format(EachRound+1)) # EachRound+1 is the corresponding round number when setting the dictionary starting from round 1.
             
-            #--------------------------------------------------------Unpack the settings for each round---------------------------------------------------------------------------
+            """
+            # =============================================================================
+            #         Unpack the settings for each round
+            # =============================================================================
+            """
+            # Initialize variables
             CoordOrder = 0      # Counter for n th coordinates, for appending cell properties array.      
             CellPropertiesDict = {}
-#            All_cell_properties = []
+            ND_filter1_Pos = None
+            ND_filter2_Pos = None
             cp_end_index = -1
             self.IndexLookUpCellPropertiesDict = {} #look up dictionary for each cell properties
-            #Unpack the focus stack information.
+            
+            # Unpack the focus stack information.
             ZStackinfor = self.GeneralSettingDict['FocusStackInfoDict']['RoundPackage_{}'.format(EachRound+1)]
             self.ZStackNum = int(ZStackinfor[ZStackinfor.index('Focus')+5])
             self.ZStackStep = float(ZStackinfor[ZStackinfor.index('Being')+5:len(ZStackinfor)])
             
+            #Unpack infor for stage move.
             CoordsNum = int(len(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)])/2) #Each pos has 2 coords
             
+            #Unpack infor for filter event. In the list, the first one is for ND filter and the second one is for emission filter.
+            FilterEventIndexList = [i for i,x in enumerate(self.RoundCoordsDict['FilterEvents']) if 'Round_{}'.format(EachRound+1) in x]
+            
+            NDposText = self.RoundCoordsDict['FilterEvents'][FilterEventIndexList[0]]
+            NDnumber = NDposText[NDposText.index('ToPos_')+6:len(NDposText)]
+            
+            EMposText = self.RoundCoordsDict['FilterEvents'][FilterEventIndexList[1]]
+            EMnumber = EMposText[EMposText.index('ToPos_')+6:len(EMposText)]
+            
+            # "COM9" for filter 1 port, which has ND values from 0 to 3.
+            # "COM7" for filter 2 port, which has ND values from 0 to 0.5.
+            if NDnumber == '0':
+                ND_filter1_Pos = 0
+                ND_filter2_Pos = 0
+            elif NDnumber == '1':
+                ND_filter1_Pos = 1
+                ND_filter2_Pos = 0
+            elif NDnumber == '2':
+                ND_filter1_Pos = 2
+                ND_filter2_Pos = 0
+            elif NDnumber == '0.5':
+                ND_filter1_Pos = 0
+                ND_filter2_Pos = 3        
+            elif NDnumber == '0.3':
+                ND_filter1_Pos = 0
+                ND_filter2_Pos = 2  
+            """
+            # =============================================================================
+            #         Execute filter event at the beginning of each round
+            # =============================================================================
+            """            
+            if ND_filter1_Pos != None and ND_filter2_Pos != None:
+                #Move filter 1
+                self.filter1 = ELL9Filter("COM9")
+                self.filter1.moveToPosition(ND_filter1_Pos)
+                time.sleep(0.5)
+                #Move filter 2
+                self.filter2 = ELL9Filter("COM7")
+                self.filter2.moveToPosition(ND_filter2_Pos)
+                time.sleep(0.5)
+                
             self.currentCoordsSeq = 0
             for EachCoord in range(CoordsNum):
-                
+                """
+                #------------------------------------------At each stage position:-------------------------------------------
+                """
                 self.error_massage = None
                 
                 print ('Round {}. Current index: {}.'.format(EachRound+1, self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2]))
                 self.currentCoordsSeq += 1
-                #-------------------------------------------Stage movement-----------------------------------------------------
+                
+                """
+                # =============================================================================
+                #         Stage movement
+                # =============================================================================
+                """
                 RowIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][0])
                 ColumnIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][1])
 
@@ -85,6 +147,11 @@ class ScanningExecutionThread(QThread):
                 
                 time.sleep(1)
                 
+                """
+                # =============================================================================
+                #         Get the z stack objective positions ready
+                # =============================================================================
+                """
                 #-------------------------------------------If focus correction applies----------------------------------------
                 if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:
                     FocusPosArray = self.GeneralSettingDict['FocusCorrectionMatrixDict']['RoundPackage_{}'.format(EachRound+1)]
@@ -92,8 +159,6 @@ class ScanningExecutionThread(QThread):
                     FocusPosArray = FocusPosArray.flatten('F')
                     FocusPos_fromCorrection = FocusPosArray[EachCoord]
                     print('Target focus pos: '.format(FocusPos_fromCorrection))
-                    
-                #-------------------------------------------Get the z stack objective positions ready----------------------------------------------------------------------------
                 
                 # Without focus correction
                 if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) == 0:
@@ -106,7 +171,12 @@ class ScanningExecutionThread(QThread):
                     
                 ZStackPosList = np.linspace(ZStacklinspaceStart, ZStacklinspaceEnd, num = self.ZStackNum)       
                 print(ZStackPosList)
-                #-------------------------------------------Execute waveform packages------------------------------------
+                
+                """
+                # =============================================================================
+                #         Execute waveform packages
+                # =============================================================================
+                """
                 self.WaveforpackageNum = int(len(self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]))
                 #Execute each individual waveform package
                 print('*******************************************Round {}. Current index: {}.**************************************************'.format(EachRound+1, self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2]))
@@ -131,6 +201,7 @@ class ScanningExecutionThread(QThread):
                         self.readinchan = WaveformPackageToBeExecute[3]
                         self.RoundWaveformIndex = [EachRound+1, EachWaveform+1] # first is current round number, second is current waveform package number.
                         self.CurrentPosIndex = [RowIndex, ColumnIndex]
+#                        self.ProcessData_executed = False
                         
                         if WaveformPackageGalvoInfor != 'NoGalvo': # Unpack the information of galvo scanning.
                             self.readinchan = WaveformPackageGalvoInfor[0]
@@ -151,6 +222,8 @@ class ScanningExecutionThread(QThread):
                             self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3])
                             self.adcollector.collected_data.connect(self.ProcessData)
                             self.adcollector.run()
+                            
+                        
                     time.sleep(0.6) # Wait for receiving data to be done.
                 time.sleep(0.3)
                 print('*************************************************************************************************************************')
@@ -338,6 +411,7 @@ class ScanningExecutionThread(QThread):
 #        self.PMTimageDict['RoundPackage_{}'.format(self.RoundWaveformIndex[0])]['row_{}_column_{}'.format(self.CurrentPosIndex[0], self.CurrentPosIndex[1])] = self.PMT_image_maxprojection
                  
 #        self.PMTimageDict['RoundPackage_{}'.format(self.RoundWaveformIndex[0])]['row_{}_column_{}_stack{}'.format(self.CurrentPosIndex[0], self.CurrentPosIndex[1], self.ZStackOrder)] = self.PMT_image_reconstructed_stack
+#        self.ProcessData_executed = True
         print('ProcessData executed.')
         
     #-----------------------------------------------------------------Sorting the cells------------------------------------------------------------------------------------------------------------
