@@ -19,7 +19,9 @@ from ImageAnalysis.trymageAnalysis_v3 import ImageAnalysis
 import numpy.lib.recfunctions as rfn
 from PI_ObjectiveMotor.focuser import PIMotor
 from ThorlabsFilterSlider.filterpyserial import ELL9Filter
+from InsightX3.TwoPhotonLaser_backend import InsightX3
 import math
+import threading
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 class ScanningExecutionThread(QThread):
     
@@ -30,11 +32,12 @@ class ScanningExecutionThread(QThread):
         self.RoundQueueDict = RoundQueueDict
         self.RoundCoordsDict = RoundCoordsDict
         self.GeneralSettingDict = GeneralSettingDict
-        
+        self.Status_list = None
         self.ludlStage = LudlStage("COM12")
+        self.watchdog_flag = True
         
         self.PMTimageDict = {}
-        for i in range(int(len(self.RoundQueueDict)/2)): # initial the nested PMTimageDict dictionary.
+        for i in range(int(len(self.RoundQueueDict)/2-1)): # initial the nested PMTimageDict dictionary. -2 because default keys for insight and filter.
             self.PMTimageDict['RoundPackage_{}'.format(i+1)] = {}
         self.clock_source = 'Dev1 as clock source' # Should be set by GUI.
         
@@ -54,7 +57,46 @@ class ScanningExecutionThread(QThread):
         self.errornum = 0
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
         
-        for EachRound in range(int(len(self.RoundQueueDict)/2)): # EachRound is the round sequence number starting from 0, while the actual number used in dictionary is 1.
+        """
+        # =============================================================================
+        #         connect the Insight X3
+        # =============================================================================
+        """        
+        if len(self.RoundQueueDict['InsightEvents']) != 0:
+            self.Laserinstance = InsightX3('COM11')
+            try:
+                querygap = 1.1
+                self.Laserinstance.SetWatchdogTimer(15)
+                Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=[querygap], daemon=True)
+                Status_watchdog_thread.start() 
+                time.sleep(1)
+                #-------------Initialize laser--------------
+                self.watchdog_flag = False
+                time.sleep(0.5)
+        
+                warmupstatus = 0
+                while int(warmupstatus) != 100:
+                    try:
+                        warmupstatus = self.Laserinstance.QueryWarmupTime()
+                        time.sleep(0.6)
+                    except:
+                        time.sleep(0.6)
+                        
+                if int(warmupstatus) == 100:
+                    self.warmupstatus = True
+                    print('Laser fully warmed up.')
+                    if 'Laser state:Ready' in self.Status_list:
+                        self.Laserinstance.Turn_On_PumpLaser()
+                        self.laserRun = True
+                    elif 'Laser state:RUN' in self.Status_list:
+                        self.laserRun = True
+                        
+                self.watchdog_flag = True
+                time.sleep(0.5)
+            except:
+                self.LaserStatuslabel.setText('Laser not connected.')
+            
+        for EachRound in range(int(len(self.RoundQueueDict)/2-1)): # EachRound is the round sequence number starting from 0, while the actual number used in dictionary is 1.
             print ('----------------------------------------------------------------------------')            
             print('Below is Round {}.'.format(EachRound+1)) # EachRound+1 is the corresponding round number when setting the dictionary starting from round 1.
             
@@ -68,43 +110,120 @@ class ScanningExecutionThread(QThread):
             CellPropertiesDict = {}
             ND_filter1_Pos = None
             ND_filter2_Pos = None
+            EM_filter_Pos = None
             cp_end_index = -1
             self.IndexLookUpCellPropertiesDict = {} #look up dictionary for each cell properties
             
-            # Unpack the focus stack information.
+            #-------------Unpack the focus stack information.
             ZStackinfor = self.GeneralSettingDict['FocusStackInfoDict']['RoundPackage_{}'.format(EachRound+1)]
             self.ZStackNum = int(ZStackinfor[ZStackinfor.index('Focus')+5])
             self.ZStackStep = float(ZStackinfor[ZStackinfor.index('Being')+5:len(ZStackinfor)])
             
-            #Unpack infor for stage move.
+            #-------------Unpack infor for stage move.
             CoordsNum = int(len(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)])/2) #Each pos has 2 coords
             
-            #Unpack infor for filter event. In the list, the first one is for ND filter and the second one is for emission filter.
-            FilterEventIndexList = [i for i,x in enumerate(self.RoundCoordsDict['FilterEvents']) if 'Round_{}'.format(EachRound+1) in x]
+            #-------------Unpack infor for filter event. In the list, the first one is for ND filter and the second one is for emission filter.
+            FilterEventIndexList = [i for i,x in enumerate(self.RoundQueueDict['FilterEvents']) if 'Round_{}'.format(EachRound+1) in x]
             
-            NDposText = self.RoundCoordsDict['FilterEvents'][FilterEventIndexList[0]]
-            NDnumber = NDposText[NDposText.index('ToPos_')+6:len(NDposText)]
+            if len(FilterEventIndexList) > 0:
+                NDposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[0]]
+                NDnumber = NDposText[NDposText.index('ToPos_')+6:len(NDposText)]
+                
+                EMposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[1]]
+                EMprotein = EMposText[EMposText.index('ToPos_')+6:len(EMposText)]
+                
+                # "COM9" for filter 1 port, which has ND values from 0 to 3.
+                # "COM7" for filter 2 port, which has ND values from 0 to 0.5.
+                if NDnumber == '0':
+                    ND_filter1_Pos = 0
+                    ND_filter2_Pos = 0
+                elif NDnumber == '1':
+                    ND_filter1_Pos = 1
+                    ND_filter2_Pos = 0
+                elif NDnumber == '2':
+                    ND_filter1_Pos = 2
+                    ND_filter2_Pos = 0
+                elif NDnumber == '0.5':
+                    ND_filter1_Pos = 0
+                    ND_filter2_Pos = 3        
+                elif NDnumber == '0.3':
+                    ND_filter1_Pos = 0
+                    ND_filter2_Pos = 2
+                
+                if EMprotein == 'Arch':
+                    EM_filter_Pos = 0
+                elif EMprotein == 'eGFP':
+                    EM_filter_Pos = 1
+                
+            #-------------Unpack infor for Insight X3. In the list, the first one is for shutter event and the second one is for wavelength event. 
+            InsightX3EventIndexList = [i for i,x in enumerate(self.RoundQueueDict['InsightEvents']) if 'Round_{}'.format(EachRound+1) in x]
             
-            EMposText = self.RoundCoordsDict['FilterEvents'][FilterEventIndexList[1]]
-            EMnumber = EMposText[EMposText.index('ToPos_')+6:len(EMposText)]
-            
-            # "COM9" for filter 1 port, which has ND values from 0 to 3.
-            # "COM7" for filter 2 port, which has ND values from 0 to 0.5.
-            if NDnumber == '0':
-                ND_filter1_Pos = 0
-                ND_filter2_Pos = 0
-            elif NDnumber == '1':
-                ND_filter1_Pos = 1
-                ND_filter2_Pos = 0
-            elif NDnumber == '2':
-                ND_filter1_Pos = 2
-                ND_filter2_Pos = 0
-            elif NDnumber == '0.5':
-                ND_filter1_Pos = 0
-                ND_filter2_Pos = 3        
-            elif NDnumber == '0.3':
-                ND_filter1_Pos = 0
-                ND_filter2_Pos = 2  
+            """
+            # =============================================================================
+            #         Execute Insight event at the beginning of each round
+            # =============================================================================
+            """            
+            if len(InsightX3EventIndexList) == 1:
+                print(InsightX3EventIndexList)
+                InsightText = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
+                if 'Shutter_Open' in InsightText:
+                    self.watchdog_flag = False
+                    time.sleep(0.5)
+                    self.Laserinstance.Open_TunableBeamShutter()
+                    time.sleep(0.5)
+                    print('Laser shutter open.')
+                    self.watchdog_flag = True
+                    time.sleep(0.5)
+
+                elif 'Shutter_Close' in InsightText:
+                    self.watchdog_flag = False
+                    time.sleep(0.5)
+                    self.Laserinstance.Close_TunableBeamShutter()
+                    time.sleep(0.5)
+                    print('Laser shutter closed.')
+                    self.watchdog_flag = True
+                    time.sleep(0.5)
+                elif 'WavelengthTo' in InsightText:
+                    self.watchdog_flag = False
+                    time.sleep(0.5)
+                    TargetWavelen = int(InsightText[InsightText.index('To_')+3:len(InsightText)])
+                    print(TargetWavelen)
+                    self.Laserinstance.SetWavelength(TargetWavelen)
+                    time.sleep(5)
+                    self.watchdog_flag = True
+                    time.sleep(0.5)
+                    
+            elif len(InsightX3EventIndexList) == 2:
+                
+                InsightText_wl = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[1]]
+                InsightText_st = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
+                
+                if 'WavelengthTo' in InsightText_wl and 'Shutter_Open' in InsightText_st:
+                    self.watchdog_flag = False
+                    time.sleep(0.5)
+                    TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
+                    self.Laserinstance.SetWavelength(TargetWavelen)
+                    time.sleep(5)
+                    self.Laserinstance.Open_TunableBeamShutter()
+                    time.sleep(1)
+                    print('Laser shutter open.')
+                    self.watchdog_flag = True
+                    time.sleep(0.5)
+                    
+                elif 'WavelengthTo' in InsightText_wl and 'Shutter_Close' in InsightText_st:
+                    self.watchdog_flag = False
+                    time.sleep(0.5)
+                    TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
+                    self.Laserinstance.SetWavelength(TargetWavelen)
+                    time.sleep(5)
+                    self.Laserinstance.Close_TunableBeamShutter()
+                    time.sleep(1)
+                    print('Laser shutter closed.')
+                    self.watchdog_flag = True
+                    time.sleep(0.5)
+                    
+                time.sleep(2)
+                
             """
             # =============================================================================
             #         Execute filter event at the beginning of each round
@@ -114,11 +233,16 @@ class ScanningExecutionThread(QThread):
                 #Move filter 1
                 self.filter1 = ELL9Filter("COM9")
                 self.filter1.moveToPosition(ND_filter1_Pos)
-                time.sleep(0.5)
+                time.sleep(1)
                 #Move filter 2
                 self.filter2 = ELL9Filter("COM7")
                 self.filter2.moveToPosition(ND_filter2_Pos)
-                time.sleep(0.5)
+                time.sleep(1)
+            if EM_filter_Pos != None:
+                self.filter3 = ELL9Filter("COM15")
+                self.filter3.moveToPosition(EM_filter_Pos)
+                time.sleep(1)
+
                 
             self.currentCoordsSeq = 0
             for EachCoord in range(CoordsNum):
@@ -229,65 +353,77 @@ class ScanningExecutionThread(QThread):
                 print('*************************************************************************************************************************')
                 
                 # Image anaylsis part.!!!!!!!!!!!!!NOT working!!!!!!!!!!!!!!!!!!
-                if  EachRound+100 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
-                    
-                    try:
-                        time.sleep(1) # Here to make sure self.ProcessData is run before Image anaylsis part. self.ProcessData and this part are started at the same time.                 
-                        print('Image analysis start.')                    
-                        #------------------------------------------------------------------ Image processing ----------------------------------------------------------------------
-                        #Pull the Bef and Aft image from the dictionary
-                        ImageBef = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]
-                        ImageAft = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['AftRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]            
-                        print(ImageAft.shape) # NOT ready for 3d stack
-                        
-                        try:
-                            self.ImageAnalysisInstance = ImageAnalysis(ImageBef, ImageAft)
-                            MaskedImageBef, MaskedImageAft, MaskBef, MaskAft, thres = self.ImageAnalysisInstance.applyMask(self.GeneralSettingDict['openingfactor'], 
-                                                                                                                      self.GeneralSettingDict['closingfactor'], 
-                                                                                                                      self.GeneralSettingDict['binary_adaptive_block_size']) #v1 = Thresholded whole image
+#                if  EachRound+100 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
+#                    
+#                    try:
+#                        time.sleep(1) # Here to make sure self.ProcessData is run before Image anaylsis part. self.ProcessData and this part are started at the same time.                 
+#                        print('Image analysis start.')                    
+#                        #------------------------------------------------------------------ Image processing ----------------------------------------------------------------------
+#                        #Pull the Bef and Aft image from the dictionary
+#                        ImageBef = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]
+#                        ImageAft = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['AftRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]            
+#                        print(ImageAft.shape) # NOT ready for 3d stack
+#                        
+#                        try:
+#                            self.ImageAnalysisInstance = ImageAnalysis(ImageBef, ImageAft)
+#                            MaskedImageBef, MaskedImageAft, MaskBef, MaskAft, thres = self.ImageAnalysisInstance.applyMask(self.GeneralSettingDict['openingfactor'], 
+#                                                                                                                      self.GeneralSettingDict['closingfactor'], 
+#                                                                                                                      self.GeneralSettingDict['binary_adaptive_block_size']) #v1 = Thresholded whole image
+#        
+#                            CellPropertiesArray, coutourmask, coutourimg, intensityimage_intensity, contour_change_ratio = self.ImageAnalysisInstance.get_intensity_properties(self.GeneralSettingDict['smallestsize'], 
+#                                                                                                                                                        MaskBef, thres, MaskedImageBef, MaskedImageAft, 
+#                                                                                                                                                        RowIndex, ColumnIndex, 
+#                                                                                                                                                        self.GeneralSettingDict['self_findcontour_thres'],
+#                                                                                                                                                        self.GeneralSettingDict['contour_dilation'],
+#                                                                                                                                                        self.GeneralSettingDict['cellopeningfactor'], 
+#                                                                                                                                                        self.GeneralSettingDict['cellclosingfactor'])
+#                            self.ImageAnalysisInstance.showlabel(self.GeneralSettingDict['smallestsize'], MaskBef, MaskedImageBef, thres, RowIndex, ColumnIndex, CellPropertiesArray)
+#        
+#                            print (CellPropertiesArray)
+#                            CellPropertiesDict[CoordOrder] = CellPropertiesArray
+#                            if CoordOrder == 0:
+#                                self.AllCellPropertiesDict = CellPropertiesDict[0]
+#                            if CoordOrder != 0:
+#                                self.AllCellPropertiesDict = np.append(self.AllCellPropertiesDict, CellPropertiesDict[CoordOrder], axis=0)
+#                            
+#                            cp_end_index = cp_end_index + len(CellPropertiesArray)
+#                            cp_start_index = cp_end_index - len(CellPropertiesArray) +1
+#                            self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(RowIndex, ColumnIndex)] = [cp_start_index, cp_end_index]
+#                            # As cell properties are stored in sequence, the lookup dictionary provides information of to which stage coordinates the cp data in cell properties array belong.
+#                        except:
+#                            print('Image analysis failed.')
+#                        time.sleep(0.3)
+#                        
+#                    except:
+#                        pass
+#                   
+#                    CoordOrder = CoordOrder+1
+#            
+#            # Sort the cell properties array
+#            if  EachRound+1 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
+#                
+#                try:
+#                    self.RankedAllCellProperties, self.FinalMergedCoords = self.SortingPropertiesArray(self.AllCellPropertiesDict)
+#                except:
+#                    pass
+#        
+#        try:
+#            self.ScanningResult.emit(self.RankedAllCellProperties, self.FinalMergedCoords, self.IndexLookUpCellPropertiesDict, self.PMTimageDict)
+#        except:
+#            print('Failed to generate cell properties ranking.')
         
-                            CellPropertiesArray, coutourmask, coutourimg, intensityimage_intensity, contour_change_ratio = self.ImageAnalysisInstance.get_intensity_properties(self.GeneralSettingDict['smallestsize'], 
-                                                                                                                                                        MaskBef, thres, MaskedImageBef, MaskedImageAft, 
-                                                                                                                                                        RowIndex, ColumnIndex, 
-                                                                                                                                                        self.GeneralSettingDict['self_findcontour_thres'],
-                                                                                                                                                        self.GeneralSettingDict['contour_dilation'],
-                                                                                                                                                        self.GeneralSettingDict['cellopeningfactor'], 
-                                                                                                                                                        self.GeneralSettingDict['cellclosingfactor'])
-                            self.ImageAnalysisInstance.showlabel(self.GeneralSettingDict['smallestsize'], MaskBef, MaskedImageBef, thres, RowIndex, ColumnIndex, CellPropertiesArray)
-        
-                            print (CellPropertiesArray)
-                            CellPropertiesDict[CoordOrder] = CellPropertiesArray
-                            if CoordOrder == 0:
-                                self.AllCellPropertiesDict = CellPropertiesDict[0]
-                            if CoordOrder != 0:
-                                self.AllCellPropertiesDict = np.append(self.AllCellPropertiesDict, CellPropertiesDict[CoordOrder], axis=0)
-                            
-                            cp_end_index = cp_end_index + len(CellPropertiesArray)
-                            cp_start_index = cp_end_index - len(CellPropertiesArray) +1
-                            self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(RowIndex, ColumnIndex)] = [cp_start_index, cp_end_index]
-                            # As cell properties are stored in sequence, the lookup dictionary provides information of to which stage coordinates the cp data in cell properties array belong.
-                        except:
-                            print('Image analysis failed.')
-                        time.sleep(0.3)
-                        
-                    except:
-                        pass
-                   
-                    CoordOrder = CoordOrder+1
+        # Switch off laser
+        if len(self.RoundQueueDict['InsightEvents']) != 0:
+            self.watchdog_flag = False
+            time.sleep(0.5)
             
-            # Sort the cell properties array
-            if  EachRound+1 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
-                
-                try:
-                    self.RankedAllCellProperties, self.FinalMergedCoords = self.SortingPropertiesArray(self.AllCellPropertiesDict)
-                except:
-                    pass
+            self.Laserinstance.Close_TunableBeamShutter()
+            time.sleep(0.5)
+            self.Laserinstance.SaveVariables()
+            self.Laserinstance.Turn_Off_PumpLaser()
+
         
-        try:
-            self.ScanningResult.emit(self.RankedAllCellProperties, self.FinalMergedCoords, self.IndexLookUpCellPropertiesDict, self.PMTimageDict)
-        except:
-            print('Failed to generate cell properties ranking.')
-        
+        # Disconnect focus motor
         try:
             PIMotor.CloseMotorConnection(self.pi_device_instance.pidevice)
             print('Objective motor disconnected.')
@@ -415,37 +551,48 @@ class ScanningExecutionThread(QThread):
         print('ProcessData executed.')
         
     #-----------------------------------------------------------------Sorting the cells------------------------------------------------------------------------------------------------------------
-    def SortingPropertiesArray(self, All_cell_properties):  
-        #------------------------------------------CAN use 'import numpy.lib.recfunctions as rfn' to append field--------------
-        original_cp = rfn.append_fields(All_cell_properties, 'Original_sequence', list(range(0, len(All_cell_properties))), usemask=False)
-        #print('*********************sorted************************')        
-        sortedcp = self.ImageAnalysisInstance.sort_using_weight(original_cp, 'Mean intensity in contour','Contour soma ratio','Change', self.GeneralSettingDict['Mean intensity in contour weight'], self.GeneralSettingDict['Contour soma ratio weight'], self.GeneralSettingDict['Change weight'])
-        #******************************Add ranking to it*********************************
-        ranked_cp = rfn.append_fields(sortedcp, 'Ranking', list(range(0, len(All_cell_properties))), usemask=False)
-        #print('***********************Original sequence with ranking**************************')        
-        withranking_cp = np.sort(ranked_cp, order='Original_sequence')
-       
-        # All the cells are ranked, now we find the desired group and their position indexs, call the images and show labels of
-        # these who meet the requirements, omitting bad ones.
-        
-        #get the index
-        cell_properties_selected_hits = ranked_cp[0:self.GeneralSettingDict['selectnum']]
-        cell_properties_selected_hits_index_sorted = np.sort(cell_properties_selected_hits, order=['Row index', 'Column index'])
-        index_samples = np.vstack((cell_properties_selected_hits_index_sorted['Row index'],cell_properties_selected_hits_index_sorted['Column index']))
-        
-        merged_index_samples = index_samples[:,0] # Merge coordinates which are the same.
-
-        #consider these after 1st one
-        for i in range(1, len(index_samples[0])):
-            #print(index_samples[:,i][0] - index_samples[:,i-1][0])    
-            if index_samples[:,i][0] != index_samples[:,i-1][0] or index_samples[:,i][1] != index_samples[:,i-1][1]: 
-                merged_index_samples = np.append(merged_index_samples, index_samples[:,i], axis=0)
-        merged_index_samples = merged_index_samples.reshape(-1, 2) # 1st column=i, 2nd column=j
-        
-        return withranking_cp, merged_index_samples
+#    def SortingPropertiesArray(self, All_cell_properties):  
+#        #------------------------------------------CAN use 'import numpy.lib.recfunctions as rfn' to append field--------------
+#        original_cp = rfn.append_fields(All_cell_properties, 'Original_sequence', list(range(0, len(All_cell_properties))), usemask=False)
+#        #print('*********************sorted************************')        
+#        sortedcp = self.ImageAnalysisInstance.sort_using_weight(original_cp, 'Mean intensity in contour','Contour soma ratio','Change', self.GeneralSettingDict['Mean intensity in contour weight'], self.GeneralSettingDict['Contour soma ratio weight'], self.GeneralSettingDict['Change weight'])
+#        #******************************Add ranking to it*********************************
+#        ranked_cp = rfn.append_fields(sortedcp, 'Ranking', list(range(0, len(All_cell_properties))), usemask=False)
+#        #print('***********************Original sequence with ranking**************************')        
+#        withranking_cp = np.sort(ranked_cp, order='Original_sequence')
+#       
+#        # All the cells are ranked, now we find the desired group and their position indexs, call the images and show labels of
+#        # these who meet the requirements, omitting bad ones.
+#        
+#        #get the index
+#        cell_properties_selected_hits = ranked_cp[0:self.GeneralSettingDict['selectnum']]
+#        cell_properties_selected_hits_index_sorted = np.sort(cell_properties_selected_hits, order=['Row index', 'Column index'])
+#        index_samples = np.vstack((cell_properties_selected_hits_index_sorted['Row index'],cell_properties_selected_hits_index_sorted['Column index']))
+#        
+#        merged_index_samples = index_samples[:,0] # Merge coordinates which are the same.
+#
+#        #consider these after 1st one
+#        for i in range(1, len(index_samples[0])):
+#            #print(index_samples[:,i][0] - index_samples[:,i-1][0])    
+#            if index_samples[:,i][0] != index_samples[:,i-1][0] or index_samples[:,i][1] != index_samples[:,i-1][1]: 
+#                merged_index_samples = np.append(merged_index_samples, index_samples[:,i], axis=0)
+#        merged_index_samples = merged_index_samples.reshape(-1, 2) # 1st column=i, 2nd column=j
+#        
+#        return withranking_cp, merged_index_samples
     
 #    def GetDataForShowingRank(self):
 #        return self.RankedAllCellProperties, self.FinalMergedCoords, self.IndexLookUpCellPropertiesDict, self.PMTimageDict
+    #----------------------------------------------------------------WatchDog for laser----------------------------------------------------------------------------------
+    def Status_watchdog(self, querygap):
+        
+        while True:
+            if self.watchdog_flag == True:
+                self.Status_list = self.Laserinstance.QueryStatus()
+                time.sleep(querygap)
+            else:
+                print('Watchdog stopped')
+                time.sleep(querygap)
+            
     
 class ShowTopCellsThread(QThread):
     

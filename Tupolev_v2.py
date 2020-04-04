@@ -24,22 +24,14 @@ import os
 import sys
 sys.path.append('../')
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject
-from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
+from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject, QSize
+from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont, QPalette, QBrush, QImage
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
                              QFileDialog, QProgressBar, QTextEdit, QStyleFactory)
 
 import pyqtgraph as pg
-
-
-#from GalvoWidget.pmt_thread import pmtimagingTest, pmtimagingTest_contour
-
-#import NIDAQ.wavegenerator
-
-from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thread, execute_tread_singlesample_analog,
-                                execute_tread_singlesample_digital, execute_analog_and_readin_digital_optional_camtrig_thread, DaqProgressBar)
 
 import PatchClamp.ui_patchclamp_sealtest
 import NIDAQ.Waveformer_for_screening
@@ -50,9 +42,10 @@ import NIDAQ.AOTFWidget
 import ThorlabsFilterSlider.FilterSliderWidget
 import PI_ObjectiveMotor.ObjMotorWidget
 
-import time
 import pyqtgraph.console
-import ui_camera_lab
+#import ui_camera_lab
+import DMDWidget.ui_dmd_management
+
 
 #Setting graph settings
 #"""
@@ -61,10 +54,10 @@ import ui_camera_lab
 #pg.setConfigOption('useOpenGL', True)
 #pg.setConfigOption('leftButtonPan', False)
 #""" 
-class EmittingStream(QObject): #https://stackoverflow.com/questions/8356336/how-to-capture-output-of-pythons-interpreter-and-show-in-a-text-widget
-    textWritten = pyqtSignal(str)
-    def write(self, text):
-        self.textWritten.emit(str(text)) # For updating notice from console.   
+#class EmittingStream(QObject): #https://stackoverflow.com/questions/8356336/how-to-capture-output-of-pythons-interpreter-and-show-in-a-text-widget
+#    textWritten = pyqtSignal(str)
+#    def write(self, text):
+#        self.textWritten.emit(str(text)) # For updating notice from console.   
 
 class Mainbody(QWidget):
     
@@ -73,7 +66,16 @@ class Mainbody(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        os.chdir(os.path.dirname(sys.argv[0]))# Set directory to current folder.
+        # Set directory to current folder. Specific command depends on platform, 
+        # i.e. first command gives error in Linux and second command gives error
+        # on Windows.
+        try:
+            os.chdir(os.path.dirname(sys.argv[0]))
+        except:
+            os.chdir(sys.path[0])
+                
+#        os.chdir(os.path.dirname(sys.argv[0]))# Set directory to current folder.
+            
         self.setWindowIcon(QIcon('./Icons/Icon.png'))
         self.setFont(QFont("Arial"))
         self.OC = 0.1
@@ -95,6 +97,7 @@ class Mainbody(QWidget):
         self.PatchClamp_WidgetInstance = PatchClamp.ui_patchclamp_sealtest.PatchclampSealTestUI()
         #self.tab4 = ui_camera_lab_5.CameraUI()
         self.Analysis_WidgetInstance = ImageAnalysis.AnalysisWidget.AnalysisWidgetUI()
+        self.DMD_WidgetInstance = DMDWidget.ui_dmd_management.DMD_management_UI()
         
         #--------------Add tab widgets-------------------
         self.tabs.addTab(self.Galvo_WidgetInstance,"PMT imaging")
@@ -102,6 +105,7 @@ class Mainbody(QWidget):
         self.tabs.addTab(self.PatchClamp_WidgetInstance,"Patch clamp")
         #self.tabs.addTab(self.tab4,"Camera")        
         self.tabs.addTab(self.Analysis_WidgetInstance,"Image analysis")
+        self.tabs.addTab(self.DMD_WidgetInstance, "DMD")
         # =============================================================================
         
         self.savedirectory = os.path.join(os.path.expanduser("~"), "Desktop") #'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'
@@ -137,7 +141,8 @@ class Mainbody(QWidget):
         
         self.toolButtonOpenDialog = QtWidgets.QPushButton('Click me!')
         self.toolButtonOpenDialog.setStyleSheet("QPushButton {color:teal;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}"
-                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}")
+                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}"
+                                                "QPushButton:hover:!pressed {color:white;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}")
 
         self.toolButtonOpenDialog.setObjectName("toolButtonOpenDialog")
         self.toolButtonOpenDialog.clicked.connect(self._open_file_dialog)
@@ -177,7 +182,7 @@ class Mainbody(QWidget):
         #         GUI for camera button       
         # =============================================================================
         self.open_cam = QPushButton('Open Camera')
-        self.open_cam.clicked.connect(self.open_camera)
+        # self.open_cam.clicked.connect(self.open_camera)
         self.layout.addWidget(self.open_cam,5,0)
         
         self.console_text_edit = QTextEdit()
@@ -227,19 +232,20 @@ class Mainbody(QWidget):
         self.Waveformer_WidgetInstance.savedirectory = self.savedirectory
         self.Waveformer_WidgetInstance.saving_prefix = self.saving_prefix
         
+        self.Analysis_WidgetInstance.savedirectory = self.savedirectory
     # =============================================================================
     #     Fucs for camera options
     # =============================================================================
-    def open_camera(self):
-        self.camWindow = ui_camera_lab.CameraUI()
+    # def open_camera(self):
+        # self.camWindow = ui_camera_lab.CameraUI()
         
-        '''
-        I set the roiwindow immeadiately to save time, however this funcion also 
-        sets the ROI. This is why I clear the ROI afterwards.
-        '''
+        # '''
+        # I set the roiwindow immeadiately to save time, however this funcion also 
+        # sets the ROI. This is why I clear the ROI afterwards.
+        # '''
         
-        self.camWindow.setGeometry(QRect(100, 100, 600, 600))
-        self.camWindow.show()
+        # self.camWindow.setGeometry(QRect(100, 100, 600, 600))
+        # self.camWindow.show()
         
     # =============================================================================
     #     Fucs for console display
@@ -263,3 +269,4 @@ if __name__ == "__main__":
         mainwin.show()
         app.exec_()
     run_app()
+    

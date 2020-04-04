@@ -12,40 +12,34 @@ from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit)
+                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory)
 
 import pyqtgraph as pg
 from IPython import get_ipython
 import sys
 import numpy as np
-from NIDAQ.code_5nov import generate_AO
-from GalvoWidget.pmt_thread import pmtimagingTest, pmtimagingTest_contour
-#from Stagemovement_Thread import StagemovementThread
-from ThorlabsFilterSlider.Filtermovement_Thread import FiltermovementThread
-from NIDAQ.constants import MeasurementConstants
-from Oldversions.generalDaqer import execute_constant_vpatch
-from Oldversions.generalDaqer import execute_analog_readin_optional_digital, execute_digital
-from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thread, execute_tread_singlesample_analog,
-                                execute_tread_singlesample_digital, execute_analog_and_readin_digital_optional_camtrig_thread, DaqProgressBar)
-from PIL import Image
-from NIDAQ.adfunctiongenerator import (generate_AO_for640, generate_AO_for488, generate_DO_forcameratrigger, generate_DO_for640blanking,
-                                 generate_AO_for532, generate_AO_forpatch, generate_DO_forblankingall, generate_DO_for532blanking,
-                                 generate_DO_for488blanking, generate_DO_forPerfusion, generate_DO_for2Pshutter, generate_ramp)
-from pyqtgraph import PlotDataItem, TextItem
+from skimage.io import imread
+import threading
 import os
 import copy
-import scipy.signal as sg
-from scipy import interpolate
 import time
 from datetime import datetime
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from NIDAQ.constants import HardwareConstants
 import NIDAQ.Waveformer_for_screening
 from EvolutionScanningThread import ScanningExecutionThread, ShowTopCellsThread # This is the thread file for execution.
+from ImageAnalysis.EvolutionAnalysis_v2 import ProcessImage
+from SampleStageControl.stage import LudlStage
+
 import FocusCalibrater
+import GalvoWidget.PMTWidget
+import NIDAQ.AOTFWidget
+import ThorlabsFilterSlider.FilterSliderWidget
+import InsightX3.TwoPhotonLaserUI
 
 class Mainbody(QWidget):
     
@@ -62,7 +56,7 @@ class Mainbody(QWidget):
         
         self.WaveformQueueDict = {}
         self.RoundQueueDict = {}
-        self.RoundQueueDict['LaserEvents'] = []
+        self.RoundQueueDict['InsightEvents'] = []
         self.RoundQueueDict['FilterEvents'] = []
         
         self.RoundCoordsDict = {}
@@ -72,8 +66,11 @@ class Mainbody(QWidget):
         self.FocusStackInfoDict = {}
         self.popnexttopimgcounter = 0
 
+        self.Tag_round_infor = []
+        self.Lib_round_infor = []
         
-        self.savedirectory = './'
+        self.savedirectory = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data'
+        self.ludlStage = LudlStage("COM12")
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for GeneralSettings----------------------------------------------------
         #**************************************************************************************************************************************
@@ -92,7 +89,8 @@ class Mainbody(QWidget):
         
         self.toolButtonOpenDialog = QtWidgets.QPushButton('Saving directory')
         self.toolButtonOpenDialog.setStyleSheet("QPushButton {color:white;background-color: pink; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}")
+                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}"
+                                                "QPushButton:hover:!pressed {color:gray;background-color: pink; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
         self.toolButtonOpenDialog.setObjectName("toolButtonOpenDialog")
         self.toolButtonOpenDialog.clicked.connect(self._open_file_dialog)
@@ -101,19 +99,22 @@ class Mainbody(QWidget):
         
         ButtonConfigurePipeline = QPushButton('Configure', self)
         ButtonConfigurePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         ButtonConfigurePipeline.clicked.connect(self.ConfigGeneralSettings)
 #        ButtonConfigurePipeline.clicked.connect(self.GenerateFocusCorrectionMatrix)
         
         ButtonExePipeline = QPushButton('Execute', self)
         ButtonExePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 #        ButtonExePipeline.clicked.connect(self.ConfigGeneralSettings)      
         ButtonExePipeline.clicked.connect(self.ExecutePipeline)
         
         ButtonSavePipeline = QPushButton('Save pipeline', self)
         ButtonSavePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(82,153,211); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(82,153,211); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         ButtonSavePipeline.clicked.connect(self.Savepipeline)
         
         # Pipeline import
@@ -123,7 +124,8 @@ class Mainbody(QWidget):
         
         self.BrowsePipelineButton = QPushButton('Browse pipeline', self)
         self.BrowsePipelineButton.setStyleSheet("QPushButton {color:white;background-color:rgb(143,191,224); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                                "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                                "QPushButton:hover:!pressed {color:gray;background-color:rgb(143,191,224); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         
         GeneralSettingContainerLayout.addWidget(self.BrowsePipelineButton, 1, 0) 
         
@@ -133,7 +135,8 @@ class Mainbody(QWidget):
         
         self.ImportPipelineButton = QPushButton('Load', self)
         self.ImportPipelineButton.setStyleSheet("QPushButton {color:white;background-color: rgb(191,216,189); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                                "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                                "QPushButton:hover:!pressed {color:gray;background-color: rgb(191,216,189); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 
         GeneralSettingContainerLayout.addWidget(self.ImportPipelineButton, 1, 3)
         self.ImportPipelineButton.clicked.connect(self.LoadPipelineFile)
@@ -180,102 +183,87 @@ class Mainbody(QWidget):
         ImageDisplayContainer = QGroupBox("Billboard")
         ImageDisplayContainerLayout = QGridLayout()        
         # a figure instance to plot on
-        self.MatdisplayFigureTopGuys = Figure()
-        self.MatdisplayCanvasTopGuys = FigureCanvas(self.MatdisplayFigureTopGuys)
+        self.Matdisplay_Figure = Figure()
+        self.Matdisplay_Canvas = FigureCanvas(self.Matdisplay_Figure)
 
-        ImageDisplayContainerLayout.addWidget(self.MatdisplayCanvasTopGuys, 0, 1, 5, 5)
+        ImageDisplayContainerLayout.addWidget(self.Matdisplay_Canvas, 1, 1, 8, 5)
         
-        self.TopCoordsLabel = QLabel("Row:      Col:      ")
-        ImageDisplayContainerLayout.addWidget(self.TopCoordsLabel, 0, 6)
+        self.Matdisplay_toolbar = NavigationToolbar(self.Matdisplay_Canvas, self)
+        ImageDisplayContainerLayout.addWidget(self.Matdisplay_toolbar, 0, 1, 1, 5)
         
-        self.TopGeneralInforLabel = QLabel("  ")
-        ImageDisplayContainerLayout.addWidget(self.TopGeneralInforLabel, 1, 6)        
+#        self.TopCoordsLabel = QLabel("Row:      Col:      ")
+#        ImageDisplayContainerLayout.addWidget(self.TopCoordsLabel, 1, 6)
+        
+#        self.TopGeneralInforLabel = QLabel("  ")
+#        ImageDisplayContainerLayout.addWidget(self.TopGeneralInforLabel, 2, 6)    
+        
+        ButtonRankResetCoordImg = QPushButton('Reset coord', self)
+        ButtonRankResetCoordImg.clicked.connect(self.ResetRankCoord)
+        ImageDisplayContainerLayout.addWidget(ButtonRankResetCoordImg, 0, 7)
         
         ButtonRankPreviousCoordImg = QPushButton('Previous', self)
-        ButtonRankPreviousCoordImg.setStyleSheet("QPushButton {color:white;background-color: rgb(191,216,189); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                             "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-
-        ButtonRankPreviousCoordImg.clicked.connect(lambda: self.PopNextTopCells('previous'))
-        ImageDisplayContainerLayout.addWidget(ButtonRankPreviousCoordImg, 0, 7)
+        ButtonRankPreviousCoordImg.clicked.connect(lambda: self.GoThroughTopCells('previous'))
+        ImageDisplayContainerLayout.addWidget(ButtonRankPreviousCoordImg, 1, 7)
         
         ButtonRankNextCoordImg = QPushButton('Next', self)
-        ButtonRankNextCoordImg.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                             "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-
-        ButtonRankNextCoordImg.clicked.connect(lambda: self.PopNextTopCells('next'))
-        ImageDisplayContainerLayout.addWidget(ButtonRankNextCoordImg, 1, 7)
+        ButtonRankNextCoordImg.clicked.connect(lambda: self.GoThroughTopCells('next'))
+        ImageDisplayContainerLayout.addWidget(ButtonRankNextCoordImg, 2, 7)
+        
+#        ButtonRankNextCoordImg = QPushButton('Move here', self)
+#        ButtonRankNextCoordImg.setObjectName('Startbutton')
+##        ButtonRankNextCoordImg.clicked.connect(lambda: self.PopNextTopCells('next'))
+#        ImageDisplayContainerLayout.addWidget(ButtonRankNextCoordImg, 3, 7)
         
         self.ConsoleTextDisplay = QTextEdit()
         self.ConsoleTextDisplay.setFontItalic(True)
         self.ConsoleTextDisplay.setPlaceholderText('Notice board from console.')
         self.ConsoleTextDisplay.setMaximumHeight(200)
-        ImageDisplayContainerLayout.addWidget(self.ConsoleTextDisplay, 3, 6, 2, 2)
+        ImageDisplayContainerLayout.addWidget(self.ConsoleTextDisplay, 4, 6, 5, 2)
         
         
         ImageDisplayContainer.setLayout(ImageDisplayContainerLayout)
         ImageDisplayContainer.setMinimumHeight(400)
-        ImageDisplayContainer.setMinimumWidth(600)
+        ImageDisplayContainer.setMinimumWidth(550)
+
+    #--------------------------------------------------------------------------------------------------------------------------------------------
         #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for Selection settings Container---------------------------------------
+        #-----------------------------------------------------------GUI for tool widgets-------------------------------------------------------
         #**************************************************************************************************************************************
-        SelectionsettingContainer = QGroupBox("Selection settings")
-        SelectionsettingLayout = QGridLayout()
+        ToolWidgetsContainer = QGroupBox('Tool widgets')
+        ToolWidgetsLayout = QGridLayout()
         
-        self.selec_num_box = QSpinBox(self)
-        self.selec_num_box.setMaximum(2000)
-        self.selec_num_box.setValue(10)
-        self.selec_num_box.setSingleStep(1)
-        SelectionsettingLayout.addWidget(self.selec_num_box, 0, 1)
-        SelectionsettingLayout.addWidget(QLabel("Winners number:"), 0, 0)
+        self.OpenPMTWidgetButton = QPushButton('PMT', self)
+        ToolWidgetsLayout.addWidget(self.OpenPMTWidgetButton, 0, 0)
+        self.OpenPMTWidgetButton.clicked.connect(self.openPMTWidget)   
         
-        self.ComBoxSelectionFactor_1 = QComboBox()
-        self.ComBoxSelectionFactor_1.addItems(['Mean intensity in contour weight','Contour soma ratio weight','Change weight'])
-        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_1, 0, 2)
+        self.OpenAOTFWidgetButton = QPushButton('AOTF', self)
+        ToolWidgetsLayout.addWidget(self.OpenAOTFWidgetButton, 0, 1)
+        self.OpenAOTFWidgetButton.clicked.connect(self.openAOTFWidget)      
         
-        self.WeightBoxSelectionFactor_1 = QDoubleSpinBox(self)
-        self.WeightBoxSelectionFactor_1.setDecimals(4)
-        self.WeightBoxSelectionFactor_1.setMinimum(0)
-        self.WeightBoxSelectionFactor_1.setMaximum(1)
-        self.WeightBoxSelectionFactor_1.setValue(0.5)
-        self.WeightBoxSelectionFactor_1.setSingleStep(0.1)  
-        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_1, 0, 3)
+        self.OpenFilterSliderWidgetButton = QPushButton('FilterSlider', self)
+        ToolWidgetsLayout.addWidget(self.OpenFilterSliderWidgetButton, 1, 0)
+        self.OpenFilterSliderWidgetButton.clicked.connect(self.openFilterSliderWidget)
         
-        self.ComBoxSelectionFactor_2 = QComboBox()
-        self.ComBoxSelectionFactor_2.addItems(['Contour soma ratio weight', 'Mean intensity in contour weight','Change weight'])
-        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_2, 0, 4)
+        self.OpenInsightWidgetButton = QPushButton('Insight X3', self)
+        ToolWidgetsLayout.addWidget(self.OpenInsightWidgetButton, 1, 1)
+        self.OpenInsightWidgetButton.clicked.connect(self.openInsightWidget)        
         
-        self.WeightBoxSelectionFactor_2 = QDoubleSpinBox(self)
-        self.WeightBoxSelectionFactor_2.setDecimals(4)
-        self.WeightBoxSelectionFactor_2.setMinimum(0)
-        self.WeightBoxSelectionFactor_2.setMaximum(1)
-        self.WeightBoxSelectionFactor_2.setValue(0.5)
-        self.WeightBoxSelectionFactor_2.setSingleStep(0.1)  
-        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_2, 0, 5)
-        
-        self.ComBoxSelectionFactor_3 = QComboBox()
-        self.ComBoxSelectionFactor_3.addItems(['Change weight', 'Mean intensity in contour weight','Contour soma ratio weight'])
-        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_3, 0, 6)
-        
-        self.WeightBoxSelectionFactor_3 = QDoubleSpinBox(self)
-        self.WeightBoxSelectionFactor_3.setDecimals(4)
-        self.WeightBoxSelectionFactor_3.setMinimum(0)
-        self.WeightBoxSelectionFactor_3.setMaximum(1)
-        self.WeightBoxSelectionFactor_3.setValue(0.0)
-        self.WeightBoxSelectionFactor_3.setSingleStep(0.1)  
-        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_3, 0, 7)
-        
-        SelectionsettingContainer.setLayout(SelectionsettingLayout)
+        ToolWidgetsContainer.setLayout(ToolWidgetsLayout)
 
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for Image processing settings------------------------------------------
         #**************************************************************************************************************************************
-        ImageProcessingContainer = QGroupBox("Image processing settings")
+        self.PostProcessTab = QTabWidget()
+        
+        ImageProcessingContainer = QGroupBox()
         IPLayout = QGridLayout()
         
-        self.IPsizetextbox = QComboBox()
-        self.IPsizetextbox.addItems(['200','100'])
+        self.IPsizetextbox = QSpinBox(self)
+        self.IPsizetextbox.setMaximum(2000)
+        self.IPsizetextbox.setValue(800)
+        self.IPsizetextbox.setSingleStep(1)
         IPLayout.addWidget(self.IPsizetextbox, 1, 7)
-        IPLayout.addWidget(QLabel("Smallest size:"), 1, 6)
+        IPLayout.addWidget(QLabel("Cell smallest size:"), 1, 6)
         
         self.opening_factorBox = QSpinBox(self)
         self.opening_factorBox.setMaximum(2000)
@@ -286,7 +274,7 @@ class Mainbody(QWidget):
         
         self.closing_factorBox = QSpinBox(self)
         self.closing_factorBox.setMaximum(2000)
-        self.closing_factorBox.setValue(2)
+        self.closing_factorBox.setValue(3)
         self.closing_factorBox.setSingleStep(1)
         IPLayout.addWidget(self.closing_factorBox, 2, 7)
         IPLayout.addWidget(QLabel("Mask closing factor:"), 2, 6)   
@@ -300,12 +288,12 @@ class Mainbody(QWidget):
         
         self.contour_dilation_box = QSpinBox(self)
         self.contour_dilation_box.setMaximum(2000)
-        self.contour_dilation_box.setValue(10)
+        self.contour_dilation_box.setValue(11)
         self.contour_dilation_box.setSingleStep(1)
         IPLayout.addWidget(self.contour_dilation_box, 1, 3)
         IPLayout.addWidget(QLabel("Contour thickness:"), 1, 2)
         
-        IPLayout.addWidget(QLabel("Threshold-contour::"), 1, 4)
+        IPLayout.addWidget(QLabel("Threshold-contour:"), 1, 4)
         self.find_contour_thres_box = QDoubleSpinBox(self)
         self.find_contour_thres_box.setDecimals(4)
         self.find_contour_thres_box.setMinimum(-10)
@@ -323,13 +311,149 @@ class Mainbody(QWidget):
         
         self.cellclosing_factorBox = QSpinBox(self)
         self.cellclosing_factorBox.setMaximum(2000)
-        self.cellclosing_factorBox.setValue(5)
+        self.cellclosing_factorBox.setValue(2)
         self.cellclosing_factorBox.setSingleStep(1)
         IPLayout.addWidget(self.cellclosing_factorBox, 2, 3)
         IPLayout.addWidget(QLabel("Cell closing factor:"), 2, 2)
         
         ImageProcessingContainer.setLayout(IPLayout)
         
+        LoadSettingContainer = QGroupBox()
+        LoadSettingLayout = QGridLayout()
+        
+        self.FilepathSwitchBox = QComboBox()
+        self.FilepathSwitchBox.addItems(['Tag', 'Lib','All'])
+        LoadSettingLayout.addWidget(self.FilepathSwitchBox, 0, 0)
+        
+        self.AnalysisRoundBox = QSpinBox(self)
+        self.AnalysisRoundBox.setMaximum(2000)
+        self.AnalysisRoundBox.setValue(1)
+        self.AnalysisRoundBox.setSingleStep(1)
+        LoadSettingLayout.addWidget(self.AnalysisRoundBox, 0, 2)
+        
+        self.AddAnalysisRoundButton = QtWidgets.QPushButton('Add Round:')
+        self.AddAnalysisRoundButton.clicked.connect(self.SetAnalysisRound)
+        LoadSettingLayout.addWidget(self.AddAnalysisRoundButton, 0, 1)
+        
+        self.datasavedirectorytextbox = QLineEdit(self)
+        self.datasavedirectorytextbox.setPlaceholderText('Data directory')
+        LoadSettingLayout.addWidget(self.datasavedirectorytextbox, 0, 3, 1, 3)
+        
+        self.toolButtonOpenDialog = QtWidgets.QPushButton('Set path')
+        self.toolButtonOpenDialog.clicked.connect(self.SetAnalysisPath)
+        LoadSettingLayout.addWidget(self.toolButtonOpenDialog, 0, 6)
+        
+        self.ClearAnalysisInforButton = QtWidgets.QPushButton('Clear infor')
+        self.ClearAnalysisInforButton.clicked.connect(self.ClearAnalysisInfor)
+        LoadSettingLayout.addWidget(self.ClearAnalysisInforButton, 0, 7)        
+
+        LoadSettingContainer.setLayout(LoadSettingLayout)
+        
+        #**************************************************************************************************************************************
+        #-----------------------------------------------------------GUI for Selection settings Container---------------------------------------
+        #**************************************************************************************************************************************
+        SelectionsettingTab = QWidget()
+        SelectionsettingTab.layout = QGridLayout()
+        
+        self.SeleParaBox = QComboBox()
+        self.SeleParaBox.addItems(['Mean intensity divided by tag/Contour soma ratio'])
+        SelectionsettingTab.layout.addWidget(self.SeleParaBox, 0, 2)
+        SelectionsettingTab.layout.addWidget(QLabel('Scatter axes'), 0, 1)
+        
+        SelectionsettingTab.layout.addWidget(QLabel("Intensity threshold:"), 1, 0)
+        self.SelectionMeanInten_thres_box = QDoubleSpinBox(self)
+        self.SelectionMeanInten_thres_box.setDecimals(4)
+        self.SelectionMeanInten_thres_box.setMinimum(0)
+        self.SelectionMeanInten_thres_box.setMaximum(10)
+        self.SelectionMeanInten_thres_box.setValue(0.150)
+        self.SelectionMeanInten_thres_box.setSingleStep(0.0001)  
+        SelectionsettingTab.layout.addWidget(self.SelectionMeanInten_thres_box, 1, 1)    
+        
+        self.AnalysisTypeSwitchBox = QComboBox()
+        self.AnalysisTypeSwitchBox.addItems(['Brightness screening', 'Lib'])
+        SelectionsettingTab.layout.addWidget(self.AnalysisTypeSwitchBox, 0, 0)
+        
+        ExecuteAnalysisButton = QPushButton('Load images', self)
+#        ExecuteAnalysisButton.setObjectName('Startbutton')
+        ExecuteAnalysisButton.clicked.connect(lambda: self.StartScreeningAnalysisThread())
+        SelectionsettingTab.layout.addWidget(ExecuteAnalysisButton, 1, 2)
+        
+        UpdateProcessTab = QTabWidget()
+        UpdateProcessTab.layout = QGridLayout()
+        
+        UpdateProcessTab_1 = QWidget()
+        UpdateProcessTab_1.layout = QGridLayout()
+        
+        UpdateProcessTab_1.layout.addWidget(QLabel("Selection boundary:"), 0, 0)
+        
+        self.Selection_boundaryBox = QComboBox()
+        self.Selection_boundaryBox.addItems(['Circular radius', 'Rank'])
+        UpdateProcessTab_1.layout.addWidget(self.Selection_boundaryBox, 0, 1)
+        
+        self.AnalysisCirclePercentBox = QSpinBox(self)
+        self.AnalysisCirclePercentBox.setMaximum(100)
+        self.AnalysisCirclePercentBox.setValue(50)
+        self.AnalysisCirclePercentBox.setSingleStep(1)
+        UpdateProcessTab_1.layout.addWidget(self.AnalysisCirclePercentBox, 0, 3)
+        UpdateProcessTab_1.layout.addWidget(QLabel("Percentage(%):"), 0, 2)
+        
+        UpdateScattersButton = QtWidgets.QPushButton('Update scatters')
+        UpdateScattersButton.clicked.connect(self.UpdateSelectionScatter)
+        UpdateProcessTab_1.layout.addWidget(UpdateScattersButton, 0, 4)   
+        
+        UpdateProcessTab_1.setLayout(UpdateProcessTab_1.layout)
+        UpdateProcessTab.addTab(UpdateProcessTab_1,"Normalized distance") 
+        SelectionsettingTab.layout.addWidget(UpdateProcessTab, 0, 3, 2, 4)  
+#        self.selec_num_box = QSpinBox(self)
+#        self.selec_num_box.setMaximum(2000)
+#        self.selec_num_box.setMinimum(1)
+#        self.selec_num_box.setValue(20)
+#        self.selec_num_box.setSingleStep(1)
+#        SelectionsettingLayout.addWidget(self.selec_num_box, 1, 1)
+#        SelectionsettingLayout.addWidget(QLabel("Winners number:"), 1, 0)
+#        
+#        self.ComBoxSelectionFactor_1 = QComboBox()
+#        self.ComBoxSelectionFactor_1.addItems(['Mean intensity in contour weight','Contour soma ratio weight','Change weight'])
+#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_1, 1, 2)
+#        
+#        self.WeightBoxSelectionFactor_1 = QDoubleSpinBox(self)
+#        self.WeightBoxSelectionFactor_1.setDecimals(4)
+#        self.WeightBoxSelectionFactor_1.setMinimum(0)
+#        self.WeightBoxSelectionFactor_1.setMaximum(1)
+#        self.WeightBoxSelectionFactor_1.setValue(0.5)
+#        self.WeightBoxSelectionFactor_1.setSingleStep(0.1)  
+#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_1, 1, 3)
+#        
+#        self.ComBoxSelectionFactor_2 = QComboBox()
+#        self.ComBoxSelectionFactor_2.addItems(['Contour soma ratio weight', 'Mean intensity in contour weight','Change weight'])
+#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_2, 1, 4)
+#        
+#        self.WeightBoxSelectionFactor_2 = QDoubleSpinBox(self)
+#        self.WeightBoxSelectionFactor_2.setDecimals(4)
+#        self.WeightBoxSelectionFactor_2.setMinimum(0)
+#        self.WeightBoxSelectionFactor_2.setMaximum(1)
+#        self.WeightBoxSelectionFactor_2.setValue(0.5)
+#        self.WeightBoxSelectionFactor_2.setSingleStep(0.1)  
+#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_2, 1, 5)
+#        
+#        self.ComBoxSelectionFactor_3 = QComboBox()
+#        self.ComBoxSelectionFactor_3.addItems(['Change weight', 'Mean intensity in contour weight','Contour soma ratio weight'])
+#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_3, 1, 6)
+#        
+#        self.WeightBoxSelectionFactor_3 = QDoubleSpinBox(self)
+#        self.WeightBoxSelectionFactor_3.setDecimals(4)
+#        self.WeightBoxSelectionFactor_3.setMinimum(0)
+#        self.WeightBoxSelectionFactor_3.setMaximum(1)
+#        self.WeightBoxSelectionFactor_3.setValue(0.0)
+#        self.WeightBoxSelectionFactor_3.setSingleStep(0.1)  
+#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_3, 1, 7)
+        
+        SelectionsettingTab.setLayout(SelectionsettingTab.layout)
+        
+        self.PostProcessTab.addTab(SelectionsettingTab,"Analysis selection")        
+        self.PostProcessTab.addTab(LoadSettingContainer,"Loading settings")
+        self.PostProcessTab.addTab(ImageProcessingContainer,"Image analysis settings")
+
         # ==========================================================================================================================================================
         #         #**************************************************************************************************************************************
         #         #-----------------------------------------------------------GUI for PiplineContainer---------------------------------------------------
@@ -353,15 +477,17 @@ class Mainbody(QWidget):
         
         ButtonAddRound = QPushButton('Add Round', self)
         ButtonAddRound.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"    
+                                        "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         ButtonDeleteRound = QPushButton('Delete Round', self)
         ButtonDeleteRound.setStyleSheet("QPushButton {color:white;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 
         ButtonClearRound = QPushButton('Clear Rounds', self)
         ButtonClearRound.setStyleSheet("QPushButton {color:white;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 
         PipelineContainerLayout.addWidget(ButtonAddRound, 0, 2)
         ButtonAddRound.clicked.connect(self.AddFreshRound)
@@ -373,23 +499,23 @@ class Mainbody(QWidget):
         PipelineContainerLayout.addWidget(ButtonClearRound, 0, 4)
         ButtonClearRound.clicked.connect(self.ClearRoundQueue)
         
-        self.BefKCLRoundNumBox = QSpinBox(self)
-        self.BefKCLRoundNumBox.setMinimum(1)
-        self.BefKCLRoundNumBox.setMaximum(1000)
-        self.BefKCLRoundNumBox.setValue(1)
-        self.BefKCLRoundNumBox.setSingleStep(1)
-        self.BefKCLRoundNumBox.setMaximumWidth(30)
-        PipelineContainerLayout.addWidget(self.BefKCLRoundNumBox, 0, 7)
-        PipelineContainerLayout.addWidget(QLabel("Bef-Round Num:"), 0, 6)
-
-        self.AftKCLRoundNumBox = QSpinBox(self)
-        self.AftKCLRoundNumBox.setMinimum(1)
-        self.AftKCLRoundNumBox.setMaximum(1000)
-        self.AftKCLRoundNumBox.setValue(3)
-        self.AftKCLRoundNumBox.setSingleStep(1)
-        self.AftKCLRoundNumBox.setMaximumWidth(30)
-        PipelineContainerLayout.addWidget(self.AftKCLRoundNumBox, 0, 9)
-        PipelineContainerLayout.addWidget(QLabel("Aft-Round Num:"), 0, 8)        
+#        self.BefKCLRoundNumBox = QSpinBox(self)
+#        self.BefKCLRoundNumBox.setMinimum(1)
+#        self.BefKCLRoundNumBox.setMaximum(1000)
+#        self.BefKCLRoundNumBox.setValue(1)
+#        self.BefKCLRoundNumBox.setSingleStep(1)
+#        self.BefKCLRoundNumBox.setMaximumWidth(30)
+#        PipelineContainerLayout.addWidget(self.BefKCLRoundNumBox, 0, 7)
+#        PipelineContainerLayout.addWidget(QLabel("Bef-Round Num:"), 0, 6)
+#
+#        self.AftKCLRoundNumBox = QSpinBox(self)
+#        self.AftKCLRoundNumBox.setMinimum(1)
+#        self.AftKCLRoundNumBox.setMaximum(1000)
+#        self.AftKCLRoundNumBox.setValue(3)
+#        self.AftKCLRoundNumBox.setSingleStep(1)
+#        self.AftKCLRoundNumBox.setMaximumWidth(30)
+#        PipelineContainerLayout.addWidget(self.AftKCLRoundNumBox, 0, 9)
+#        PipelineContainerLayout.addWidget(QLabel("Aft-Round Num:"), 0, 8)        
         
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for RoundContainer-----------------------------------------------------
@@ -408,14 +534,17 @@ class Mainbody(QWidget):
         
         ButtonAddWaveform = QPushButton('Add Waveform', self)
         ButtonAddWaveform.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 
         ButtonDeleteWaveform = QPushButton('Delete Waveform', self)
         ButtonDeleteWaveform.setStyleSheet("QPushButton {color:white;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         ButtonClearWaveform = QPushButton('Clear Waveforms', self)
         ButtonClearWaveform.setStyleSheet("QPushButton {color:white;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
 
         RoundContainerLayout.addWidget(ButtonAddWaveform, 0, 3)
         RoundContainerLayout.addWidget(ButtonDeleteWaveform, 0, 4)
@@ -428,7 +557,7 @@ class Mainbody(QWidget):
         self.Waveformer_widget_instance.WaveformPackage.connect(self.UpdateWaveformerSignal)
         self.Waveformer_widget_instance.GalvoScanInfor.connect(self.UpdateWaveformerGalvoInfor)
 
-        RoundContainerLayout.addWidget(self.Waveformer_widget_instance, 2, 0, 2, 6)
+        RoundContainerLayout.addWidget(self.Waveformer_widget_instance, 2, 0, 2, 9)
         RoundContainer.setLayout(RoundContainerLayout)
         
         PipelineContainerLayout.addWidget(RoundContainer, 3, 0, 4, 10)       
@@ -442,28 +571,28 @@ class Mainbody(QWidget):
         
         self.ScanStartRowIndexTextbox = QSpinBox(self)
         self.ScanStartRowIndexTextbox.setMinimum(-20000)
-        self.ScanStartRowIndexTextbox.setMaximum(20000)
+        self.ScanStartRowIndexTextbox.setMaximum(100000)
         self.ScanStartRowIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.ScanStartRowIndexTextbox, 0, 1)
         ScanSettingLayout.addWidget(QLabel("Start index-row:"), 0, 0)
       
         self.ScanEndRowIndexTextbox = QSpinBox(self)
         self.ScanEndRowIndexTextbox.setMinimum(-20000)
-        self.ScanEndRowIndexTextbox.setMaximum(20000)
+        self.ScanEndRowIndexTextbox.setMaximum(100000)
         self.ScanEndRowIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.ScanEndRowIndexTextbox, 0, 5)
         ScanSettingLayout.addWidget(QLabel("End index-row:"), 0, 4)
         
         self.ScanStartColumnIndexTextbox = QSpinBox(self)
         self.ScanStartColumnIndexTextbox.setMinimum(-20000)
-        self.ScanStartColumnIndexTextbox.setMaximum(20000)
+        self.ScanStartColumnIndexTextbox.setMaximum(100000)
         self.ScanStartColumnIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.ScanStartColumnIndexTextbox, 0, 3)
         ScanSettingLayout.addWidget(QLabel("Start index-column:"), 0, 2)   
         
         self.ScanEndColumnIndexTextbox = QSpinBox(self)
         self.ScanEndColumnIndexTextbox.setMinimum(-20000)
-        self.ScanEndColumnIndexTextbox.setMaximum(20000)
+        self.ScanEndColumnIndexTextbox.setMaximum(100000)
         self.ScanEndColumnIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.ScanEndColumnIndexTextbox, 0, 7)
         ScanSettingLayout.addWidget(QLabel("End index-column:"), 0, 6)      
@@ -495,14 +624,18 @@ class Mainbody(QWidget):
         ScanContainer.setLayout(ScanSettingLayout)
         
         #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for StageScanContainer-------------------------------------------------
+        #-----------------------------------------------------------GUI for Laser/filter-------------------------------------------------
         #**************************************************************************************************************************************  
         TwoPLaserContainer = QGroupBox()        
         TwoPLaserSettingLayout = QGridLayout() #Layout manager
         
-        self.TwoPLaserCheckbox = QCheckBox("Two-photon control")
-        self.TwoPLaserCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
-        TwoPLaserSettingLayout.addWidget(self.TwoPLaserCheckbox, 0, 0)
+        self.TwoPLaserShutterCheckbox = QCheckBox("Insight Shutter event")
+        self.TwoPLaserShutterCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
+        TwoPLaserSettingLayout.addWidget(self.TwoPLaserShutterCheckbox, 0, 0)
+        
+        self.TwoPLaserWavelengthCheckbox = QCheckBox("Insight Wavelength event")
+        self.TwoPLaserWavelengthCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
+        TwoPLaserSettingLayout.addWidget(self.TwoPLaserWavelengthCheckbox, 1, 0)        
         
         self.TwoPLaserWavelengthbox = QSpinBox(self)
         self.TwoPLaserWavelengthbox.setMinimum(680)
@@ -510,33 +643,40 @@ class Mainbody(QWidget):
         self.TwoPLaserWavelengthbox.setSingleStep(100)
         self.TwoPLaserWavelengthbox.setValue(1280)
         TwoPLaserSettingLayout.addWidget(self.TwoPLaserWavelengthbox, 1, 1)
-        TwoPLaserSettingLayout.addWidget(QLabel("Wavelength:"), 1, 0)
         
         self.TwoPLaserShutterCombox = QComboBox()
-        self.TwoPLaserShutterCombox.addItems(['Shutter Open', 'Shutter Close'])
+        self.TwoPLaserShutterCombox.addItems(['Open', 'Close'])
         TwoPLaserSettingLayout.addWidget(self.TwoPLaserShutterCombox, 0, 1)
+        
+        ButtonAddInsightEvent = QPushButton('Add Insight event', self)
+        TwoPLaserSettingLayout.addWidget(ButtonAddInsightEvent, 0, 2)
+        ButtonAddInsightEvent.clicked.connect(self.AddInsightEvent)
+        
+        ButtonDelInsightEvent = QPushButton('Del Insight event', self)
+        TwoPLaserSettingLayout.addWidget(ButtonDelInsightEvent, 1, 2) 
+        ButtonDelInsightEvent.clicked.connect(self.DelInsightEvent)
         
         #--------filter------------
         NDfilterlabel = QLabel("ND filter:")
-        TwoPLaserSettingLayout.addWidget(NDfilterlabel, 0, 2)
+        TwoPLaserSettingLayout.addWidget(NDfilterlabel, 0, 3)
         NDfilterlabel.setAlignment(Qt.AlignRight)
         self.NDfilterCombox = QComboBox()
         self.NDfilterCombox.addItems(['1', '2', '3', '0.5'])
-        TwoPLaserSettingLayout.addWidget(self.NDfilterCombox, 0, 3)
+        TwoPLaserSettingLayout.addWidget(self.NDfilterCombox, 0, 4)
         
         Emifilterlabel = QLabel("Emission filter:")
-        TwoPLaserSettingLayout.addWidget(Emifilterlabel, 1, 2)
+        TwoPLaserSettingLayout.addWidget(Emifilterlabel, 1, 3)
         Emifilterlabel.setAlignment(Qt.AlignRight)
         self.EmisfilterCombox = QComboBox()
-        self.EmisfilterCombox.addItems(['662~800', '2', '3', '0.5'])
-        TwoPLaserSettingLayout.addWidget(self.EmisfilterCombox, 1, 3)
+        self.EmisfilterCombox.addItems(['Arch', 'eGFP', 'Citrine'])
+        TwoPLaserSettingLayout.addWidget(self.EmisfilterCombox, 1, 4)
         
         ButtonAddFilterEvent = QPushButton('Add filter event', self)
-        TwoPLaserSettingLayout.addWidget(ButtonAddFilterEvent, 0, 4)
+        TwoPLaserSettingLayout.addWidget(ButtonAddFilterEvent, 0, 5)
         ButtonAddFilterEvent.clicked.connect(self.AddFilterEvent)
         
         ButtonDelFilterEvent = QPushButton('Del filter event', self)
-        TwoPLaserSettingLayout.addWidget(ButtonDelFilterEvent, 0, 5) 
+        TwoPLaserSettingLayout.addWidget(ButtonDelFilterEvent, 1, 5) 
         ButtonDelFilterEvent.clicked.connect(self.DelFilterEvent)
         
         TwoPLaserContainer.setLayout(TwoPLaserSettingLayout)
@@ -551,15 +691,22 @@ class Mainbody(QWidget):
         
         PipelineContainer.setLayout(PipelineContainerLayout)
         
-        self.layout.addWidget(GeneralSettingContainer, 1, 0, 1, 2)
-        self.layout.addWidget(FocusCorrectionContainer, 2, 0)
-        self.layout.addWidget(ImageDisplayContainer, 2, 1)
-        self.layout.addWidget(SelectionsettingContainer, 3, 0, 1, 2)
-        self.layout.addWidget(ImageProcessingContainer, 4, 0, 1, 2)
-        self.layout.addWidget(PipelineContainer, 5, 0, 1, 2)
+        self.layout.addWidget(GeneralSettingContainer, 1, 0, 1, 4)
+        self.layout.addWidget(FocusCorrectionContainer, 2, 0, 1, 2)
+        self.layout.addWidget(ImageDisplayContainer, 2, 2, 1, 2)
+        self.layout.addWidget(ToolWidgetsContainer, 4, 0, 1, 1)
+        self.layout.addWidget(self.PostProcessTab, 4, 1, 1, 3)
+        self.layout.addWidget(PipelineContainer, 5, 0, 1, 4)
         self.setLayout(self.layout)
         
-        #------------------------------------------------------------Waveform package functions--------------------------------------------------------------------------        
+    """
+    # =============================================================================
+    #     FUNCTIONS FOR EXECUTION
+    # =============================================================================
+    """
+    # =============================================================================
+    # ------------------------------------------------------------Waveform package functions--------------------------------------------------------------------------        
+    # =============================================================================
     def UpdateWaveformerSignal(self, WaveformPackage):
         self.FreshWaveformPackage = WaveformPackage # Capture the newest generated waveform tuple signal from Waveformer.
     def UpdateWaveformerGalvoInfor(self, GalvoInfor):
@@ -585,7 +732,9 @@ class Mainbody(QWidget):
         self.WaveformQueueDict = {}
         self.WaveformQueueDict_GalvoInfor = {}
     
-    #--------------------------------------------------------------Round package functions------------------------------------------------------------------------        
+    # =============================================================================
+    #     #--------------------------------------------------------------Round package functions------------------------------------------------------------------------        
+    # =============================================================================
     def AddFreshRound(self):
         CurrentRoundSequence = self.RoundOrderBox.value()
         
@@ -602,13 +751,15 @@ class Mainbody(QWidget):
         
         self.normalOutputWritten('Round{} added.\n'.format(CurrentRoundSequence))
         print('Round added.')
-        
+    
+    #-----------------------Configure filter event-----------------------------
     def AddFilterEvent(self):
         CurrentRoundSequence = self.RoundOrderBox.value()
 
         self.RoundQueueDict['FilterEvents'].append('Round_{}_ND_ToPos_{}'.format(CurrentRoundSequence, self.NDfilterCombox.currentText()))
         self.RoundQueueDict['FilterEvents'].append('Round_{}_EM_ToPos_{}'.format(CurrentRoundSequence, self.EmisfilterCombox.currentText()))
         print(self.RoundQueueDict['FilterEvents'])
+        self.normalOutputWritten(str(self.RoundQueueDict['FilterEvents'])+'\n')
         
     def DelFilterEvent(self):
         CurrentRoundSequence = self.RoundOrderBox.value()
@@ -617,6 +768,28 @@ class Mainbody(QWidget):
             self.RoundQueueDict['FilterEvents'].remove('Round_{}_ND_ToPos_{}'.format(CurrentRoundSequence, self.NDfilterCombox.currentText()))
             self.RoundQueueDict['FilterEvents'].remove('Round_{}_EM_ToPos_{}'.format(CurrentRoundSequence, self.EmisfilterCombox.currentText()))
         print(self.RoundQueueDict['FilterEvents'])
+        self.normalOutputWritten(str(self.RoundQueueDict['FilterEvents'])+'\n')
+        
+    #-----------------------Configure insight event-----------------------------
+    def AddInsightEvent(self):
+        CurrentRoundSequence = self.RoundOrderBox.value()
+        
+        if self.TwoPLaserShutterCheckbox.isChecked():
+            self.RoundQueueDict['InsightEvents'].append('Round_{}_Shutter_{}'.format(CurrentRoundSequence, self.TwoPLaserShutterCombox.currentText()))
+        if self.TwoPLaserWavelengthCheckbox.isChecked():
+            self.RoundQueueDict['InsightEvents'].append('Round_{}_WavelengthTo_{}'.format(CurrentRoundSequence, self.TwoPLaserWavelengthbox.value()))
+        print(self.RoundQueueDict['InsightEvents'])
+        self.normalOutputWritten(str(self.RoundQueueDict['InsightEvents'])+'\n')
+        
+    def DelInsightEvent(self):
+        CurrentRoundSequence = self.RoundOrderBox.value()
+        
+        if self.TwoPLaserShutterCheckbox.isChecked():
+            self.RoundQueueDict['InsightEvents'].remove('Round_{}_Shutter_{}'.format(CurrentRoundSequence, self.TwoPLaserShutterCombox.currentText()))
+        if self.TwoPLaserWavelengthCheckbox.isChecked():
+            self.RoundQueueDict['InsightEvents'].remove('Round_{}_WavelengthTo_{}'.format(CurrentRoundSequence, self.TwoPLaserWavelengthbox.value()))
+        print(self.RoundQueueDict['InsightEvents'])
+        self.normalOutputWritten(str(self.RoundQueueDict['InsightEvents'])+'\n')
         
     def GenerateScanCoords(self):
         self.CoordContainer = np.array([])
@@ -654,6 +827,8 @@ class Mainbody(QWidget):
     def ClearRoundQueue(self):
         self.WaveformQueueDict = {}
         self.RoundQueueDict = {}
+        self.RoundQueueDict['InsightEvents'] = []
+        self.RoundQueueDict['FilterEvents'] = []
         self.RoundCoordsDict = {}
         self.WaveformQueueDict_GalvoInfor = {}
         self.GeneralSettingDict = {}
@@ -668,38 +843,38 @@ class Mainbody(QWidget):
     # =============================================================================
     """
     def ConfigGeneralSettings(self):
-        selectnum = int(self.selec_num_box.value())
-        if self.ComBoxSelectionFactor_1.currentText() == 'Mean intensity in contour weight':
-            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_1.value()
-        elif self.ComBoxSelectionFactor_1.currentText() == 'Contour soma ratio weight':
-            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_1.value()
-        elif self.ComBoxSelectionFactor_1.currentText() == 'Change weight':
-            ChangeWeight = self.WeightBoxSelectionFactor_1.value()
-            
-        if self.ComBoxSelectionFactor_2.currentText() == 'Mean intensity in contour weight':
-            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_2.value()
-        elif self.ComBoxSelectionFactor_2.currentText() == 'Contour soma ratio weight':
-            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_2.value()
-        elif self.ComBoxSelectionFactor_2.currentText() == 'Change weight':
-            ChangeWeight = self.WeightBoxSelectionFactor_2.value()
-            
-        if self.ComBoxSelectionFactor_3.currentText() == 'Mean intensity in contour weight':
-            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_3.value()
-        elif self.ComBoxSelectionFactor_3.currentText() == 'Contour soma ratio weight':
-            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_3.value()
-        elif self.ComBoxSelectionFactor_3.currentText() == 'Change weight':
-            ChangeWeight = self.WeightBoxSelectionFactor_3.value()
-        
-        BefRoundNum = int(self.BefKCLRoundNumBox.value())        
-        AftRoundNum = int(self.AftKCLRoundNumBox.value())        
-        smallestsize = int(self.IPsizetextbox.currentText())            
-        openingfactor = int(self.opening_factorBox.value())
-        closingfactor = int(self.closing_factorBox.value())
-        cellopeningfactor = int(self.cellopening_factorBox.value())
-        cellclosingfactor = int(self.cellclosing_factorBox.value())
-        binary_adaptive_block_size = int(self.binary_adaptive_block_sizeBox.value())
-        self_findcontour_thres = float(self.find_contour_thres_box.value())
-        contour_dilation = int(self.contour_dilation_box.value())
+#        selectnum = self.selec_num_box.value()
+#        if self.ComBoxSelectionFactor_1.currentText() == 'Mean intensity in contour weight':
+#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_1.value()
+#        elif self.ComBoxSelectionFactor_1.currentText() == 'Contour soma ratio weight':
+#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_1.value()
+#        elif self.ComBoxSelectionFactor_1.currentText() == 'Change weight':
+#            ChangeWeight = self.WeightBoxSelectionFactor_1.value()
+#            
+#        if self.ComBoxSelectionFactor_2.currentText() == 'Mean intensity in contour weight':
+#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_2.value()
+#        elif self.ComBoxSelectionFactor_2.currentText() == 'Contour soma ratio weight':
+#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_2.value()
+#        elif self.ComBoxSelectionFactor_2.currentText() == 'Change weight':
+#            ChangeWeight = self.WeightBoxSelectionFactor_2.value()
+#            
+#        if self.ComBoxSelectionFactor_3.currentText() == 'Mean intensity in contour weight':
+#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_3.value()
+#        elif self.ComBoxSelectionFactor_3.currentText() == 'Contour soma ratio weight':
+#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_3.value()
+#        elif self.ComBoxSelectionFactor_3.currentText() == 'Change weight':
+#            ChangeWeight = self.WeightBoxSelectionFactor_3.value()
+#        
+#        BefRoundNum = int(self.BefKCLRoundNumBox.value())        
+#        AftRoundNum = int(self.AftKCLRoundNumBox.value())        
+#        smallestsize = int(self.IPsizetextbox.value())            
+#        openingfactor = int(self.opening_factorBox.value())
+#        closingfactor = int(self.closing_factorBox.value())
+#        cellopeningfactor = int(self.cellopening_factorBox.value())
+#        cellclosingfactor = int(self.cellclosing_factorBox.value())
+#        binary_adaptive_block_size = int(self.binary_adaptive_block_sizeBox.value())
+#        self_findcontour_thres = float(self.find_contour_thres_box.value())
+#        contour_dilation = int(self.contour_dilation_box.value())
         savedirectory = self.savedirectory
         
         #--------------------------------------------------------Generate the focus correction matrix-----------------------------------------------------------
@@ -806,11 +981,14 @@ class Mainbody(QWidget):
             self.FocusCorrectionMatrixDict = []
         
 #        print(self.FocusCorrectionMatrixDict.keys())
-        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 'AftRoundNum', 'smallestsize', 'openingfactor', 'closingfactor', 'cellopeningfactor', 
-                           'cellclosingfactor', 'binary_adaptive_block_size', 'self_findcontour_thres', 'contour_dilation', 'savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
+#        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 'AftRoundNum', 'smallestsize', 'openingfactor', 'closingfactor', 'cellopeningfactor', 
+#                           'cellclosingfactor', 'binary_adaptive_block_size', 'self_findcontour_thres', 'contour_dilation', 'savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
+#        
+#        generallist = [selectnum, MeanIntensityContourWeight, ContourSomaRatioWeight, ChangeWeight, BefRoundNum, AftRoundNum, smallestsize, openingfactor, closingfactor, cellopeningfactor, 
+#                       cellclosingfactor, binary_adaptive_block_size, self_findcontour_thres, contour_dilation, savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
+        generalnamelist = ['savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
         
-        generallist = [selectnum, MeanIntensityContourWeight, ContourSomaRatioWeight, ChangeWeight, BefRoundNum, AftRoundNum, smallestsize, openingfactor, closingfactor, cellopeningfactor, 
-                       cellclosingfactor, binary_adaptive_block_size, self_findcontour_thres, contour_dilation, savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
+        generallist = [savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
         
         for item in range(len(generallist)):
             self.GeneralSettingDict[generalnamelist[item]] = generallist[item]
@@ -819,7 +997,7 @@ class Mainbody(QWidget):
         
         #---------------------------------------------------------------Show general info---------------------------------------------------------------------------------
         self.normalOutputWritten('--------Pipeline general info--------\n')
-        for eachround in range(int(len(self.RoundQueueDict)/2)):
+        for eachround in range(int(len(self.RoundQueueDict)/2-1)):
 
             for eachwaveform in self.RoundQueueDict['RoundPackage_'+str(eachround+1)]:
                 try:
@@ -852,7 +1030,7 @@ class Mainbody(QWidget):
         
         
     def _open_file_dialog(self):
-        self.savedirectory = str(QtWidgets.QFileDialog.getExistingDirectory())
+        self.savedirectory = str(QtWidgets.QFileDialog.getExistingDirectory(directory='M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'))
         self.savedirectorytextbox.setText(self.savedirectory)
         self.saving_prefix = str(self.prefixtextbox.text())
         
@@ -864,14 +1042,11 @@ class Mainbody(QWidget):
     def CaptureFocusDuplicateMethodMatrix(self, FocusDuplicateMethodInfor):
         self.FocusDuplicateMethodInfor = FocusDuplicateMethodInfor
         
-        #**************************************************************************************************************************************
-        #-----------------------------------------------------------Functions for Execution----------------------------------------------------
-        #**************************************************************************************************************************************   
     def ExecutePipeline(self):
         get_ipython().run_line_magic('matplotlib', 'inline') # before start, set spyder back to inline
         
         self.ExecuteThreadInstance = ScanningExecutionThread(self.RoundQueueDict, self.RoundCoordsDict, self.GeneralSettingDict)
-        self.ExecuteThreadInstance.ScanningResult.connect(self.GetDataForShowingRank)
+#        self.ExecuteThreadInstance.ScanningResult.connect(self.GetDataForShowingRank)
         self.ExecuteThreadInstance.start()
         
     def Savepipeline(self):
@@ -900,11 +1075,11 @@ class Mainbody(QWidget):
             
             self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
             self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.MatdisplayFigureTopGuys)
+            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
             self.ShowTopCellsInstance.run()
     #        self.ax = self.ShowTopCellsInstance.gg()
-    #        self.ax = self.MatdisplayFigureTopGuys.add_subplot(111)
-            self.MatdisplayCanvasTopGuys.draw()
+    #        self.ax = self.Matdisplay_Figure.add_subplot(111)
+            self.Matdisplay_Canvas.draw()
 #            if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
             self.popnexttopimgcounter += 1 # Alwasy plus 1 to get it ready for next move.
             
@@ -915,17 +1090,21 @@ class Mainbody(QWidget):
                 
                 self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
                 self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.MatdisplayFigureTopGuys)
+                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
                 self.ShowTopCellsInstance.run()
         #        self.ax = self.ShowTopCellsInstance.gg()
-        #        self.ax = self.MatdisplayFigureTopGuys.add_subplot(111)
-                self.MatdisplayCanvasTopGuys.draw()
+        #        self.ax = self.Matdisplay_Figure.add_subplot(111)
+                self.Matdisplay_Canvas.draw()
                 if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
                     self.popnexttopimgcounter += 1
             else:
                 self.popnexttopimgcounter = 0
         
-    #--------------------------------------------------------Save and load file----------------------------------------------------------------
+    """
+    # =============================================================================
+    #     For save and load file.    
+    # =============================================================================
+    """
     def GetPipelineNPFile(self):
         self.pipelinenpfileName, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Single File', 'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data',"(*.npy)")
         self.LoadPipelineAddressbox.setText(self.pipelinenpfileName)
@@ -1046,7 +1225,7 @@ class Mainbody(QWidget):
         
         #---------------------------------------------------------------Show general info---------------------------------------------------------------------------------
         self.normalOutputWritten('--------Pipeline general info--------\n')
-        for eachround in range(int(len(self.RoundQueueDict)/2)):
+        for eachround in range(int(len(self.RoundQueueDict)/2-1)):
 
             for eachwaveform in self.RoundQueueDict['RoundPackage_'+str(eachround+1)]:
                 try:
@@ -1090,9 +1269,202 @@ class Mainbody(QWidget):
         self.ConsoleTextDisplay.setTextCursor(cursor)
         self.ConsoleTextDisplay.ensureCursorVisible()  
         
+    """
+    # =============================================================================
+    #     FUNCTIONS FOR DATA ANALYSIS AND DISPLAY
+    # =============================================================================
+    """
+    def SetAnalysisPath(self):
+        self.Analysissavedirectory = str(QtWidgets.QFileDialog.getExistingDirectory())
+        self.datasavedirectorytextbox.setText(self.Analysissavedirectory)
+        
+        if self.FilepathSwitchBox.currentText() == 'Tag':
+            self.Tag_folder = self.Analysissavedirectory
+        elif self.FilepathSwitchBox.currentText() == 'Lib':
+            self.Lib_folder = self.Analysissavedirectory     
+        elif self.FilepathSwitchBox.currentText() == 'All':
+            self.Tag_folder = self.Analysissavedirectory
+            self.Lib_folder = self.Analysissavedirectory    
+        
+    def SetAnalysisRound(self):
+
+        if self.FilepathSwitchBox.currentText() == 'Tag':
+            self.Tag_round_infor.append(self.AnalysisRoundBox.value())
+        elif self.FilepathSwitchBox.currentText() == 'Lib':
+            self.Lib_round_infor.append(self.AnalysisRoundBox.value())
+        
+        self.normalOutputWritten('Tag_round_infor: {}\nLib_round_infor: {}\n'.format(str(self.Tag_round_infor), str(self.Lib_round_infor)))
+        
+    def ClearAnalysisInfor(self):
+        self.Tag_folder = None
+        self.Lib_folder = None
+        self.Tag_round_infor = []
+        self.Lib_round_infor = []
+    
+    def StartScreeningAnalysisThread(self):
+        
+        self.ScreeningAnalysis_thread = threading.Thread(target = self.ScreeningAnalysis, daemon = True)
+        self.ScreeningAnalysis_thread.start()  
+    
+    def ScreeningAnalysis(self):
+        # For the brightness screening
+        if self.AnalysisTypeSwitchBox.currentText() == 'Brightness screening':
+
+            self.normalOutputWritten('Start loading images...\n')
+            tag_folder = self.Tag_folder
+            lib_folder = self.Lib_folder
+        
+            tag_round = 'Round{}'.format(self.Tag_round_infor[0])
+            lib_round = 'Round{}'.format(self.Lib_round_infor[0])
+            
+            tagprotein_cell_properties_dict = ProcessImage.TagFluorescenceAnalysis(tag_folder, tag_round)
+            self.normalOutputWritten('tag done...\n')
+            
+            lib_cell_properties_dict = ProcessImage.LibFluorescenceAnalysis(lib_folder, tag_round, lib_round, tagprotein_cell_properties_dict)
+            self.normalOutputWritten('lib done...\n')
+            
+            # Devided by fusion protein brightness.
+            self.lib_cell_properties_dict = ProcessImage.CorrectForFusionProtein(tagprotein_cell_properties_dict, lib_cell_properties_dict, tagprotein_laserpower=1, lib_laserpower=30)
+            
+    def UpdateSelectionScatter(self):
+        lib_cell_properties_dict = self.lib_cell_properties_dict
+        IntensityThreshold = self.SelectionMeanInten_thres_box.value()
+        self.EvaluatingPara_list = str(self.SeleParaBox.currentText()).split("/")
+        
+        self.Matdisplay_Figure.clear()
+        if self.Selection_boundaryBox.currentText() == 'Circular radius':
+            selectionRadiusPercent = self.AnalysisCirclePercentBox.value()/100
+            if len(self.EvaluatingPara_list) == 2:
+                # Organize and add 'ranking' and 'boundingbox' fields to the structured array.
+                Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, IntensityThreshold, self.EvaluatingPara_list[0], self.EvaluatingPara_list[1])
+                
+                self.Overview_LookupBook_filtered = ProcessImage.DistanceSelecting(Overview_LookupBook, selectionRadiusPercent)
+                
+                ax1 = self.Matdisplay_Figure.add_subplot(111)
+                ax1.scatter(Overview_LookupBook[self.EvaluatingPara_list[0]], Overview_LookupBook[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
+                ax1.scatter(self.Overview_LookupBook_filtered[self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.EvaluatingPara_list[1]], s=np.pi*3, c='red', alpha=0.5)
+                ax1.set_xlabel(self.EvaluatingPara_list[0])
+                ax1.set_ylabel(self.EvaluatingPara_list[1])
+                self.Matdisplay_Figure.tight_layout()
+                self.Matdisplay_Canvas.draw()
+                
+                # Some numbers ready for tracing back
+                self.TotalCoordsNum = len(self.Overview_LookupBook_filtered)
+                self.normalOutputWritten('---- Total cells selected: {}----\n'.format(self.TotalCoordsNum))
+                
+    def GoThroughTopCells(self, direction):
+        if direction == 'next':
+            if self.popnexttopimgcounter > (self.TotalCoordsNum-1):#Make sure it doesn't go beyond the last coords.
+                self.popnexttopimgcounter -= 1
+            
+            self.CurrentRankCellpProperties = self.Overview_LookupBook_filtered[self.popnexttopimgcounter]
+            
+            #--------------------Show image with cell in box----------------------
+            spec = self.CurrentRankCellpProperties['ID']
+    #        #-------------- readin image---------------
+            lib_imagefilename = os.path.join(self.Lib_folder, spec+'_PMT_0Zmax.tif')
+
+            loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
+            # Retrieve boundingbox information
+            Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
+            minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
+            maxr = int(Each_bounding_box[Each_bounding_box.index('maxr')+4:Each_bounding_box.index('_maxc')])        
+            minc = int(Each_bounding_box[Each_bounding_box.index('minc')+4:Each_bounding_box.index('_maxr')])
+            maxc = int(Each_bounding_box[Each_bounding_box.index('maxc')+4:len(Each_bounding_box)])
+            
+            self.Matdisplay_Figure.clear()
+            ax1 = self.Matdisplay_Figure.add_subplot(111)
+            ax1.imshow(loaded_lib_image_display)#Show the first image
+            #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
+            rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
+            ax1.add_patch(rect)
+            ax1.text(maxc, minr, 'NO_{}'.format(self.popnexttopimgcounter),fontsize=10, color='orange', style='italic')
+            self.Matdisplay_Figure.tight_layout()
+            self.Matdisplay_Canvas.draw()
+            
+            #-------------------Print details of cell of interest----------------
+            self.normalOutputWritten('--------------------No.{} out of {}------------------\n'.format(self.popnexttopimgcounter, self.TotalCoordsNum))
+            self.normalOutputWritten('ID: {}\n{}: {}\n{}: {}\n'.format(spec, self.EvaluatingPara_list[0], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[0]], 4), \
+                                                                     self.EvaluatingPara_list[1], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[1]], 4)))
+            #------------------Stage move----------------------------------------
+            self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
+            self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
+            
+            self.popnexttopimgcounter += 1 # Alwasy plus 1 to get it ready for next move.
+            
+        elif direction == 'previous':
+            self.popnexttopimgcounter -= 2 
+            if self.popnexttopimgcounter >= 0:
+                
+                self.CurrentRankCellpProperties = self.Overview_LookupBook_filtered[self.popnexttopimgcounter]
+                
+                #--------------------Show image with cell in box----------------------
+                spec = self.CurrentRankCellpProperties['ID']
+        #        #-------------- readin image---------------
+                lib_imagefilename = os.path.join(self.Lib_folder, spec+'_PMT_0Zmax.tif')
+    
+                loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
+                # Retrieve boundingbox information
+                Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
+                minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
+                maxr = int(Each_bounding_box[Each_bounding_box.index('maxr')+4:Each_bounding_box.index('_maxc')])        
+                minc = int(Each_bounding_box[Each_bounding_box.index('minc')+4:Each_bounding_box.index('_maxr')])
+                maxc = int(Each_bounding_box[Each_bounding_box.index('maxc')+4:len(Each_bounding_box)])
+                
+                self.Matdisplay_Figure.clear()
+                ax1 = self.Matdisplay_Figure.add_subplot(111)
+                ax1.imshow(loaded_lib_image_display)#Show the first image
+                #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
+                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
+                ax1.add_patch(rect)
+                ax1.text(maxc, minr, 'NO_{}'.format(self.popnexttopimgcounter),fontsize=10, color='orange', style='italic')
+                self.Matdisplay_Figure.tight_layout()
+                self.Matdisplay_Canvas.draw()
+                
+                #-------------------Print details of cell of interest----------------
+                self.normalOutputWritten('--------------------No.{} out of {}------------------\n'.format(self.popnexttopimgcounter, self.TotalCoordsNum))
+                self.normalOutputWritten('ID: {}\n{}: {}\n{}: {}\n'.format(spec, self.EvaluatingPara_list[0], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[0]], 4), \
+                                                                     self.EvaluatingPara_list[1], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[1]], 4)))
+                
+                #------------------Stage move----------------------------------------
+                self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
+                self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
+                
+                if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
+                    self.popnexttopimgcounter += 1
+            else:
+                self.popnexttopimgcounter = 0
+                
+    def ResetRankCoord(self):
+        self.popnexttopimgcounter = 0
+    """
+    # =============================================================================
+    #     FUNCTIONS FOR TOOL WIDGETS
+    # =============================================================================
+    """            
+    def openPMTWidget(self):
+        self.pmtWindow = GalvoWidget.PMTWidget.PMTWidgetUI()
+        self.pmtWindow.show()
+        
+    def openAOTFWidget(self):
+        self.AOTFWindow = NIDAQ.AOTFWidget.AOTFWidgetUI()
+        self.AOTFWindow.show()
+        
+    def openFilterSliderWidget(self):
+        self.FilterSliderWindow = ThorlabsFilterSlider.FilterSliderWidget.FilterSliderWidgetUI()
+        self.FilterSliderWindow.show()
+        
+    def openInsightWidget(self):
+        self.InsightWindow = InsightX3.TwoPhotonLaserUI.InsightWidgetUI()
+        self.InsightWindow.show()
+        
 if __name__ == "__main__":
     def run_app():
         app = QtWidgets.QApplication(sys.argv)
+        QtWidgets.QApplication.setStyle(QStyleFactory.create('Fusion'))
+        stylesheet = '.\Icons\gui_style.qss'
+#        with open(stylesheet,"r") as style:
+#              app.setStyleSheet(style.read())
         mainwin = Mainbody()
         mainwin.show()
         app.exec_()

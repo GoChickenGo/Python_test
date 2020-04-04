@@ -28,9 +28,6 @@ from datetime import datetime
 from PI_ObjectiveMotor.focuser import PIMotor
 from SampleStageControl.Stagemovement_Thread import StagemovementAbsoluteThread
 from scipy import interpolate
-import GalvoWidget.PMTWidget
-import NIDAQ.AOTFWidget
-import ThorlabsFilterSlider.FilterSliderWidget
 
 class FocusMatrixFeeder(QWidget):
     FocusCorrectionFomula = pyqtSignal(object)
@@ -49,28 +46,28 @@ class FocusMatrixFeeder(QWidget):
         
         self.FeederScanStartRowIndexTextbox = QSpinBox(self)
         self.FeederScanStartRowIndexTextbox.setMinimum(-20000)
-        self.FeederScanStartRowIndexTextbox.setMaximum(20000)
+        self.FeederScanStartRowIndexTextbox.setMaximum(10000000)
         self.FeederScanStartRowIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.FeederScanStartRowIndexTextbox, 0, 1)
         ScanSettingLayout.addWidget(QLabel("Start index-row:"), 0, 0)
       
         self.FeederScanEndRowIndexTextbox = QSpinBox(self)
         self.FeederScanEndRowIndexTextbox.setMinimum(-20000)
-        self.FeederScanEndRowIndexTextbox.setMaximum(20000)
+        self.FeederScanEndRowIndexTextbox.setMaximum(10000000)
         self.FeederScanEndRowIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.FeederScanEndRowIndexTextbox, 0, 3)
         ScanSettingLayout.addWidget(QLabel("End index-row:"), 0, 2)
         
         self.FeederScanStartColumnIndexTextbox = QSpinBox(self)
         self.FeederScanStartColumnIndexTextbox.setMinimum(-20000)
-        self.FeederScanStartColumnIndexTextbox.setMaximum(20000)
+        self.FeederScanStartColumnIndexTextbox.setMaximum(10000000)
         self.FeederScanStartColumnIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.FeederScanStartColumnIndexTextbox, 1, 1)
         ScanSettingLayout.addWidget(QLabel("Start index-column:"), 1, 0)   
         
         self.FeederScanEndColumnIndexTextbox = QSpinBox(self)
         self.FeederScanEndColumnIndexTextbox.setMinimum(-20000)
-        self.FeederScanEndColumnIndexTextbox.setMaximum(20000)
+        self.FeederScanEndColumnIndexTextbox.setMaximum(10000000)
         self.FeederScanEndColumnIndexTextbox.setSingleStep(500)
         ScanSettingLayout.addWidget(self.FeederScanEndColumnIndexTextbox, 1, 3)
         ScanSettingLayout.addWidget(QLabel("End index-column:"), 1, 2)      
@@ -112,7 +109,7 @@ class FocusMatrixFeeder(QWidget):
         StageMoveContainerLayout.addWidget(self.StageMoveColumnIndexSpinbox, 0, 3)
         StageMoveContainerLayout.addWidget(QLabel("Column index:"), 0, 2)
         
-        self.StageMoveCoordsButton = QPushButton('Go', self)
+        self.StageMoveCoordsButton = QPushButton('Move here', self)
         StageMoveContainerLayout.addWidget(self.StageMoveCoordsButton, 0, 4)
         self.StageMoveCoordsButton.clicked.connect(self.MoveToDefinedCoords)
         
@@ -178,26 +175,13 @@ class FocusMatrixFeeder(QWidget):
         
         MotorMoveContainer.setLayout(MotorMoveContainerLayout)
         
-        self.layout.addWidget(MotorMoveContainer, 2, 4, 3, 3)
-        
-    #--------------------------------------------------------------------------------------------------------------------------------------------
-        self.OpenPMTWidgetButton = QPushButton('PMT', self)
-        self.layout.addWidget(self.OpenPMTWidgetButton, 4, 0)
-        self.OpenPMTWidgetButton.clicked.connect(self.openPMTWidget)   
-        
-        self.OpenAOTFWidgetButton = QPushButton('AOTF', self)
-        self.layout.addWidget(self.OpenAOTFWidgetButton, 4, 1)
-        self.OpenAOTFWidgetButton.clicked.connect(self.openAOTFWidget)      
-        
-        self.OpenFilterSliderWidgetButton = QPushButton('FilterSlider', self)
-        self.layout.addWidget(self.OpenFilterSliderWidgetButton, 4, 2)
-        self.OpenFilterSliderWidgetButton.clicked.connect(self.openFilterSliderWidget) 
+        self.layout.addWidget(MotorMoveContainer, 2, 4, 4, 3)
     
         self.SetFocusPos4CurrentCoordsButton = QPushButton('Set Focus', self)
         self.SetFocusPos4CurrentCoordsButton.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                    "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
-        self.layout.addWidget(self.SetFocusPos4CurrentCoordsButton, 4, 3)
+        self.layout.addWidget(self.SetFocusPos4CurrentCoordsButton, 4, 0, 1, 2)
         self.SetFocusPos4CurrentCoordsButton.clicked.connect(self.SetFocusPos)
         
 #        self.SetAndMoveNextCoordsButton = QPushButton('Set and Next pos.', self)
@@ -205,11 +189,11 @@ class FocusMatrixFeeder(QWidget):
 #        self.SetAndMoveNextCoordsButton.clicked.connect(self.MoveToNextPos)
 #        self.SetAndMoveNextCoordsButton.clicked.connect(self.SetFocusPos)        
 
-        self.EmitCoordsButton = QPushButton('Emit', self)
+        self.EmitCoordsButton = QPushButton('Finish', self)
         self.EmitCoordsButton.setStyleSheet("QPushButton {color:white;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                           "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
-        self.layout.addWidget(self.EmitCoordsButton, 4, 4)
+        self.layout.addWidget(self.EmitCoordsButton, 4, 3)
         self.EmitCoordsButton.clicked.connect(self.EmitCorrectionMatrix) 
     
     #---------------------------------------------------------------Functions for StageScan------------------------------------------------------
@@ -279,10 +263,10 @@ class FocusMatrixFeeder(QWidget):
             print(self.FocusCalibrationContainer)
     #---------------------------------------------------------------Functions for StageMove------------------------------------------------------    
     def MoveToDefinedCoords(self):
-        self.TargetRowIndex = int(self.StageMoveRowIndexSpinbox.value())
-        self.TargetColIndex = int(self.StageMoveColumnIndexSpinbox.value())
+        self.DefinedTargetRowIndex = int(self.StageMoveRowIndexSpinbox.value())
+        self.DefinedTargetColIndex = int(self.StageMoveColumnIndexSpinbox.value())
         
-        self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
+        self.stage_movement_thread.SetTargetPos(self.DefinedTargetRowIndex, self.DefinedTargetColIndex)
 #        stage_movement_thread.current_position.connect(self.update_stage_current_pos)
         self.stage_movement_thread.start()
         time.sleep(0.5)
@@ -399,21 +383,7 @@ class FocusMatrixFeeder(QWidget):
         self.FocusCorrectionForDuplicateMethod.emit(self.CorrectionForDuplicateMethod)
         print('Duplicate correction emitted.')
 #        print(self.CorrectionForDuplicateMethod[2,:])
-        
-    def openPMTWidget(self):
-        self.pmtWindow = GalvoWidget.PMTWidget.PMTWidgetUI()
-        
-        self.pmtWindow.show()
-        
-    def openAOTFWidget(self):
-        self.AOTFWindow = NIDAQ.AOTFWidget.AOTFWidgetUI()
-        
-        self.AOTFWindow.show()
-        
-    def openFilterSliderWidget(self):
-        self.FilterSliderWindow = ThorlabsFilterSlider.FilterSliderWidget.FilterSliderWidgetUI()
-        
-        self.FilterSliderWindow.show()        
+               
         
 class ConnectObj_Thread(QThread):
 #    videostack_signal = pyqtSignal(np.ndarray)
