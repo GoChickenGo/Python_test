@@ -69,15 +69,6 @@ class WaveformGenerator(QWidget):
         AnalogContainer = QGroupBox("Analog signals")
         self.AnalogLayout = QGridLayout() #self.AnalogLayout manager
         
-        
-        self.button_execute = QPushButton('EXECUTE !', self)
-        self.button_execute.setStyleSheet("QPushButton {color:white;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                          "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        self.AnalogLayout.addWidget(self.button_execute, 3, 3)
-        
-        self.button_execute.clicked.connect(self.execute_tread)   
-        self.button_execute.clicked.connect(self.startProgressBar)
-        
         self.AnalogLayout.addWidget(QLabel('     Executing progress:'), 3, 4)
         self.waveform_progressbar = QProgressBar(self)
         self.waveform_progressbar.setMaximumWidth(250)
@@ -92,12 +83,14 @@ class WaveformGenerator(QWidget):
         
         self.button2 = QPushButton('Add', self)
         self.button2.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                   "QPushButton:hover:!pressed {color:gray;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.AnalogLayout.addWidget(self.button2, 3, 1)
         
         self.button_del_analog = QPushButton('Delete', self)
         self.button_del_analog.setStyleSheet("QPushButton {color:white;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                             "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}") 
+                                             "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                             "QPushButton:hover:!pressed {color:gray;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}") 
         self.AnalogLayout.addWidget(self.button_del_analog, 3, 2)        
         
         
@@ -136,17 +129,26 @@ class WaveformGenerator(QWidget):
 
         self.button_all = QPushButton('Organize waveforms', self)
         self.button_all.setStyleSheet("QPushButton {color:white;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                      "QPushButton:pressed {color:black;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                      "QPushButton:hover:!pressed {color:gray;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.ReadLayout.addWidget(self.button_all, 0, 5)
         self.button_all.clicked.connect(self.show_all)
 
-        self.button_stop_waveforms = QPushButton('Stop', self)
-        self.button_stop_waveforms.setStyleSheet("QPushButton {color:white;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                 "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-        self.ReadLayout.addWidget(self.button_stop_waveforms, 0, 6)
-        self.button_stop_waveforms.clicked.connect(self.stopMeasurement_daqer)        
+        self.button_execute = QPushButton('EXECUTE !', self)
+        self.button_execute.setStyleSheet("QPushButton {color:white;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                          "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                          "QPushButton:hover:!pressed {color:gray;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.ReadLayout.addWidget(self.button_execute, 0, 6)
+        
+        self.button_execute.clicked.connect(self.execute_tread)   
+        self.button_execute.clicked.connect(self.startProgressBar)
+#        self.button_stop_waveforms = QPushButton('Stop', self)
+#        self.button_stop_waveforms.setStyleSheet("QPushButton {color:white;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+#                                                 "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+#        self.ReadLayout.addWidget(self.button_stop_waveforms, 0, 6)
+#        self.button_stop_waveforms.clicked.connect(self.stopMeasurement_daqer)        
                 
-        self.button_clear_canvas = QPushButton('Clear canvas', self)
+        self.button_clear_canvas = QPushButton('Clean canvas', self)
         self.ReadLayout.addWidget(self.button_clear_canvas, 1, 6)
         
         self.button_clear_canvas.clicked.connect(self.clear_canvas)  
@@ -194,7 +196,8 @@ class WaveformGenerator(QWidget):
         
         self.toolButtonOpenDialog = QtWidgets.QPushButton('Saving directory')
         self.toolButtonOpenDialog.setStyleSheet("QPushButton {color:teal;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}"
-                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}")
+                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}"
+                                                "QPushButton:hover:!pressed {color:gray;background-color: pink; border-style: outset;border-radius: 3px;border-width: 2px;font: bold 14px;padding: 1px}")
 
         self.toolButtonOpenDialog.setObjectName("toolButtonOpenDialog")
         self.toolButtonOpenDialog.clicked.connect(self._open_file_dialog)
@@ -588,7 +591,8 @@ class WaveformGenerator(QWidget):
         
         self.button3 = QPushButton('Add', self)
         self.button3.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                   "QPushButton:hover:!pressed {color:gray;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.DigitalLayout.addWidget(self.button3, 0, 1)
         self.button3.clicked.connect(self.chosen_wave_digital)
         #---------------------------------------------------------------------------------------------------------------------------        
@@ -600,7 +604,8 @@ class WaveformGenerator(QWidget):
         
         self.button_del_digital = QPushButton('Delete', self)
         self.button_del_digital.setStyleSheet("QPushButton {color:white;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                              "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                              "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                              "QPushButton:hover:!pressed {color:gray;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
   
         self.DigitalLayout.addWidget(self.button_del_digital, 0, 2)
         

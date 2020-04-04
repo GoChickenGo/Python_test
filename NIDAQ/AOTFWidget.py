@@ -10,7 +10,7 @@ import sys
 sys.path.append('../')
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject
-from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
+from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont, QPainter, QBrush
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
@@ -58,19 +58,8 @@ class AOTFWidgetUI(QWidget):
         self.slider640.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('640AO'))
         self.line640.returnPressed.connect(lambda:self.updatesider(640))
         
-        self.ICON_off_AOTF = "./Icons/AOTF_off.png"
-        self.AOTF_red_iconlabel = QLabel(self)
-        self.AOTF_red_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))
-        self.AOTFcontrolLayout.addWidget(self.AOTF_red_iconlabel, 0, 0)
-        
-        self.switchbutton_640 = QPushButton("640")
-        self.switchbutton_640.setStyleSheet("QPushButton {color:white;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        self.switchbutton_640.setCheckable(True)
-        #self.holdingbutton.toggle()
-        
+        self.switchbutton_640 = MySwitch('ON', 'red', 'OFF', 'maroon', width = 32)
         self.switchbutton_640.clicked.connect(lambda: self.execute_tread_single_sample_digital('640blanking'))
-        self.switchbutton_640.clicked.connect(lambda: self.change_AOTF_icon('640blanking'))
         self.AOTFcontrolLayout.addWidget(self.switchbutton_640, 0, 1)
                 
         self.slider532 = QSlider(Qt.Horizontal)
@@ -85,18 +74,8 @@ class AOTFWidgetUI(QWidget):
         self.slider532.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('532AO'))
         self.line532.returnPressed.connect(lambda:self.updatesider(532))
         
-        self.AOTF_green_iconlabel = QLabel(self)
-        self.AOTF_green_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))
-        self.AOTFcontrolLayout.addWidget(self.AOTF_green_iconlabel, 1, 0)
-        
-        self.switchbutton_532 = QPushButton("532")
-        self.switchbutton_532.setStyleSheet("QPushButton {color:white;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:black;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        self.switchbutton_532.setCheckable(True)
-        #self.holdingbutton.toggle()
-        
+        self.switchbutton_532 = MySwitch('ON', 'green', 'OFF', 'dark olive green', width = 32)
         self.switchbutton_532.clicked.connect(lambda: self.execute_tread_single_sample_digital('532blanking'))
-        self.switchbutton_532.clicked.connect(lambda: self.change_AOTF_icon('532blanking'))
         self.AOTFcontrolLayout.addWidget(self.switchbutton_532, 1, 1)
         
         self.slider488 = QSlider(Qt.Horizontal)
@@ -111,19 +90,9 @@ class AOTFWidgetUI(QWidget):
         self.slider488.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('488AO'))
         self.line488.returnPressed.connect(lambda:self.updatesider(488))
         
-        self.AOTF_blue_iconlabel = QLabel(self)
-        self.AOTF_blue_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))
-        self.AOTFcontrolLayout.addWidget(self.AOTF_blue_iconlabel, 2, 0)
-        
-        self.switchbutton_488 = QPushButton("488")
-        self.switchbutton_488.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        self.switchbutton_488.setCheckable(True)
-        #self.holdingbutton.toggle()
-        
+        self.switchbutton_488 = MySwitch('ON', 'blue', 'OFF', 'teal', width = 32)
         self.switchbutton_488.clicked.connect(lambda: self.execute_tread_single_sample_digital('488blanking'))
-        self.switchbutton_488.clicked.connect(lambda: self.change_AOTF_icon('488blanking'))
-        self.AOTFcontrolLayout.addWidget(self.switchbutton_488, 2, 1)        
+        self.AOTFcontrolLayout.addWidget(self.switchbutton_488, 2, 1)
         
         self.AOTFcontrolLayout.addWidget(self.slider640, 0, 2)
         self.AOTFcontrolLayout.addWidget(self.line640, 0, 3)
@@ -211,27 +180,46 @@ class AOTFWidgetUI(QWidget):
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
                 execute_tread_singlesample_AOTF_digital.start() 
                 
-    def change_AOTF_icon(self, channel):
-        if channel == '640blanking':
-            if self.switchbutton_640.isChecked():
-                self.AOTF_red_iconlabel.setPixmap(QPixmap('./Icons/AOTF_red_on.png'))
-            else:
-                self.AOTF_red_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))
-        elif channel == '532blanking':
-            if self.switchbutton_532.isChecked():
-                self.AOTF_green_iconlabel.setPixmap(QPixmap('./Icons/AOTF_green_on.png'))
-            else:
-                self.AOTF_green_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))        
-        elif channel == '488blanking':
-            if self.switchbutton_488.isChecked():
-                self.AOTF_blue_iconlabel.setPixmap(QPixmap('./Icons/AOTF_blue_on.png'))
-            else:
-                self.AOTF_blue_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF)) 
-        elif channel == 'LED':
-            if self.switchbutton_LED.isChecked():
-                self.switchbutton_LED.setIcon(QIcon('./Icons/LED_on.png'))
-            else:
-                self.switchbutton_LED.setIcon(QIcon('./Icons/AOTF_off.png'))
+class MySwitch(QtWidgets.QPushButton):
+    def __init__(self, label_1, color_1, label_2, color_2, width, parent = None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setMinimumWidth(66)
+        self.setMinimumHeight(22)
+        self.switch_label_1 = label_1
+        self.switch_label_2 = label_2
+        self.switch_color_1 = color_1
+        self.switch_color_2 = color_2
+        self.width = width
+        
+    def paintEvent(self, event):
+        label = self.switch_label_1 if self.isChecked() else self.switch_label_2
+        
+        if self.isChecked():
+            bg_color = QColor(self.switch_color_1)
+        else:
+            bg_color = QColor(self.switch_color_2)
+                
+        radius = 10
+        width = self.width
+        center = self.rect().center()
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.translate(center)
+        painter.setBrush(QColor(0,0,0))
+
+        pen = QPen(Qt.black)
+        pen.setWidth(2)
+        painter.setPen(pen)
+
+        painter.drawRoundedRect(QRect(-width, -radius, 2*width, 2*radius), radius, radius)
+        painter.setBrush(QBrush(bg_color))
+        sw_rect = QRect(-radius, -radius, width + radius, 2*radius)
+        if not self.isChecked():
+            sw_rect.moveLeft(-width)
+        painter.drawRoundedRect(sw_rect, radius, radius)
+        painter.drawText(sw_rect, Qt.AlignCenter, label)
         
         
 if __name__ == "__main__":

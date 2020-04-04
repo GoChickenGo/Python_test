@@ -27,6 +27,11 @@ from NIDAQ.configuration import Configuration
 
 
 class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose Nidaq tasks, use "Dev1/ai22" as reference channel.
+    """
+    # For all-purpose Nidaq tasks, use "Dev1/ai22" as reference channel.
+    # 'Sepcification' is the wrong spelling of 'Specification'. 
+    """
+    
     collected_data = pyqtSignal(np.ndarray)
     finishSignal = pyqtSignal()
     def __init__(self, *args, **kwargs):
@@ -190,10 +195,11 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
             self.Dataholder = np.zeros((1, self.Totalscansamplesnumber))
     
     def run(self):
-        '''---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        ----------------------------------------------------Analog channel in dev1 is involved----------------------------------------------------------------------------------------------
-        ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        '''
+        """
+        # =============================================================================
+        #         Analog signal in Dev 1 is involved
+        # =============================================================================
+        """
         if self.Dev1AnalogInvolved == True:
             with nidaqmx.Task() as slave_Task_1_analog_dev1, nidaqmx.Task() as slave_Task_1_analog_dev2, nidaqmx.Task() as master_Task_readin, nidaqmx.Task() as slave_Task_2_digitallines:
                 # adding channels      
@@ -341,11 +347,11 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
                 elif 'galvosy' in self.analogsignals['Sepcification'][i]:
                     self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
         
-        
-#        ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#        -------------------------------------------------------When there's no Dev2 analog signal-------------------------------------------------------------------------------------------
-#        ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+            """
+            # =============================================================================
+            #         Only Dev 2 is involved
+            # =============================================================================
+            """
         elif self.OnlyDev2AnalogInvolved == True:
             
             with nidaqmx.Task() as slave_Task_1_analog_dev2, nidaqmx.Task() as master_Task_readin, nidaqmx.Task() as slave_Task_2_digitallines:
@@ -459,10 +465,11 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
                 elif 'galvosy' in self.analogsignals['Sepcification'][i]:
                     self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
                     
-#        ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#        -------------------------------------------------------When there's only digital signal-------------------------------------------------------------------------------------------
-#        ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                    
+            """
+            # =============================================================================
+            #         Only digital signals
+            # =============================================================================
+            """                    
         elif self.OnlyDigitalInvolved == True:
             
             # some preparations for digital lines
@@ -670,6 +677,9 @@ class execute_tread_singlesample_digital(QThread):
             '''
             
 class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
+    """
+    # With camera being the central clock, Ni-daq is slaved to it.
+    """
     collected_data = pyqtSignal(np.ndarray)
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -747,6 +757,36 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
         self.analogsignalslinenumber = len(self.analogsignals['Waveform'])
         self.digitalsignalslinenumber = len(self.digitalsignals['Waveform'])
         
+        # See if only digital signal is involved.
+        if self.analogsignalslinenumber == 0 and self.digitalsignalslinenumber != 0:
+            self.OnlyDigitalSignal = True
+        else:
+            self.OnlyDigitalSignal = False
+            
+        # See if Dev1 is involved.
+        if self.analogsignal_dev1_number != 0:
+            self.Dev1AnalogInvolved = True
+        elif self.analogsignal_dev1_number == 0:
+            self.Dev1AnalogInvolved = False
+            
+        if self.OnlyDigitalSignal == True:
+            self.OnlyDigitalInvolved = True
+        elif self.OnlyDigitalSignal == False:
+            self.OnlyDigitalInvolved = False
+            
+        if self.analogsignal_dev2_number != 0:
+            self.OnlyDev2AnalogInvolved = True
+        elif self.analogsignal_dev2_number == 0:
+            self.OnlyDev2AnalogInvolved = False
+            
+        # some preparations for analog lines
+        if self.OnlyDigitalSignal == False:
+            self.Totalscansamplesnumber = len(self.analogsignals['Waveform'][0])
+            num_rows, num_cols = self.analogsignals['Waveform'].shape
+            print("row number of analog signals:  "+str(num_rows))
+        elif self.OnlyDigitalSignal == True:
+            self.Totalscansamplesnumber = len(self.digitalsignals['Waveform'][0])  
+        
         # Stack the Analog samples of dev1 and dev2 individually
         # IN CASE OF ONLY ONE ARRAY, WE NEED TO CONVERT THE SHAPE TO (1,N) BY USING np.array([]) OUTSIDE THE ARRAY!!
         #------------------------------------------!!_________________________
@@ -804,156 +844,271 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
             self.Dataholder = np.zeros((1, self.Totalscansamplesnumber))
     
     def run(self):
-        # Assume that dev1 is always employed
-        with nidaqmx.Task() as slave_Task_1_analog_dev1, nidaqmx.Task() as slave_Task_1_analog_dev2, nidaqmx.Task() as master_Task_readin, nidaqmx.Task() as slave_Task_2_digitallines:
-            # adding channels      
-            # Set tasks from different devices apart
-            for i in range(self.analogsignal_dev1_number):
-                slave_Task_1_analog_dev1.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev1_Sepcification[i])
-
-            #if len(digitalsignals['Sepcification']) != 0:
-                #for i in range(len(digitalsignals['Sepcification'])):
-                    #slave_Task_2_digitallines.do_channels.add_do_chan(self.configdictionary[digitalsignals['Sepcification'][i]], line_grouping=LineGrouping.CHAN_PER_LINE)#line_grouping??????????????One Channel For Each Line
-            slave_Task_2_digitallines.do_channels.add_do_chan("/Dev1/port0", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
-            
-            self.Dataholder = np.zeros((len(self.readinchannels), self.Totalscansamplesnumber))
-            print(self.Dataholder.shape)
-            if 'PMT' in self.readinchannels:
-                master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['PMT'])
-            if 'Vp' in self.readinchannels:
-                master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['Vp'])
-            if 'Ip' in self.readinchannels:
-                master_Task_readin.ai_channels.add_ai_current_chan(self.configdictionary['Ip'])
-            
-            #get scaling coefficients
-            self.aichannelnames=master_Task_readin.ai_channels.channel_names
-
-            self.ai_dev_scaling_coeff_vp = []
-            self.ai_dev_scaling_coeff_ip = []
-            if "Vp" in self.readinchannels:
-                self.ai_dev_scaling_coeff_vp = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Vp'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
-                #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
-                self.ai_dev_scaling_coeff_vp = np.array(self.ai_dev_scaling_coeff_vp.ai_dev_scaling_coeff)
+        """
+        # =============================================================================
+        #         Analog signal in Dev 1 is involved
+        # =============================================================================
+        """
+        if self.Dev1AnalogInvolved == True:
+            with nidaqmx.Task() as slave_Task_1_analog_dev1, nidaqmx.Task() as slave_Task_1_analog_dev2, nidaqmx.Task() as master_Task_readin, nidaqmx.Task() as slave_Task_2_digitallines:
+                # adding channels      
+                # Set tasks from different devices apart
+                for i in range(self.analogsignal_dev1_number):
+                    slave_Task_1_analog_dev1.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev1_Sepcification[i])
+    
+                #if len(digitalsignals['Sepcification']) != 0:
+                    #for i in range(len(digitalsignals['Sepcification'])):
+                        #slave_Task_2_digitallines.do_channels.add_do_chan(self.configdictionary[digitalsignals['Sepcification'][i]], line_grouping=LineGrouping.CHAN_PER_LINE)#line_grouping??????????????One Channel For Each Line
+                slave_Task_2_digitallines.do_channels.add_do_chan("/Dev1/port0", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                 
-            if "Ip" in self.readinchannels:
-                self.ai_dev_scaling_coeff_ip = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Ip'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
-                #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
-                self.ai_dev_scaling_coeff_ip = np.array(self.ai_dev_scaling_coeff_ip.ai_dev_scaling_coeff)           
-            
-            self.ai_dev_scaling_coeff_list = np.append(self.ai_dev_scaling_coeff_vp, self.ai_dev_scaling_coeff_ip)
-            
-            # setting clock
-            # All the clock should refer to camera output trigger
-            self.cam_trigger_receiving_port = '/Dev1/PFI0'
-            
-            slave_Task_1_analog_dev1.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
-            slave_Task_1_analog_dev1.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
-
-            #slave_Task_1_analog_dev1.triggers.sync_type.SLAVE = True            
-            # Readin clock as master clock
-            master_Task_readin.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
-            #master_Task_readin.triggers.sync_type.MASTER = True 
-            #master_Task_readin.export_signals(Signal.SAMPLE_CLOCK, '/Dev1/PFI1')
-            #master_Task_readin.export_signals(Signal.START_TRIGGER, '')
-            master_Task_readin.export_signals.samp_clk_output_term = self.configs.clock1Channel#'/Dev1/PFI1'#
-            master_Task_readin.export_signals.start_trig_output_term = self.configs.trigger1Channel#'/Dev1/PFI2'
-            master_Task_readin.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
-            #slave_Task_1_analog_dev1.samp_clk_output_term
-            #slave_Task_1_analog_dev1.samp_trig_output_term
-            
-            if self.analogsignal_dev2_number != 0:
-                # By default assume that read master task is in dev1
+                self.Dataholder = np.zeros((len(self.readinchannels), self.Totalscansamplesnumber))
+                print(self.Dataholder.shape)
+                if 'PMT' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['PMT'])
+                if 'Vp' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['Vp'])
+                if 'Ip' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_current_chan(self.configdictionary['Ip'])
                 
-                for i in range(self.analogsignal_dev2_number):
-                    slave_Task_1_analog_dev2.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev2_Sepcification[i])
+                #get scaling coefficients
+                self.aichannelnames=master_Task_readin.ai_channels.channel_names
+    
+                self.ai_dev_scaling_coeff_vp = []
+                self.ai_dev_scaling_coeff_ip = []
+                if "Vp" in self.readinchannels:
+                    self.ai_dev_scaling_coeff_vp = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Vp'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
+                    #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
+                    self.ai_dev_scaling_coeff_vp = np.array(self.ai_dev_scaling_coeff_vp.ai_dev_scaling_coeff)
+                    
+                if "Ip" in self.readinchannels:
+                    self.ai_dev_scaling_coeff_ip = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Ip'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
+                    #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
+                    self.ai_dev_scaling_coeff_ip = np.array(self.ai_dev_scaling_coeff_ip.ai_dev_scaling_coeff)           
                 
-                dev2Clock = self.configs.clock2Channel#/Dev2/PFI1
-                slave_Task_1_analog_dev2.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=dev2Clock, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
-                #slave_Task_1_analog_dev2.triggers.sync_type.SLAVE = True
+                self.ai_dev_scaling_coeff_list = np.append(self.ai_dev_scaling_coeff_vp, self.ai_dev_scaling_coeff_ip)
                 
-                #slave_Task_1_analog_dev2.triggers.start_trigger.cfg_dig_edge_start_trig(self.configs.trigger2Channel)#'/Dev2/PFI7'
+                # setting clock
+                # All the clock should refer to camera output trigger
+                self.cam_trigger_receiving_port = '/Dev1/PFI0'
                 
+                slave_Task_1_analog_dev1.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                slave_Task_1_analog_dev1.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+    
+                #slave_Task_1_analog_dev1.triggers.sync_type.SLAVE = True            
+                # Readin clock as master clock
+                master_Task_readin.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                #master_Task_readin.triggers.sync_type.MASTER = True 
+                #master_Task_readin.export_signals(Signal.SAMPLE_CLOCK, '/Dev1/PFI1')
+                #master_Task_readin.export_signals(Signal.START_TRIGGER, '')
+                master_Task_readin.export_signals.samp_clk_output_term = self.configs.clock1Channel#'/Dev1/PFI1'#
+                master_Task_readin.export_signals.start_trig_output_term = self.configs.trigger1Channel#'/Dev1/PFI2'
+                master_Task_readin.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+                #slave_Task_1_analog_dev1.samp_clk_output_term
+                #slave_Task_1_analog_dev1.samp_trig_output_term
+                
+                if self.analogsignal_dev2_number != 0:
+                    # By default assume that read master task is in dev1
+                    
+                    for i in range(self.analogsignal_dev2_number):
+                        slave_Task_1_analog_dev2.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev2_Sepcification[i])
+                    
+                    dev2Clock = self.configs.clock2Channel#/Dev2/PFI1
+                    slave_Task_1_analog_dev2.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=dev2Clock, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                    #slave_Task_1_analog_dev2.triggers.sync_type.SLAVE = True
+                    
+                    #slave_Task_1_analog_dev2.triggers.start_trigger.cfg_dig_edge_start_trig(self.configs.trigger2Channel)#'/Dev2/PFI7'
+                    
+                    AnalogWriter = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev1.out_stream, auto_start= False)
+                    AnalogWriter.auto_start = False
+                    
+                    AnalogWriter_dev2 = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev2.out_stream, auto_start= False)
+                    AnalogWriter_dev2.auto_start = False
+                
+                # Digital clock
+                if len(self.digitalsignals['Sepcification']) != 0: # or the source of sample clock could be PFI? or using start trigger: cfg_dig_edge_start_trig    slave_task.triggers.start_trigger.cfg_dig_edge_start_trig("/PXI1Slot3/ai/StartTrigger")
+                    slave_Task_2_digitallines.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                    slave_Task_2_digitallines.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+                    #slave_Task_2_digitallines.triggers.sync_type.SLAVE = True
+                
+    
+            	# Configure the writer and reader
                 AnalogWriter = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev1.out_stream, auto_start= False)
                 AnalogWriter.auto_start = False
+                if len(self.digitalsignals['Sepcification']) != 0:
+                    DigitalWriter = nidaqmx.stream_writers.DigitalMultiChannelWriter(slave_Task_2_digitallines.out_stream, auto_start= False)
+                    DigitalWriter.auto_start = False
+                reader = AnalogMultiChannelReader(master_Task_readin.in_stream)        
+                reader.auto_start = False
+    
+                # =============================================================================
+                # Begin to execute in DAQ
+                # =============================================================================
+                AnalogWriter.write_many_sample(self.writesamples_dev1, timeout = 605.0)
                 
-                AnalogWriter_dev2 = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev2.out_stream, auto_start= False)
-                AnalogWriter_dev2.auto_start = False
+                if self.analogsignal_dev2_number != 0:
+                    AnalogWriter_dev2.write_many_sample(self.writesamples_dev2, timeout = 605.0)
+                    
+                if self.digitalsignalslinenumber != 0:     
+                    DigitalWriter.write_many_sample_port_uint32(self.writesamples_digital, timeout = 605.0)
+                               
+                print('^^^^^^^^^^^^^^^^^^Daq tasks start^^^^^^^^^^^^^^^^^^')
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.start()            
+                slave_Task_1_analog_dev1.start()
+                
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.start()
+                    
+                master_Task_readin.start() #!!!!!!!!!!!!!!!!!!!! READIN TASK HAS TO START AHEAD OF READ MANY SAMPLES, OTHERWISE ITS NOT SYN!!!
+                
+                reader.read_many_sample(data = self.Dataholder, number_of_samples_per_channel =  self.Totalscansamplesnumber, timeout=60.0)            
+                
+                slave_Task_1_analog_dev1.wait_until_done()
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.wait_until_done()
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.wait_until_done()                
+                master_Task_readin.wait_until_done()
+                
+                slave_Task_1_analog_dev1.stop()
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.stop()
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.stop()
+                master_Task_readin.stop()
+                
+                if self.if_theres_readin_channel == True:
+                    self.collected_data.emit(self.Dataholder)
+                print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
+                
+                
+            # set the keys of galvos back for next round
+            for i in range(len(self.analogsignals['Sepcification'])):
+                if 'galvosx' in self.analogsignals['Sepcification'][i]:
+                    self.analogsignals['Sepcification'][i] = self.galvosx_originalkey
+                elif 'galvosy' in self.analogsignals['Sepcification'][i]:
+                    self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
+                    
+            """
+            # =============================================================================
+            #         Only Dev 2 is involved
+            # =============================================================================
+            """
+        elif self.OnlyDev2AnalogInvolved == True:
             
-            # Digital clock
-            if len(self.digitalsignals['Sepcification']) != 0: # or the source of sample clock could be PFI? or using start trigger: cfg_dig_edge_start_trig    slave_task.triggers.start_trigger.cfg_dig_edge_start_trig("/PXI1Slot3/ai/StartTrigger")
-                slave_Task_2_digitallines.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
-                slave_Task_2_digitallines.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
-                #slave_Task_2_digitallines.triggers.sync_type.SLAVE = True
-            
+            with nidaqmx.Task() as slave_Task_1_analog_dev2, nidaqmx.Task() as master_Task_readin, nidaqmx.Task() as slave_Task_2_digitallines:
+                # adding channels      
+                # Set tasks from different devices apart
+                slave_Task_2_digitallines.do_channels.add_do_chan("/Dev1/port0", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
+    
+                if self.if_theres_readin_channel == True:
+                    self.Dataholder = np.zeros((len(self.readinchannels), self.Totalscansamplesnumber))
+                else:
+                    self.Dataholder = np.zeros((1, self.Totalscansamplesnumber))
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['Vp']) # If no read-in channel is added, vp channel is added to keep code alive.
+                    
+    #            print(self.Dataholder.shape)
+                if 'PMT' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['PMT'])
+                if 'Vp' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['Vp'])
+                if 'Ip' in self.readinchannels:
+                    master_Task_readin.ai_channels.add_ai_current_chan(self.configdictionary['Ip'])
+                
+                #get scaling coefficients
+                self.aichannelnames=master_Task_readin.ai_channels.channel_names
+    
+                self.ai_dev_scaling_coeff_vp = []
+                self.ai_dev_scaling_coeff_ip = []
+                if "Vp" in self.readinchannels:
+                    self.ai_dev_scaling_coeff_vp = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Vp'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
+                    #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
+                    self.ai_dev_scaling_coeff_vp = np.array(self.ai_dev_scaling_coeff_vp.ai_dev_scaling_coeff)
+                    
+                if "Ip" in self.readinchannels:
+                    self.ai_dev_scaling_coeff_ip = nidaqmx._task_modules.channels.ai_channel.AIChannel(master_Task_readin._handle, self.configdictionary['Ip'])#https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019TuoSAE&l=nl-NL
+                    #self.ai_dev_scaling_coeff.ai_dev_scaling_coeff
+                    self.ai_dev_scaling_coeff_ip = np.array(self.ai_dev_scaling_coeff_ip.ai_dev_scaling_coeff)           
+                
+                self.ai_dev_scaling_coeff_list = np.append(self.ai_dev_scaling_coeff_vp, self.ai_dev_scaling_coeff_ip)
+                
+                # setting clock
+                # All the clock should refer to camera output trigger
+                self.cam_trigger_receiving_port = '/Dev1/PFI0'
+                
+                master_Task_readin.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                master_Task_readin.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+                master_Task_readin.export_signals.samp_clk_output_term = self.configs.clock1Channel#'/Dev1/PFI1'#
+                master_Task_readin.export_signals.start_trig_output_term = self.configs.trigger1Channel#'/Dev1/PFI2'
+                
+                if self.analogsignal_dev2_number != 0:
+                    # By default assume that read master task is in dev1
+                    
+                    for i in range(self.analogsignal_dev2_number):
+                        slave_Task_1_analog_dev2.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev2_Sepcification[i])
+                    
+                    dev2Clock = self.configs.clock2Channel#/Dev2/PFI1
+                    slave_Task_1_analog_dev2.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                    slave_Task_1_analog_dev2.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+                    AnalogWriter_dev2 = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev2.out_stream, auto_start= False)
+                    AnalogWriter_dev2.auto_start = False
+                
+                # Digital clock
+                if len(self.digitalsignals['Sepcification']) != 0: # or the source of sample clock could be PFI? or using start trigger: cfg_dig_edge_start_trig    slave_task.triggers.start_trigger.cfg_dig_edge_start_trig("/PXI1Slot3/ai/StartTrigger")
+                    slave_Task_2_digitallines.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                    slave_Task_2_digitallines.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+            	# Configure the writer and reader
 
-        	# Configure the writer and reader
-            AnalogWriter = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev1.out_stream, auto_start= False)
-            AnalogWriter.auto_start = False
-            if len(self.digitalsignals['Sepcification']) != 0:
-                DigitalWriter = nidaqmx.stream_writers.DigitalMultiChannelWriter(slave_Task_2_digitallines.out_stream, auto_start= False)
-                DigitalWriter.auto_start = False
-            reader = AnalogMultiChannelReader(master_Task_readin.in_stream)        
-            reader.auto_start = False
-            # ---------------------------------------------------------------------------------------------------------------------
-            #-----------------------------------------------------Begin to execute in DAQ------------------------------------------
-            AnalogWriter.write_many_sample(self.writesamples_dev1, timeout = 60.0)
-            
-            if self.analogsignal_dev2_number != 0:
-                AnalogWriter_dev2.write_many_sample(self.writesamples_dev2, timeout = 60.0)
+                if len(self.digitalsignals['Sepcification']) != 0:
+                    DigitalWriter = nidaqmx.stream_writers.DigitalMultiChannelWriter(slave_Task_2_digitallines.out_stream, auto_start= False)
+                    DigitalWriter.auto_start = False
+                reader = AnalogMultiChannelReader(master_Task_readin.in_stream)        
+                reader.auto_start = False
+                # ---------------------------------------------------------------------------------------------------------------------
+                #-----------------------------------------------------Begin to execute in DAQ------------------------------------------
                 
-            if self.digitalsignalslinenumber != 0:     
-                DigitalWriter.write_many_sample_port_uint32(self.writesamples_digital, timeout = 60.0)
-                           
-            print('^^^^^^^^^^^^^^^^^^Daq tasks start^^^^^^^^^^^^^^^^^^')
-            if self.analogsignal_dev2_number != 0:
-                slave_Task_1_analog_dev2.start()            
-            slave_Task_1_analog_dev1.start()
-            
-            if self.digitalsignalslinenumber != 0:
-                slave_Task_2_digitallines.start()
+                if self.analogsignal_dev2_number != 0:
+                    AnalogWriter_dev2.write_many_sample(self.writesamples_dev2, timeout = 605.0)
+                    
+                if self.digitalsignalslinenumber != 0:     
+                    DigitalWriter.write_many_sample_port_uint32(self.writesamples_digital, timeout = 605.0)
+                               
+                print('^^^^^^^^^^^^^^^^^^Daq tasks start^^^^^^^^^^^^^^^^^^')
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.start()            
                 
-            master_Task_readin.start() #!!!!!!!!!!!!!!!!!!!! READIN TASK HAS TO START AHEAD OF READ MANY SAMPLES, OTHERWISE ITS NOT SYN!!!
-            
-            reader.read_many_sample(data = self.Dataholder, number_of_samples_per_channel =  self.Totalscansamplesnumber, timeout=60.0)            
-            #self.data_PMT = []
-            
-            slave_Task_1_analog_dev1.wait_until_done()
-            if self.analogsignal_dev2_number != 0:
-                slave_Task_1_analog_dev2.wait_until_done()
-            if self.digitalsignalslinenumber != 0:
-                slave_Task_2_digitallines.wait_until_done()                
-            master_Task_readin.wait_until_done()
-            
-#            if 'PMT' in self.readinchannels:
-#                Dataholder_average = np.mean(self.Dataholder[0,:].reshape(self.averagenumber, -1), axis=0)
-#                
-#                self.ScanArrayXnum = int ((self.Totalscansamplesnumber/self.averagenumber)/self.ypixelnumber)
-#                self.data_PMT = np.reshape(Dataholder_average, (self.ypixelnumber, self.ScanArrayXnum))
-#                
-#                self.data_PMT= self.data_PMT*-1
-#                '''
-#                plt.figure()
-#                plt.imshow(self.data_PMT, cmap = plt.cm.gray)
-#                plt.show()
-#                '''
-            slave_Task_1_analog_dev1.stop()
-            if self.analogsignal_dev2_number != 0:
-                slave_Task_1_analog_dev2.stop()
-            if self.digitalsignalslinenumber != 0:
-                slave_Task_2_digitallines.stop()
-            master_Task_readin.stop()
-            
-            if self.if_theres_readin_channel == True:
-                self.collected_data.emit(self.Dataholder)
-            print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
-            
-            
-        # set the keys of galvos back for next round
-        for i in range(len(self.analogsignals['Sepcification'])):
-            if 'galvosx' in self.analogsignals['Sepcification'][i]:
-                self.analogsignals['Sepcification'][i] = self.galvosx_originalkey
-            elif 'galvosy' in self.analogsignals['Sepcification'][i]:
-                self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.start()
+                    
+                master_Task_readin.start() #!!!!!!!!!!!!!!!!!!!! READIN TASK HAS TO START AHEAD OF READ MANY SAMPLES, OTHERWISE ITS NOT SYN!!!
+                
+                reader.read_many_sample(data = self.Dataholder, number_of_samples_per_channel =  self.Totalscansamplesnumber, timeout=605.0)            
+                #self.data_PMT = []
+                
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.wait_until_done()
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.wait_until_done()                
+                master_Task_readin.wait_until_done()
+                
+                if self.analogsignal_dev2_number != 0:
+                    slave_Task_1_analog_dev2.stop()
+                if self.digitalsignalslinenumber != 0:
+                    slave_Task_2_digitallines.stop()
+                master_Task_readin.stop()
+                
+                if self.if_theres_readin_channel == True:
+                    self.collected_data.emit(self.Dataholder)
+                self.finishSignal.emit()
+                print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
+                
+                
+            # set the keys of galvos back for next round
+            for i in range(len(self.analogsignals['Sepcification'])):
+                if 'galvosx' in self.analogsignals['Sepcification'][i]:
+                    self.analogsignals['Sepcification'][i] = self.galvosx_originalkey
+                elif 'galvosy' in self.analogsignals['Sepcification'][i]:
+                    self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
                
     def save_as_binary(self, directory):
         #print(self.ai_dev_scaling_coeff_vp)
