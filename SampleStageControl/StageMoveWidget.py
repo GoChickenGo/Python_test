@@ -19,7 +19,7 @@ import pyqtgraph as pg
 import time
 import sys
 
-from SampleStageControl.Stagemovement_Thread import StagemovementRelativeThread
+from SampleStageControl.Stagemovement_Thread import StagemovementRelativeThread, StagemovementAbsoluteThread
 
 class StageWidgetUI(QWidget):
     
@@ -78,7 +78,7 @@ class StageWidgetUI(QWidget):
         self.stage_speed.setValue(300)
         self.stage_speed.setSingleStep(100)        
         self.stagecontrolLayout.addWidget(self.stage_speed, 0, 1)
-        self.stagecontrolLayout.addWidget(QLabel("Moving speed:"), 0, 0)
+        self.stagecontrolLayout.addWidget(QLabel("Moving step:"), 0, 0)
         
         self.led_Label = QLabel("White LED: ")
         self.stagecontrolLayout.addWidget(self.led_Label, 0, 2)
@@ -161,7 +161,8 @@ class StageWidgetUI(QWidget):
     def sample_stage_move_towards(self):
         self.sample_move_x = int(float(self.stage_goto_x.text()))
         self.sample_move_y = int(float(self.stage_goto_y.text()))
-        stage_movement_thread = StagemovementRelativeThread(self.sample_move_x, self.sample_move_y)
+        stage_movement_thread = StagemovementAbsoluteThread(self.sample_move_x, self.sample_move_y)
+        
         stage_movement_thread.current_position.connect(self.update_stage_current_pos)
         stage_movement_thread.start()
         time.sleep(2)

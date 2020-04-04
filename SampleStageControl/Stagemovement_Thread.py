@@ -27,11 +27,9 @@ class StagemovementRelativeThread(QThread):
         
 class StagemovementAbsoluteThread(QThread):
     current_position = pyqtSignal(np.ndarray)
-    def __init__(self, *args, **kwargs):
+    def __init__(self, xAbs, yAbs, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ludlStage = LudlStage("COM12")
-        
-    def SetTargetPos(self, xAbs, yAbs):
         self.xAbs = xAbs
         self.yAbs = yAbs
         
