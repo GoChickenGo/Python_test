@@ -28,10 +28,10 @@ class PIMotor:
         # InterfaceSetupDlg() is an interactive dialog. There are other methods to
         # connect to an interface without user interaction.
         serialstring = self.pidevice.EnumerateUSB()
-    
+        print(serialstring[0])
         #pidevice.InterfaceSetupDlg(key='sample')
         # pidevice.ConnectRS232(comport=1, baudrate=115200)
-        self.pidevice.ConnectUSB(serialnum=serialstring[0])
+        self.pidevice.ConnectUSB(serialnum='PI C-863 Mercury SN 0185500828')
         # pidevice.ConnectTCPIP(ipaddress='192.168.178.42')
     
         # Each PI controller supports the qIDN() command which returns an
@@ -91,6 +91,6 @@ if __name__ == '__main__':
     pi = PIMotor()
 #    pi_device = pi.ConnectPIMotor
     
-    PIMotor.move(pi.pidevice, 3.455)
-    PIMotor.CloseMotorConnection(pi.pidevice)
+#    PIMotor.move(pi.pidevice, 3.455)
+    pi.CloseMotorConnection(pi.pidevice)
 

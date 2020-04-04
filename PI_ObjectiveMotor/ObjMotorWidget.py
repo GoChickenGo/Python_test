@@ -49,26 +49,30 @@ class ObjMotorWidgetUI(QWidget):
         
         self.ObjMotor_connect = QPushButton("Connect")
         self.ObjMotor_connect.setStyleSheet("QPushButton {color:white;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                            "QPushButton:hover:!pressed {color:gray;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_connect, 0, 0)
         self.ObjMotor_connect.clicked.connect(lambda: self.ConnectMotor())       
         
         self.ObjMotor_disconnect = QPushButton("Disconnect")
         self.ObjMotor_disconnect.setStyleSheet("QPushButton {color:white;background-color: firebrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                            "QPushButton:hover:!pressed {color:gray;background-color: firebrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_disconnect, 0, 1)
         self.ObjMotor_disconnect.clicked.connect(lambda: self.DisconnectMotor()) 
         
         self.ObjMotor_upwards = QPushButton("↑")
         self.ObjMotor_upwards.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                            "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_upwards, 2, 2)
         self.ObjMotor_upwards.clicked.connect(lambda: self.Motor_move_upwards())
 #        self.ObjMotor_upwards.setShortcut('w')
         
         self.ObjMotor_down = QPushButton("↓")
         self.ObjMotor_down.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                            "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_down, 3, 2)
         self.ObjMotor_down.clicked.connect(lambda: self.Motor_move_downwards())
 #        self.stage_down.setShortcut('s')
@@ -83,11 +87,12 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjMotorcontrolLayout.addWidget(QLabel("Target:"), 1, 0)
         
         self.ObjMotor_current_pos_Label = QLabel("Current position: ")
-        self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_current_pos_Label, 2, 0)
+        self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_current_pos_Label, 2, 0, 1, 2)
         
         self.ObjMotor_goto = QPushButton("Move")
         self.ObjMotor_goto.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                            "QPushButton:hover:!pressed {color:gray;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_goto, 1, 2)
         self.ObjMotor_goto.clicked.connect(self.MoveMotor)
         
@@ -110,7 +115,8 @@ class ObjMotorWidgetUI(QWidget):
 #        self.line640 = QLineEdit(self)
 #        self.line640.setFixedWidth(60)
 #        self.FocusSlider.sliderReleased.connect(lambda:self.updatelinevalue(640))
-        self.FocusSlider.sliderReleased.connect(lambda:self.move_through_slider())
+        self.FocusSlider.valueChanged.connect(lambda:self.move_through_slider())
+        self.FocusSlider.setTracking(False)
 #        self.line640.returnPressed.connect(lambda:self.updatesider(640))
         self.ObjMotorcontrolLayout.addWidget(self.FocusSlider, 4, 0, 1, 3)
         
@@ -141,7 +147,8 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjMotor_target.setValue(self.ObjCurrentPos['1'])
         
         decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
-        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**decimal_places)))
+        print(int(self.ObjCurrentPos['1']*(10**decimal_places)))
+        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**6)))
         
     def MoveMotor(self):
         
@@ -151,13 +158,14 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjMotor_target.setValue(self.ObjCurrentPos['1'])  
         
         decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
-        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**decimal_places)))
+        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**6)))
       
     def DisconnectMotor(self):
         self.ObjMotor_connect.setEnabled(True)
         self.ObjMotor_disconnect.setEnabled(False)
         
         PIMotor.CloseMotorConnection(self.pi_device_instance.pidevice)
+        print('Disconnected')
 #        self.normalOutputWritten('Objective motor disconnected.'+'\n')
         
     def Motor_move_upwards(self):
@@ -166,8 +174,9 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
         self.ObjMotor_current_pos_Label.setText("Current position: {:.4f}".format(self.ObjCurrentPos['1'])) # Axis here is a string.
         
-        decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
-        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**decimal_places)))
+        self.ObjMotor_target.setValue(self.ObjCurrentPos['1'])
+#        decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
+        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**6)))
         
     def Motor_move_downwards(self):
         self.MotorStep = self.ObjMotor_step.value()
@@ -175,13 +184,15 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
         self.ObjMotor_current_pos_Label.setText("Current position: {:.4f}".format(self.ObjCurrentPos['1'])) # Axis here is a string.
         
-        decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
-        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**decimal_places)))
+        self.ObjMotor_target.setValue(self.ObjCurrentPos['1'])
+#        decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
+        self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**6)))
         
     def move_through_slider(self):
         pos = PIMotor.move(self.pi_device_instance.pidevice, self.FocusSlider.value()/1000000)
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
         self.ObjMotor_current_pos_Label.setText("Current position: {:.4f}".format(self.ObjCurrentPos['1'])) # Axis here is a string.
+        self.ObjMotor_target.setValue(self.ObjCurrentPos['1'])
         
 class ConnectObj_Thread(QThread):
 #    videostack_signal = pyqtSignal(np.ndarray)
