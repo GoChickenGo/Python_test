@@ -38,6 +38,7 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from PyQt5.QtCore import pyqtSignal, QThread
+import threading
 
 class AnalysisWidgetUI(QWidget):
     
@@ -55,7 +56,7 @@ class AnalysisWidgetUI(QWidget):
         self.setMinimumSize(1250,850)
         self.setWindowTitle("AnalysisWidget")
         self.layout = QGridLayout(self)
-        
+        self.savedirectory = r"C:\Users\Mels Jagt\OneDrive\Documenten\BEP\First waveforms with Archon 18_03_2020\Archon 3"
         self.OC = 0.1 # Patch clamp constant
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -81,7 +82,8 @@ class AnalysisWidgetUI(QWidget):
 
         self.button_load = QPushButton('Load', self)
         self.button_load.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                       "QPushButton:hover:!pressed {color:gray;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.readimageLayout.addWidget(self.button_load, 1, 4) 
         
         self.Spincamsamplingrate = QSpinBox(self)
@@ -116,14 +118,16 @@ class AnalysisWidgetUI(QWidget):
 
         self.button_Background_load = QPushButton('Substract', self)
         self.button_Background_load.setStyleSheet("QPushButton {color:white;background-color: orange; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                       "QPushButton:hover:!pressed {color:gray;background-color: orange; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.readimageLayout.addWidget(self.button_Background_load, 2, 4) 
         
         self.button_Background_load.clicked.connect(self.substract_background)        
         
         self.button_display_trace = QPushButton('Display', self)
         self.button_display_trace.setStyleSheet("QPushButton {color:white;background-color: Green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                       "QPushButton:hover:!pressed {color:gray;background-color: Green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.readimageLayout.addWidget(self.button_display_trace, 2, 6) 
         
         self.button_display_trace.clicked.connect(lambda: self.displayElectricalsignal())
@@ -136,7 +140,8 @@ class AnalysisWidgetUI(QWidget):
         
         self.button_export_trace = QPushButton('Export', self)
         self.button_export_trace.setStyleSheet("QPushButton {color:white;background-color: Green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                       "QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                       "QPushButton:hover:!pressed {color:gray;background-color: Green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.readimageLayout.addWidget(self.button_export_trace, 2, 7) 
         
         self.button_export_trace.clicked.connect(self.export_trace)
@@ -359,11 +364,22 @@ class AnalysisWidgetUI(QWidget):
     def loadtiffile(self):
         print('Loading...')
         self.MessageToMainGUI('Loading...'+'\n')        
-        loadtif_thread = loadtif_Thread(self.fileName)
-        loadtif_thread.videostack_signal.connect(self.ReceiveVideo)
-        loadtif_thread.start()
-        loadtif_thread.wait()
-
+#        loadtif_thread = loadtif_Thread(self.fileName)
+#        loadtif_thread.videostack_signal.connect(self.ReceiveVideo)
+#        loadtif_thread.start()
+#        loadtif_thread.wait()
+        t1 = threading.Thread(target = self.loadtiffile_thread)
+        t1.start()
+        
+    def loadtiffile_thread(self):
+        self.videostack = imread(self.fileName)
+        print(self.videostack.shape)
+        self.MessageToMainGUI('Video size: '+str(self.videostack.shape)+'\n')
+        self.roi_average.maxBounds= QRectF(0,0,self.videostack.shape[2],self.videostack.shape[1])
+        self.roi_weighted.maxBounds= QRectF(0,0,self.videostack.shape[2],self.videostack.shape[1])
+        print('Loading complete, ready to fire')
+        self.MessageToMainGUI('Loading complete, ready to fire'+'\n')
+        
     def ReceiveVideo(self, videosentin):  
 
         self.videostack = videosentin
@@ -380,29 +396,35 @@ class AnalysisWidgetUI(QWidget):
                 self.Ipfilename = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_i =  readbinaryfile(self.Ipfilename)               
                 self.Ip, self.samplingrate_curve = curvereadingobjective_i.readbinarycurve()                
+                self.Ip = self.Ip[0:len(self.Ip)-2]
                 
             elif file.endswith(".Vp"):
                 self.Vpfilename = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_V =  readbinaryfile(self.Vpfilename)               
                 self.Vp, self.samplingrate_curve = curvereadingobjective_V.readbinarycurve()                
+                self.Vp = self.Vp[0:len(self.Vp)-2] # Here -2 because there are two extra recording points in the recording file.
                 
             elif file.startswith('Vp'):
                 self.Vpfilename_npy = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_V =  np.load(self.Vpfilename_npy)
                 self.Vp = curvereadingobjective_V[5:len(curvereadingobjective_V)]
                 self.samplingrate_curve = curvereadingobjective_V[0]
+                self.Vp = self.Vp[0:len(self.Vp)-2]
                 
             elif file.startswith('Ip'):
                 self.Ipfilename_npy = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_I =  np.load(self.Ipfilename_npy)
                 self.Ip = curvereadingobjective_I[5:len(curvereadingobjective_I)]
+                self.Ip = self.Ip[0:len(self.Ip)-2]
                 self.samplingrate_curve = curvereadingobjective_I[0]
+                
             elif 'Wavefroms_sr_' in file:
                 self.Waveform_filename_npy = os.path.dirname(self.fileName) + '/'+file
                 # Read in configured waveforms
                 configwave_wavenpfileName = self.Waveform_filename_npy
                 self.waveform_display_temp_loaded_container = np.load(configwave_wavenpfileName, allow_pickle=True)
                 self.samplingrate_display_curve = int(float(configwave_wavenpfileName[configwave_wavenpfileName.find('sr_')+3:-4]))
+                print(self.samplingrate_display_curve)
                 
     def getfile_background(self):
         self.fileName_background, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Single File', 'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data',"Image files (*.jpg *.tif)")
@@ -467,6 +489,18 @@ class AnalysisWidgetUI(QWidget):
                     self.displaytextitem_488AO = pg.TextItem(text='488 AO', color=('b'), anchor=(0, 0))
                     self.displaytextitem_488AO.setPos(1, 2)
                     self.pw_preset_waveform.addItem(self.displaytextitem_488AO)
+                    
+                if self.waveform_display_temp_loaded_container[i]['Sepcification'] == 'patchAO':
+                    self.display_finalwave_patchAO = self.waveform_display_temp_loaded_container[i]['patchAO']
+                    self.display_PlotDataItem_patchAO = PlotDataItem(self.time_xlabel_all_waveform, self.display_finalwave_patchAO, downsample = 10)
+                    self.display_PlotDataItem_patchAO.setPen(100, 100, 0)
+                    #self.Display_PlotDataItem_640AO.setDownsampling(ds=(int(self.textboxAA.value())/10), method='mean')
+                    self.pw_preset_waveform.addItem(self.display_PlotDataItem_patchAO)
+                    
+                    self.displaytextitem_patchAO = pg.TextItem(text='patchAO', color=(100, 100, 0), anchor=(0, 0))
+                    self.displaytextitem_patchAO.setPos(1, 3)
+                    self.pw_preset_waveform.addItem(self.displaytextitem_patchAO)
+                    
                 if self.waveform_display_temp_loaded_container[i]['Sepcification'] == 'Perfusion_8':
                     self.display_finalwave_Perfusion_8 = self.waveform_display_temp_loaded_container[i]['Waveform']
                     self.display_PlotDataItem_Perfusion_8 = PlotDataItem(self.time_xlabel_all_waveform, self.display_finalwave_Perfusion_8, downsample = 10)
@@ -709,8 +743,11 @@ class AnalysisWidgetUI(QWidget):
         
 #        print(self.averageimage_ROI[13:15,13:15])
 #        print(self.imganalysis_averageimage[self.roi_coord_raw_start:self.roi_coord_raw_end, self.roi_coord_col_start:self.roi_coord_col_end][13:15,13:15])
+    def calculateweight(self): 
+        t2 = threading.Thread(target = self.calculateweight_thread)
+        t2.start()
     
-    def calculateweight(self):        
+    def calculateweight_thread(self):        
         if self.switch_Vp_or_camtrace.currentText() == 'With Vp':
             self.samplingrate_cam = self.Spincamsamplingrate.value()
             self.downsample_ratio = int(self.samplingrate_curve/self.samplingrate_cam)            
@@ -831,7 +868,7 @@ class AnalysisWidgetUI(QWidget):
     def save_analyzed_image(self, catag):
         if catag == 'weight_image':
             Localimg = Image.fromarray(self.weightimage) #generate an image object
-            Localimg.save(os.path.join(self.savedirectory, 'Weight_'+ str(self.prefixtextbox.text()) + '_' +datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'.tif')) #save as tif
+            Localimg.save(os.path.join(self.savedirectory, 'Weight_' +datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'.tif')) #save as tif
      
     def export_trace(self):
         if self.switch_export_trace.currentText() == 'Cam trace':
@@ -855,17 +892,17 @@ class AnalysisWidgetUI(QWidget):
     def MessageToMainGUI(self, text):
         self.MessageBack.emit(text)
         
-class loadtif_Thread(QThread):
-    videostack_signal = pyqtSignal(np.ndarray)
-    def __init__(self, fileName, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fileName = fileName
-#        self.xRel = xRel
-#        self.yRel = yRel
-        
-    def run(self):
-        videostack = imread(self.fileName)
-        self.videostack_signal.emit(videostack)
+#class loadtif_Thread(QThread):
+#    videostack_signal = pyqtSignal(np.ndarray)
+#    def __init__(self, fileName, *args, **kwargs):
+#        super().__init__(*args, **kwargs)
+#        self.fileName = fileName
+##        self.xRel = xRel
+##        self.yRel = yRel
+#        
+#    def run(self):
+#        videostack = imread(self.fileName)
+#        self.videostack_signal.emit(videostack)
         
 if __name__ == "__main__":
     def run_app():
