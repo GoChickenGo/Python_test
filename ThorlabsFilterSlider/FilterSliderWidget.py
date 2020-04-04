@@ -42,62 +42,62 @@ class FilterSliderWidgetUI(QWidget):
         #-----------------------------------------------------------GUI for Filter movement----------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------------------------------          
         #**************************************************************************************************************************************
-        ND_filtercontrolContainer = QGroupBox("ND filter control")
-        self.NDfiltercontrolLayout = QGridLayout()
+        ND_filtercontrolContainer = QGroupBox("Filter control")
+        self.filtercontrolLayout = QGridLayout()
         
 #        bGBackupFromIntExt = QButtonGroup(self)
 
 #        self.filter1_pos0 = QPushButton('0')
 #        self.filter1_pos0.setCheckable(True)
 #        bGBackupFromIntExt.addButton(self.filter1_pos0)
-#        self.NDfiltercontrolLayout.addWidget(self.filter1_pos0, 0, 1)
+#        self.filtercontrolLayout.addWidget(self.filter1_pos0, 0, 1)
 #        self.filter1_pos0.clicked.connect(lambda: self.filter_move_towards("COM9", 0))
 #
 #        self.filter1_pos1 = QPushButton('1')
 #        self.filter1_pos1.setCheckable(True)
 #        bGBackupFromIntExt.addButton(self.filter1_pos1)
-#        self.NDfiltercontrolLayout.addWidget(self.filter1_pos1, 0, 2)    
+#        self.filtercontrolLayout.addWidget(self.filter1_pos1, 0, 2)    
 #        self.filter1_pos1.clicked.connect(lambda: self.filter_move_towards("COM9", 1))
 #        
 #        self.filter1_pos2 = QPushButton('2')
 #        self.filter1_pos2.setCheckable(True)
 #        bGBackupFromIntExt.addButton(self.filter1_pos2)
-#        self.NDfiltercontrolLayout.addWidget(self.filter1_pos2, 0, 3)
+#        self.filtercontrolLayout.addWidget(self.filter1_pos2, 0, 3)
 #        self.filter1_pos2.clicked.connect(lambda: self.filter_move_towards("COM9", 2))
 #        
 #        self.filter1_pos3 = QPushButton('3')
 #        self.filter1_pos3.setCheckable(True)
 #        bGBackupFromIntExt.addButton(self.filter1_pos3)
-#        self.NDfiltercontrolLayout.addWidget(self.filter1_pos3, 0, 4)
+#        self.filtercontrolLayout.addWidget(self.filter1_pos3, 0, 4)
 #        self.filter1_pos3.clicked.connect(lambda: self.filter_move_towards("COM9", 3)) 
 #        
-#        self.NDfiltercontrolLayout.addWidget(QLabel('Filter-1 pos: '), 0, 0)
+#        self.filtercontrolLayout.addWidget(QLabel('Filter-1 pos: '), 0, 0)
 #
-#        self.NDfiltercontrolLayout.addWidget(QLabel('Filter-2 pos: '), 1, 0)        
+#        self.filtercontrolLayout.addWidget(QLabel('Filter-2 pos: '), 1, 0)        
 #        bGBackupFromIntExt_1 = QButtonGroup(self)
 #
 #        self.filter2_pos0 = QPushButton('0')
 #        self.filter2_pos0.setCheckable(True)
 #        bGBackupFromIntExt_1.addButton(self.filter2_pos0)
-#        self.NDfiltercontrolLayout.addWidget(self.filter2_pos0, 1, 1)
+#        self.filtercontrolLayout.addWidget(self.filter2_pos0, 1, 1)
 #        self.filter2_pos0.clicked.connect(lambda: self.filter_move_towards("COM7", 0))
 #
 #        self.filter2_pos1 = QPushButton('0.1')
 #        self.filter2_pos1.setCheckable(True)
 #        bGBackupFromIntExt_1.addButton(self.filter2_pos1)
-#        self.NDfiltercontrolLayout.addWidget(self.filter2_pos1, 1, 2)    
+#        self.filtercontrolLayout.addWidget(self.filter2_pos1, 1, 2)    
 #        self.filter2_pos1.clicked.connect(lambda: self.filter_move_towards("COM7", 1))
 #        
 #        self.filter2_pos2 = QPushButton('0.3')
 #        self.filter2_pos2.setCheckable(True)
 #        bGBackupFromIntExt_1.addButton(self.filter2_pos2)
-#        self.NDfiltercontrolLayout.addWidget(self.filter2_pos2, 1, 3)
+#        self.filtercontrolLayout.addWidget(self.filter2_pos2, 1, 3)
 #        self.filter2_pos2.clicked.connect(lambda: self.filter_move_towards("COM7", 2))
 #        
 #        self.filter2_pos3 = QPushButton('0.5')
 #        self.filter2_pos3.setCheckable(True)
 #        bGBackupFromIntExt_1.addButton(self.filter2_pos3)
-#        self.NDfiltercontrolLayout.addWidget(self.filter2_pos3, 1, 4)
+#        self.filtercontrolLayout.addWidget(self.filter2_pos3, 1, 4)
 #        self.filter2_pos3.clicked.connect(lambda: self.filter_move_towards("COM7", 3))
         
         self.filter1_pos0 =  QDial()
@@ -114,20 +114,31 @@ class FilterSliderWidgetUI(QWidget):
         self.filter2_pos0.setNotchesVisible(True)
         self.filter2_pos0.valueChanged.connect(lambda: self.filter_move_towards("COM7", self.filter2_pos0.value()))
         
-        self.NDfiltercontrolLayout.addWidget(QLabel('ND 0,1,2,3'), 1, 0)
-        self.NDfiltercontrolLayout.addWidget(self.filter1_pos0, 1, 1)
-        self.NDfiltercontrolLayout.addWidget(QLabel('ND 0, 0.1, 0.3, 0.5'), 1, 2)
-        self.NDfiltercontrolLayout.addWidget(self.filter2_pos0, 1, 3)
-      
-        oImage = QImage('./Icons/zap.jpg')
-        sImage = oImage.scaled(QSize(180,130))                   # resize Image to widgets size
+        self.filter3_pos0 =  QDial()
+        self.filter3_pos0.setMinimum(0)
+        self.filter3_pos0.setMaximum(3)
+        self.filter3_pos0.setValue(0)
+        self.filter3_pos0.setNotchesVisible(True)
+        self.filter3_pos0.valueChanged.connect(lambda: self.filter_move_towards("COM15", self.filter3_pos0.value()))
+        
+#        self.filtercontrolLayout.addWidget(QLabel('ND 0,1,2,3'), 1, 0)
+        self.filtercontrolLayout.addWidget(self.filter1_pos0, 1, 1)
+#        self.filtercontrolLayout.addWidget(QLabel('ND 0, 0.1, 0.3, 0.5'), 1, 2)
+        self.filtercontrolLayout.addWidget(self.filter2_pos0, 1, 3)
+        
+        self.filtercontrolLayout.addWidget(self.filter3_pos0, 1, 4)
+        
+
+        oImage = QImage('./Icons/filtersliderpanel.jpg')
+        sImage = oImage.scaled(QSize(292,208))                   # resize Image to widgets size
         palette = QPalette()
         palette.setBrush(QPalette.Window, QBrush(sImage))                        
-        self.setPalette(palette)
         
-        ND_filtercontrolContainer.setLayout(self.NDfiltercontrolLayout)
+        ND_filtercontrolContainer.setLayout(self.filtercontrolLayout)
         ND_filtercontrolContainer.setMaximumHeight(150)
         ND_filtercontrolContainer.setMaximumWidth(265)
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
         self.layout.addWidget(ND_filtercontrolContainer, 3, 0) 
         
         #**************************************************************************************************************************************
