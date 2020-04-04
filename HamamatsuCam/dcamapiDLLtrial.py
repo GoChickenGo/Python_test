@@ -788,7 +788,10 @@ class HamamatsuCamera(object):
             print('----------------------Settings-----------------------')
             for param in params:
                 if param == 'buffer_framebytes':
-                    print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+                    try:
+                        print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+                    except:
+                        print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
                 else:
                     print(param, self.getPropertyValue(param)[0])
             print('-----------------------------------------------------')
@@ -826,7 +829,10 @@ class HamamatsuCamera(object):
             print('----------------------Settings-----------------------')
             for param in params:
                 if param == 'buffer_framebytes':
-                    print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+                    try:
+                        print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+                    except:
+                        print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
                 else:
                     print(param, self.getPropertyValue(param)[0])
             print('-----------------------------------------------------')
@@ -999,9 +1005,9 @@ class HamamatsuCameraMR(HamamatsuCamera):
             self.hcam_ptr = ptr_array() # The array of pointers of attached buffers.
             self.hcam_data = []
             for i in range(self.number_image_buffers):
-                hc_data = HCamData(self.frame_bytes) # For each frame we allocate a buffer.
+                hc_data = HCamData(self.frame_bytes) # For each frame we allocate a numpy.ascontiguousarray buffer.
                 self.hcam_ptr[i] = hc_data.getDataPtr() # Configure each frame memory pointer.
-                self.hcam_data.append(hc_data)
+                self.hcam_data.append(hc_data) # List.append will not take up another memory space.
 
             self.old_frame_bytes = self.frame_bytes
             
@@ -1514,7 +1520,7 @@ if (__name__ == "__main__"):
 
     print("found:", n_cameras, "cameras")
     
-    Streaming_to_disk = True # False: Filling RAM first, Saving to hard disk afterwards. 
+    Streaming_to_disk = False # False: Filling RAM first, Saving to hard disk afterwards. 
                            # True: Streaming to disk while capturing.
     
     if (n_cameras > 0):
@@ -1550,14 +1556,14 @@ if (__name__ == "__main__"):
                 
                 #print(hcam.setPropertyValue("subarray_hsize", 2048))
                 #print(hcam.setPropertyValue("subarray_vsize", 2048))
-                print(hcam.setPropertyValue("subarray_hpos", 512))  # This property allows you to specify the LEFT position of capturing area. 
-                print(hcam.setPropertyValue("subarray_vpos", 1020))  # This property allows you to specify the top position of capturing area. 
-                print(hcam.setPropertyValue("subarray_hsize", 128))
-                print(hcam.setPropertyValue("subarray_vsize", 8))
+                # print(hcam.setPropertyValue("subarray_hpos", 512))  # This property allows you to specify the LEFT position of capturing area. 
+                # print(hcam.setPropertyValue("subarray_vpos", 1020))  # This property allows you to specify the top position of capturing area. 
+                print(hcam.setPropertyValue("subarray_hsize", 2048))
+                print(hcam.setPropertyValue("subarray_vsize", 2048))
                 
-                hcam.setSubArrayMode()            
+                # hcam.setSubArrayMode()            
                 
-                print(hcam.setPropertyValue("exposure_time", 0.0006/16))
+                print(hcam.setPropertyValue("exposure_time", 0.002))#0.0006/16
     
                 print(hcam.setPropertyValue("binning", "1x1"))
                 print(hcam.setPropertyValue("readout_speed", 2))
@@ -1588,14 +1594,16 @@ if (__name__ == "__main__"):
             if True:
                 print("Testing run till abort acquisition")
                 hcam.startAcquisition()
-    
+                
+                video_list = []
+                
                 cnt = 0
-                for i in range(25655*2): # Record for range() number of images.
+                for i in range(100*2): # Record for range() number of images.
                     if i == 0:
                         print('Start getting frames at {} s...'.format(time.time()))
                     [frames, dims] = hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
                     for aframe in frames:
-    #                    print(cnt, aframe[0:5])
+                        video_list.append(aframe)
                         cnt += 1
     #                print('frames size is {}'.format(len(frames)))
                 AcquisitionEndTime = time.time()
@@ -1603,7 +1611,8 @@ if (__name__ == "__main__"):
                 print('Total time is: {} s.'.format(AcquisitionEndTime-hcam.AcquisitionStartTime))
                 print('Estimated fps: {} hz.'.format(int(cnt/(AcquisitionEndTime-hcam.AcquisitionStartTime))))
                 hcam.stopAcquisition()
-    #
+    #       
+            
             # Test 'fixed_length' acquisition.
             if False:
                 for j in range (10000):
