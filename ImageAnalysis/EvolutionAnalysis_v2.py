@@ -22,8 +22,9 @@ from skimage.measure import regionprops
 from skimage.color import label2rgb
 from skimage.restoration import denoise_tv_chambolle
 from skimage.io import imread
-from scipy.signal import convolve2d
+from scipy.signal import convolve2d, medfilt
 import scipy.interpolate as interpolate
+from scipy.ndimage.filters import gaussian_filter1d
 import numpy.lib.recfunctions as rfn
 import copy
 import os
@@ -107,7 +108,6 @@ class ProcessImage():
             template_image = imagestack
         
         template_image = denoise_tv_chambolle(template_image, weight=0.01) # Denoise the image.
-
         # -----------------------------------------------Adaptive thresholding-----------------------------------------------
 #        block_size = binary_adaptive_block_size#335
         AdaptiveThresholding = threshold_local(template_image, binary_adaptive_block_size, offset=0)
@@ -136,9 +136,8 @@ class ProcessImage():
         cleared = RegionProposalMask.copy()
         clear_border(cleared)
         # label image regions, prepare for regionprops
-        label_image = label(cleared)
-        
-        dtype = [('No.', int), ('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float)]
+        label_image = label(cleared)       
+        dtype = [('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float)]
         CellSequenceInRegion = 0
         dirforcellprp = {}
         show_img = False
@@ -157,7 +156,7 @@ class ProcessImage():
                 bbox_area = (maxr-minr)*(maxc-minc)
                 # Based on the boundingbox for each cell from first image in the stack, raw image of slightly larger region is extracted from each round.
                 RawRegionImg = image[max(minr-4,0):min(maxr+4, image[0].shape[0]), max(minc-4,0):min(maxc+4, image[0].shape[0])] # Raw region image 
-                
+        
                 RawRegionImg_for_contour = RawRegionImg.copy()
                 
                 #---------Get the cell filled mask-------------
@@ -189,15 +188,15 @@ class ProcessImage():
                 if str(contour_soma_ratio) == 'nan':
                     contour_soma_ratio = 0
                 
-                dirforcellprp[CellSequenceInRegion] = (CellSequenceInRegion, boundingbox_info, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)    
+                dirforcellprp[CellSequenceInRegion] = (boundingbox_info, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)    
                 
 #                plt.figure()
 #                plt.imshow(RawRegionImg)
 #                plt.show()
-                
-#                plt.figure()
-#                plt.imshow(contour_mask_of_cell)
-#                plt.show()
+    
+                # plt.figure()
+                # plt.imshow(contour_mask_of_cell)
+                # plt.show()
             
                 #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
                 rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
@@ -226,7 +225,7 @@ class ProcessImage():
         # =============================================================================
         """
         
-        dtype = [('No.', int), ('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float)]
+        dtype = [('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float)]
         CellSequenceInRegion = 0
         dirforcellprp = {}
         
@@ -281,15 +280,15 @@ class ProcessImage():
             if str(contour_soma_ratio) == 'nan':
                 contour_soma_ratio = 0
                     
-            dirforcellprp[CellSequenceInRegion] = (CellSequenceInRegion, Each_bounding_box, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)
+            dirforcellprp[CellSequenceInRegion] = (Each_bounding_box, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)
             
 #            plt.figure()
 #            plt.imshow(RawRegionImg)
 #            plt.show()
-#            
-#            plt.figure()
-#            plt.imshow(filled_mask_convolve2d)
-#            plt.show()
+
+            # plt.figure()
+            # plt.imshow(contour_mask_of_cell)
+            # plt.show()
         
             #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
             rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
@@ -312,10 +311,21 @@ class ProcessImage():
         return LibFluorescenceLookupBook        
         
     
-    def get_Skeletonized_contour(image, RegionProposalMask, smallest_size, contour_thres, contour_dilationparameter, cell_region_opening_factor, cell_region_closing_factor):
+    def get_Skeletonized_contour(image, RegionProposalMask, smallest_size, contour_thres, contour_dilationparameter, cell_region_opening_factor, 
+                                 cell_region_closing_factor, scanning_voltage, points_per_contour, sampling_rate):
         """
         # =============================================================================
         #         Get the skeletonized contour of the cell for automated contour scanning.
+        # ** RegionProposalMask: the binary mask for region iterative analysis.
+        # ** smallest_size: cells size below this number are ignored.
+        # ** lowest_region_intensity: cells with mean region intensity below this are ignored.
+        # ** contour_thres: threshold for contour recognizition.
+        # ** contour_dilationparameter: the dilation degree applied when doing inward contour dilation for thicker menbrane area.
+        # ** cell_region_opening_factor: degree of opening operation on individual cell mask.
+        # ** cell_region_closing_factor: degree of closing operation on individual cell mask.
+        # ** scanning_voltage: The scanning voltage of input image.
+        # ** points_per_contour: desired number of points in contour routine.
+        # ** sampling_rate: sampling rate for contour scanning.
         # =============================================================================
         """
         cleared = RegionProposalMask.copy()
@@ -347,7 +357,7 @@ class ProcessImage():
                                                                             cell_region_opening_factor = cell_region_opening_factor, 
                                                                             cell_region_closing_factor = cell_region_closing_factor)
                 
-                filled_mask_convolve2d = imageanalysistoolbox.smoothing_filled_mask(RawRegionImg, filled_mask_bef = filled_mask_bef, region_area = region.area, threshold_factor = 1.3)
+                filled_mask_convolve2d = imageanalysistoolbox.smoothing_filled_mask(RawRegionImg, filled_mask_bef = filled_mask_bef, region_area = region.area, threshold_factor = 2)
                 
                 # Set the edge lines to zero so that we don't have the risk of unclosed contour at the edge of image.
                 if minr == 0 or minc == 0:
@@ -356,41 +366,76 @@ class ProcessImage():
                 if maxr == image[0].shape[0] or maxc == image[0].shape[0]:
                     filled_mask_convolve2d[filled_mask_convolve2d.shape[0]-1, :] = False
                     filled_mask_convolve2d[:, filled_mask_convolve2d.shape[1]-1] = False
+                    
                 # Find contour along filled image
                 contour_mask_thin_line = imageanalysistoolbox.contour(filled_mask_convolve2d, RawRegionImg_for_contour.copy(), contour_thres) 
-
+#                plt.figure()
+#                plt.imshow(contour_mask_thin_line)
+#                plt.show()
                 # after here intensityimage_intensity is changed from contour labeled with number 5 to binary image
-                contour_mask_of_cell = imageanalysistoolbox.inwarddilationmask(contour_mask_thin_line.copy() ,filled_mask_convolve2d, contour_dilationparameter)
-# =============================================================================
-#                 # Get the skeleton of the contour, same as contour_mask_thin_line
-# #                contour_skeleton = skeletonize(contour_mask_of_cell)#, method='lee'                
-#                 thinned_partial = thin(contour_mask_thin_line.copy(), max_iter=25)
-# =============================================================================
-# =============================================================================
-#                 # -----------------------if cell appears on the border, complete the circle by connecting the two ends.----------------------------------
-# #                print(len(np.where(thinned_partial[:, 0]==True)[0]))
-#                 if len(np.where(thinned_partial[:, 0]==True)[0]) > 1:#return the column index of edge pixels.
-#                     print('False on edge.')
-# #                thinned_partial[RawRegionImg.shape[0], :]==True
-# =============================================================================
+#                contour_mask_of_cell = imageanalysistoolbox.inwarddilationmask(contour_mask_thin_line.copy() ,filled_mask_convolve2d, contour_dilationparameter)
+                #--------------------------------------------------------------
+#                print(len(np.where(contour_mask_thin_line == 1)[0]))
+                if len(np.where(contour_mask_thin_line == 1)[0]) > 0:
+                    #-------------------Sorting and filtering----------------------
+                    clockwise_sorted_raw_trace = ProcessImage.sort_index_clockwise(contour_mask_thin_line)
+                    [X_routine, Y_routine], filtered_cellmap = ProcessImage.tune_contour_routine(contour_mask_thin_line, clockwise_sorted_raw_trace, filtering_kernel = 1.5)
+                    #--------------------------------------------------------------
+                    
+                    #----------Put contour image back to original image.-----------
+                    ContourFullFOV = np.zeros((image.shape[0], image.shape[1]))
+                    ContourFullFOV[max(minr-4,0):min(maxr+4, image[0].shape[0]), max(minc-4,0):min(maxc+4, image[0].shape[0])] = filtered_cellmap.copy()
+    
+                    X_routine = X_routine + max(minr-4,0)
+                    Y_routine = Y_routine + max(minc-4,0)
+                    #--------------------------------------------------------------
+                    
+                    figure, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,10))
+                    ax1.imshow(ContourFullFOV, cmap = plt.cm.gray)
+                    ax2.imshow(filtered_cellmap*2+RawRegionImg, cmap = plt.cm.gray)
+    #                ax2.imshow(ContourFullFOV*2+image, cmap = plt.cm.gray)
+    #                ax2.imshow(filled_mask_convolve2d, cmap = plt.cm.gray)           
+    #                figure.tight_layout()
+                    plt.show()
+                    
+                    #------------Organize for Ni-daq execution---------------------
+                    voltage_contour_routine_X = (X_routine/ContourFullFOV.shape[0])*scanning_voltage*2-scanning_voltage
+                    voltage_contour_routine_Y = (Y_routine/ContourFullFOV.shape[1])*scanning_voltage*2-scanning_voltage
+                    
+                    #--------------interpolate to get 500 points-------------------
+                    x_axis = np.arange(0,len(voltage_contour_routine_X))
+                    f_x = interpolate.interp1d(x_axis, voltage_contour_routine_X, kind='cubic')
+                    newx = np.linspace(x_axis.min(), x_axis.max(), num=points_per_contour)
+                    X_interpolated = f_x(newx)
+                    
+                    y_axis = np.arange(0,len(voltage_contour_routine_Y))
+                    f_y = interpolate.interp1d(y_axis, voltage_contour_routine_Y, kind='cubic')
+                    newy = np.linspace(y_axis.min(), y_axis.max(), num=points_per_contour)
+                    Y_interpolated = f_y(newy)
+                    
+                    #-----------speed and accelation check-------------------------
+    #                contour_x_speed = np.diff(X_interpolated)/time_gap
+    #                contour_y_speed = np.diff(Y_interpolated)/time_gap
+                    time_gap = 1/sampling_rate
+                    contour_x_acceleration = np.diff(X_interpolated, n=2)/time_gap**2
+                    contour_y_acceleration = np.diff(Y_interpolated, n=2)/time_gap**2
+                    
+                    if AccelerationGalvo < np.amax(abs(contour_x_acceleration)):
+                        print(np.amax(abs(contour_x_acceleration)))
+                    if AccelerationGalvo < np.amax(abs(contour_y_acceleration)):
+                        print(np.amax(abs(contour_y_acceleration)))
+                    
+                    X_interpolated = np.around(X_interpolated, decimals=3)
+                    Y_interpolated = np.around(Y_interpolated, decimals=3)
+                    
+                    ContourArray_forDaq = np.vstack((X_interpolated,Y_interpolated))
+                    
+                    CellSkeletonizedContourDict['DaqArray_cell{}'.format(CellSequenceInRegion)] = ContourArray_forDaq
+                    CellSkeletonizedContourDict['ContourMap_cell{}'.format(CellSequenceInRegion)] = ContourFullFOV
+                    CellSequenceInRegion += 1
+                    #--------------------------------------------------------------
+                                    
                 
-                #----------Put contour image back to original image.-----------
-                ContourFullFOV = np.zeros((image.shape[0], image.shape[1]))
-                ContourFullFOV[max(minr-4,0):min(maxr+4, image[0].shape[0]), max(minc-4,0):min(maxc+4, image[0].shape[0])] = contour_mask_thin_line.copy()
-                
-
-                figure, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,10))
-        
-                ax1.imshow(RawRegionImg, cmap = plt.cm.gray)
-                ax2.imshow(contour_mask_thin_line*2+RawRegionImg, cmap = plt.cm.gray)
-#                ax2.imshow(ContourFullFOV*2+image, cmap = plt.cm.gray)
-#                ax2.imshow(filled_mask_convolve2d, cmap = plt.cm.gray)           
-#                figure.tight_layout()
-                plt.show()
-                
-                CellSkeletonizedContourDict[CellSequenceInRegion] = ContourFullFOV
-                CellSequenceInRegion += 1
-            
         return CellSkeletonizedContourDict
     
     def sort_index_clockwise(cellmap):
@@ -399,6 +444,7 @@ class ProcessImage():
         #  Given the binary contour, sort the index so that they are in clockwise sequence for further contour scanning.
         # =============================================================================
         """
+
         rawindexlist = list(zip(np.where(cellmap == 1)[0], np.where(cellmap == 1)[1]))
         rawindexlist.sort()
         
@@ -460,7 +506,7 @@ class ProcessImage():
         
         return result
     
-    def tune_contour_routine(clockwise_sorted_raw_trace, scanning_voltage, points_per_contour):
+    def tune_contour_routine(cellmap, clockwise_sorted_raw_trace, filtering_kernel):
         """
         # =============================================================================
         #  Given the clockwise sorted binary contour, interploate and filter for further contour scanning.
@@ -471,33 +517,19 @@ class ProcessImage():
         for rawcoord in clockwise_sorted_raw_trace:
             Unfiltered_contour_routine_X = np.append(Unfiltered_contour_routine_X, rawcoord[0])
             Unfiltered_contour_routine_Y = np.append(Unfiltered_contour_routine_Y, rawcoord[1])
-        # For -5~5v scanning.
-        Unfiltered_voltage_contour_routine_X = (Unfiltered_contour_routine_X/PMT_image.shape[0])*scanning_voltage*2-scanning_voltage
-        Unfiltered_voltage_contour_routine_Y = (Unfiltered_contour_routine_Y/PMT_image.shape[0])*scanning_voltage*2-scanning_voltage
         
-        # interpolate to get 500 points
-        x_axis = np.arange(0,len(Unfiltered_voltage_contour_routine_X))
-        f_x = interpolate.interp1d(x_axis, Unfiltered_voltage_contour_routine_X, kind='cubic')
-        newx = np.linspace(x_axis.min(), x_axis.max(), num=points_per_contour)
-        Unfiltered_X_interpolated = f_x(newx)
+        # filtering and show filtered contour
+#        X_routine = medfilt(Unfiltered_contour_routine_X, kernel_size=filtering_kernel)
+#        Y_routine = medfilt(Unfiltered_contour_routine_Y, kernel_size=filtering_kernel)
+        X_routine = gaussian_filter1d(Unfiltered_contour_routine_X, sigma = filtering_kernel)
+        Y_routine = gaussian_filter1d(Unfiltered_contour_routine_Y, sigma = filtering_kernel)
         
-        y_axis = np.arange(0,len(Unfiltered_voltage_contour_routine_Y))
-        f_y = interpolate.interp1d(y_axis, Unfiltered_voltage_contour_routine_Y, kind='cubic')
-        newy = np.linspace(y_axis.min(), y_axis.max(), num=points_per_contour)
-        Unfiltered_Y_interpolated = f_y(newy)
+        filtered_cellmap = np.zeros((cellmap.shape[0], cellmap.shape[1]))
+        for i in range(len(X_routine)):
+            filtered_cellmap[int(X_routine[i]), int(Y_routine[i])] = 1
+
         
-        contour_x_speed = np.diff(Unfiltered_X_interpolated)/time_gap
-        contour_y_speed = np.diff(Unfiltered_Y_interpolated)/time_gap
-        
-        contour_x_acceleration = np.diff(Unfiltered_X_interpolated, n=2)/time_gap**2
-        contour_y_acceleration = np.diff(Unfiltered_Y_interpolated, n=2)/time_gap**2
-        
-        if AccelerationGalvo < np.amax(abs(contour_x_acceleration)):
-            print(np.amax(abs(contour_x_acceleration)))
-        if AccelerationGalvo < np.amax(abs(contour_y_acceleration)):
-            print(np.amax(abs(contour_y_acceleration)))
-            
-#        return 
+        return [X_routine, Y_routine], filtered_cellmap
         
     def get_cell_properties_Roundstack(imagestack, RegionProposalMask, smallest_size, contour_thres, contour_dilationparameter, cell_region_opening_factor, cell_region_closing_factor):
         
@@ -734,16 +766,16 @@ class ProcessImage():
                         
         return lib_cell_properties_dict
     
-    def OrganizeOverview(lib_cell_properties_dict, CutOffThres, EvaluatingPara_1, EvaluatingPara_2):
+    def OrganizeOverview(lib_cell_properties_dict, CutOffThres, EvaluatingPara_1, WeightPara_1, EvaluatingPara_2, WeightPara_2):
         """
         # =============================================================================
         # Add 'ID' field which indicates position, round information to the structured array in the dictionary.
         # Delete cells that are dimmer than threshold.
-        # Add 'Normalized distance' field which indicates the distance to the scatter plots origin.
+        # Add 'Normalized distance' field which indicates the distance to the scatter plots origin in EvaluatingPara_1 and EvaluatingPara_2 dimensions.
         # ** EvaluatingPara: Indicates the field along which calculation of distance takes place.
         # =============================================================================
         """        
-        Overview_dtype = [('No.', int), ('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), 
+        Overview_dtype = [('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), 
                           ('Contour soma ratio', float), ('Mean intensity divided by tag', float)]
         counting = 0
         
@@ -756,6 +788,7 @@ class ProcessImage():
         for EachCoord in lib_cell_properties_dict:
             for EachCellArray in lib_cell_properties_dict[EachCoord]:
                 Overview_LookupBook[counting] = EachCellArray
+#                ID_infor = EachCoord + "_No" + str(counting)
                 IDlist.append(EachCoord)
                 counting += 1
         # Append the id field
@@ -766,15 +799,24 @@ class ProcessImage():
         for EachCell in range(len(Overview_LookupBook)):
             if Overview_LookupBook[EachCell]['Mean intensity in contour'] < CutOffThres:
                 DeleteIndexList.append(EachCell)
-            
         Overview_LookupBook = np.delete(Overview_LookupBook, DeleteIndexList, 0)
         
+        # Append the number field.
+        NoList = []
+        for EachCell in range(len(Overview_LookupBook)):
+            NoList.append(EachCell)
+        Overview_LookupBook = rfn.append_fields(Overview_LookupBook, 'Sequence', NoList, usemask=False)
+            
         # Add 'Normalized distance' field
         NormalizedDistanceArray = np.array([])
         for EachCellIndex in range(len(Overview_LookupBook)):
-            Distance = ((Overview_LookupBook[EachCellIndex][EvaluatingPara_1]/np.amax(Overview_LookupBook[EvaluatingPara_1]))**2 \
-                        + (Overview_LookupBook[EachCellIndex][EvaluatingPara_2]/np.amax(Overview_LookupBook[EvaluatingPara_2]))**2)**0.5
-                        
+            # Get the original values of two axes.
+            value_Para_1 = Overview_LookupBook[EachCellIndex][EvaluatingPara_1]/np.amax(Overview_LookupBook[EvaluatingPara_1])
+            value_Para_2 = Overview_LookupBook[EachCellIndex][EvaluatingPara_2]/np.amax(Overview_LookupBook[EvaluatingPara_2])
+            
+            Distance = ((value_Para_1 * WeightPara_1)**2 \
+                        + (value_Para_2 * WeightPara_2)**2)**0.5
+
             NormalizedDistanceArray = np.append(NormalizedDistanceArray, Distance)
                 
         Overview_LookupBook = rfn.append_fields(Overview_LookupBook, 'Normalized distance', NormalizedDistanceArray, usemask=False)
@@ -808,19 +850,31 @@ class ProcessImage():
         # Sorting using field 'Normalized distance'.
         # ** selectionRadiusPercent: Threshold for distance to be selected.
         """
+        max_Normalized_distance = np.amax(cell_properties['Normalized distance'])
+        min_Normalized_distance = np.amin(cell_properties['Normalized distance'])
+        selectionRadiusThres = ((max_Normalized_distance - min_Normalized_distance) * selectionRadiusPercent/100) + min_Normalized_distance
+        
         Selected_cell_number = 0
-        Selected_LookupBook = np.array([])
-        for EachCellIndex in range(len(cell_properties)):
-            if cell_properties[EachCellIndex]['Normalized distance'] > selectionRadiusPercent:
-                if Selected_cell_number == 0:
-                    Selected_LookupBook = cell_properties[EachCellIndex]
-                else:
-                    Selected_LookupBook = np.append(Selected_LookupBook, cell_properties[EachCellIndex])
-                Selected_cell_number += 1
-                
-        cell_properties = np.flip(np.sort(Selected_LookupBook, order='Normalized distance'), 0)
+        
+        if selectionRadiusPercent == 100:
+            Selected_LookupBook = cell_properties
+            Selected_cell_number = len(Selected_LookupBook)
+        else:
+            Selected_LookupBook = np.array([])
+            for EachCellIndex in range(len(cell_properties)):
+                if cell_properties[EachCellIndex]['Normalized distance'] > selectionRadiusThres:
+                    if Selected_cell_number == 0:
+                        Selected_LookupBook = np.array([cell_properties[EachCellIndex]])
+                    else:
+                        Selected_LookupBook = np.append(Selected_LookupBook, cell_properties[EachCellIndex])
+                    Selected_cell_number += 1
+        
+        if Selected_cell_number == 1:
+            Selected_LookupBook = Selected_LookupBook
+        else:
+            Selected_LookupBook = np.flip(np.sort(Selected_LookupBook, order='Normalized distance'), 0)
 
-        return cell_properties        
+        return Selected_LookupBook        
         
 if __name__ == "__main__":
     
@@ -832,30 +886,19 @@ if __name__ == "__main__":
 #    AccelerationGalvo = 1.54*10**8 #Acceleration galvo in volt/s^2
 #    #--------------------------------------------------------------------------
 #    PMT_image = imread(r'D:\XinMeng\imageCollection\Round2_Coord3_R1500C1500_PMT_2.tif', as_gray=True)
-#    time_gap = 1/50000
+##    time_gap = 1/50000
 #     
 #    RegionProposalMask, RegionProposalOriginalImage = ProcessImage.generate_mask(PMT_image, openingfactor=2, 
 #                                                                                                closingfactor=4, binary_adaptive_block_size=335)#256(151) 500(335)
 #
-#    CellSkeletonizedContourDict = ProcessImage.get_Skeletonized_contour(PMT_image, RegionProposalMask, smallest_size=400, contour_thres=0.001, 
-#                                                                                       contour_dilationparameter=11, cell_region_opening_factor=1, cell_region_closing_factor=2)
-#    
-#    for EachCell in CellSkeletonizedContourDict:
-##        if EachCell == 1:
-#        clockwise_sorted_raw_trace = ProcessImage.sort_index_clockwise(CellSkeletonizedContourDict[EachCell])
-#        ProcessImage.tune_contour_routine(clockwise_sorted_raw_trace, scanning_voltage = 5, points_per_contour = 500)
-
-        
-        
-#        rawtrace = clockwise_sorted_raw_trace
-#        yacc = contour_y_acceleration
-#        yspeed = contour_y_speed
-#        y_routine = Unfiltered_voltage_contour_routine_Y
+#    CellSkeletonizedContourDict= ProcessImage.get_Skeletonized_contour(PMT_image, RegionProposalMask, smallest_size=400, contour_thres=0.001, 
+#                                                                                       contour_dilationparameter=11, cell_region_opening_factor=1, cell_region_closing_factor=2,
+#                                                                                       scanning_voltage=5, points_per_contour=500, sampling_rate = 50000)
             
         
 # =============================================================================
-    tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-3-27 archon lib brightness\trial_2 test archonegfp lib 2by2'
-    lib_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-3-27 archon lib brightness\trial_2 test archonegfp lib 2by2'
+    tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-4-08 Archon citrine library 100FOVs\trial_3'
+    lib_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-4-08 Archon citrine library 100FOVs\trial_3'
   #   tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-3-6 Archon brightness screening\NovArch library'
 
     tag_round = 'Round1'
@@ -877,76 +920,66 @@ if __name__ == "__main__":
     # Devided by fusion protein brightness.
     lib_cell_properties_dict = ProcessImage.CorrectForFusionProtein(tagprotein_cell_properties_dict, lib_cell_properties_dict, tagprotein_laserpower=1, lib_laserpower=30)
     # Organize and add 'ranking' and 'boundingbox' fields to the structured array.
-    Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, MeanIntensityThreshold, EvaluatingPara_1, EvaluatingPara_2)
+    Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, MeanIntensityThreshold, EvaluatingPara_1, 1, EvaluatingPara_2, 0.5)
     #--------------------------------------------------------------------------
 #    Overview_LookupBook_sorted = ProcessImage.WeightedSorting(Overview_LookupBook, 'Mean intensity divided by tag', 'Mean intensity in contour', 'Contour soma ratio', 
 #                                                              weight_1 = 0.4, weight_2 = 0.4, weight_3 = 0.2)
     #--------------------------------------------------------------------------
     selectionRadius = 'circle'
-    selectionPercent = 0.8
+    selectionPercent = 50
     
     Overview_LookupBook_filtered = ProcessImage.DistanceSelecting(Overview_LookupBook, selectionPercent)
 
     totalselectnum = 5
-
-#    df = Overview_LookupBook_sorted # iris is a pandas DataFrame
-#    fig = px.scatter(df, x="Mean intensity divided by tag", y="Contour soma ratio")
-#    fig.show()
-    # Display scatters
-    get_ipython().run_line_magic('matplotlib', 'qt')
-    plt.scatter(Overview_LookupBook[EvaluatingPara_1], Overview_LookupBook[EvaluatingPara_2], s=np.pi*3, c='blue', alpha=0.5)
-    plt.scatter(Overview_LookupBook_filtered[EvaluatingPara_1], Overview_LookupBook_filtered[EvaluatingPara_2], s=np.pi*3, c='red', alpha=0.5)
-    plt.title('Screening scatter plot')
-    plt.xlabel(EvaluatingPara_1)
-    plt.ylabel(EvaluatingPara_2)
-    plt.show()
     
-#    get_ipython().run_line_magic('matplotlib', 'inline')
-#    # Display histogram
-#    num_bins = 20
-#    # the histogram of the data
-#    n, bins, patches = plt.hist(Overview_LookupBook_sorted['Weighted ranking'], num_bins, facecolor='blue', alpha=0.5)
-#    
-#    plt.xlabel('Weights')
-#    plt.ylabel('Number')
-#    plt.title(r'Histogram of all cell weights')
-#    # Tweak spacing to prevent clipping of ylabel
-#    plt.subplots_adjust(left=0.15)
+    
+    fig = px.scatter(Overview_LookupBook, x=EvaluatingPara_1, y=EvaluatingPara_2, 
+               hover_name= 'ID', color= 'Normalized distance', 
+               hover_data= ['Sequence', 'Mean intensity'], width=1050, height=950)
+    fig.write_html('Screening scatters.html', auto_open=True)
+    # Display scatters
+#    get_ipython().run_line_magic('matplotlib', 'qt')
+#    plt.scatter(Overview_LookupBook[EvaluatingPara_1], Overview_LookupBook[EvaluatingPara_2], s=np.pi*3, c='blue', alpha=0.5)
+#    plt.scatter(Overview_LookupBook_filtered[EvaluatingPara_1], Overview_LookupBook_filtered[EvaluatingPara_2], s=np.pi*3, c='red', alpha=0.5)
+#    plt.title('Screening scatter plot')
+#    plt.xlabel(EvaluatingPara_1)
+#    plt.ylabel(EvaluatingPara_2)
 #    plt.show()
 #    
-#    
-#    Top_from_Overview_LookupBook = Overview_LookupBook_sorted[0:20]
-    ranking = 1
-    for EachCell in range(len(Overview_LookupBook_filtered)):
-        spec = Overview_LookupBook_filtered[EachCell]['ID']
-#        #-------------- readin image---------------
-#        for file in os.walk(lib_folder):
-#            if spec and 'Zmax' in file:
-        lib_imagefilename = os.path.join(lib_folder, spec+'_PMT_0Zmax.tif')
-#                break
-#            break
-        print(lib_imagefilename)
-        loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
-        # Retrieve boundingbox information
-        Each_bounding_box = Overview_LookupBook_filtered[EachCell]['BoundingBox']
-        minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
-        maxr = int(Each_bounding_box[Each_bounding_box.index('maxr')+4:Each_bounding_box.index('_maxc')])        
-        minc = int(Each_bounding_box[Each_bounding_box.index('minc')+4:Each_bounding_box.index('_maxr')])
-        maxc = int(Each_bounding_box[Each_bounding_box.index('maxc')+4:len(Each_bounding_box)])
-        
-#        plt.figure()
-        fig_showlabel, ax_showlabel = plt.subplots(ncols=1, nrows=1, figsize=(6, 6))
-        ax_showlabel.imshow(loaded_lib_image_display)#Show the first image
-        #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
-        rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
-#        contour_mean_bef_rounded = str(round(MeanIntensity_Contour, 3))[0:5]
-        ax_showlabel.add_patch(rect)
-        ax_showlabel.text(maxc, minr, 'NO_{}'.format(ranking),fontsize=8, color='orange', style='italic')
-        ranking += 1
-        # Based on the boundingbox for each cell from first image in the stack, raw image of slightly larger region is extracted from each round.
-#        RankdisplayImg = loaded_lib_image_display[minr:maxr, minc:maxc] # Raw region image 
-        
-        ax_showlabel.set_axis_off()
+##    get_ipython().run_line_magic('matplotlib', 'inline')
+#
+##    Top_from_Overview_LookupBook = Overview_LookupBook_sorted[0:20]
+#    ranking = 1
+#    for EachCell in range(len(Overview_LookupBook_filtered)):
+#        spec = Overview_LookupBook_filtered[EachCell]['ID']
+##        #-------------- readin image---------------
+##        for file in os.walk(lib_folder):
+##            if spec and 'Zmax' in file:
+#        lib_imagefilename = os.path.join(lib_folder, spec+'_PMT_0Zmax.tif')
+##                break
+##            break
+#        print(lib_imagefilename)
+#        loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
+#        # Retrieve boundingbox information
+#        Each_bounding_box = Overview_LookupBook_filtered[EachCell]['BoundingBox']
+#        minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
+#        maxr = int(Each_bounding_box[Each_bounding_box.index('maxr')+4:Each_bounding_box.index('_maxc')])        
+#        minc = int(Each_bounding_box[Each_bounding_box.index('minc')+4:Each_bounding_box.index('_maxr')])
+#        maxc = int(Each_bounding_box[Each_bounding_box.index('maxc')+4:len(Each_bounding_box)])
+#        
+##        plt.figure()
+#        fig_showlabel, ax_showlabel = plt.subplots(ncols=1, nrows=1, figsize=(6, 6))
+#        ax_showlabel.imshow(loaded_lib_image_display)#Show the first image
+#        #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
+#        rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
+##        contour_mean_bef_rounded = str(round(MeanIntensity_Contour, 3))[0:5]
+#        ax_showlabel.add_patch(rect)
+#        ax_showlabel.text(maxc, minr, 'NO_{}'.format(ranking),fontsize=8, color='orange', style='italic')
+#        ranking += 1
+#        # Based on the boundingbox for each cell from first image in the stack, raw image of slightly larger region is extracted from each round.
+##        RankdisplayImg = loaded_lib_image_display[minr:maxr, minc:maxc] # Raw region image 
+#        
+#        ax_showlabel.set_axis_off()
 #        plt.show()
 # =============================================================================
 
