@@ -1505,6 +1505,7 @@ if (__name__ == "__main__"):
     import time
     import random
     import numpy as np
+    import skimage.external.tifffile as skimtiff
     #
     # Initialization
     # Load dcamapi.dll version 19.12.641.5901
@@ -1557,9 +1558,9 @@ if (__name__ == "__main__"):
                 #print(hcam.setPropertyValue("subarray_hsize", 2048))
                 #print(hcam.setPropertyValue("subarray_vsize", 2048))
                 # print(hcam.setPropertyValue("subarray_hpos", 512))  # This property allows you to specify the LEFT position of capturing area. 
-                # print(hcam.setPropertyValue("subarray_vpos", 1020))  # This property allows you to specify the top position of capturing area. 
+                print(hcam.setPropertyValue("subarray_vpos", 512))  # This property allows you to specify the top position of capturing area. 
                 print(hcam.setPropertyValue("subarray_hsize", 2048))
-                print(hcam.setPropertyValue("subarray_vsize", 2048))
+                print(hcam.setPropertyValue("subarray_vsize", 1024))
                 
                 # hcam.setSubArrayMode()            
                 
@@ -1576,6 +1577,7 @@ if (__name__ == "__main__"):
                           "timing_readout_time",
                           "exposure_time",
                           "subarray_hsize",
+                          "subarray_vsize",
                           "subarray_mode"]
     
                 #                      "image_height",
@@ -1589,21 +1591,26 @@ if (__name__ == "__main__"):
                 #                      "binning"]
                 for param in params:
                     print(param, hcam.getPropertyValue(param)[0])
-    #
+                    if param == "subarray_hsize":
+                        subarray_hsize = hcam.getPropertyValue(param)[0]
+                    if param == "subarray_vsize":
+                        subarray_vsize = hcam.getPropertyValue(param)[0]
+                        
+                frame_pixelsize = subarray_hsize * subarray_vsize
             # Test 'run_till_abort' acquisition.
             if True:
                 print("Testing run till abort acquisition")
                 hcam.startAcquisition()
                 
                 video_list = []
-                
+                frame_num = 200
                 cnt = 0
-                for i in range(100*2): # Record for range() number of images.
+                for i in range(frame_num): # Record for range() number of images.
                     if i == 0:
                         print('Start getting frames at {} s...'.format(time.time()))
                     [frames, dims] = hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
                     for aframe in frames:
-                        video_list.append(aframe)
+                        video_list.append(aframe.np_array)
                         cnt += 1
     #                print('frames size is {}'.format(len(frames)))
                 AcquisitionEndTime = time.time()
@@ -1611,7 +1618,18 @@ if (__name__ == "__main__"):
                 print('Total time is: {} s.'.format(AcquisitionEndTime-hcam.AcquisitionStartTime))
                 print('Estimated fps: {} hz.'.format(int(cnt/(AcquisitionEndTime-hcam.AcquisitionStartTime))))
                 hcam.stopAcquisition()
-    #       
+            
+            if True:
+                video_name = r"M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Xin\2020-3-31 cam matrix reconstruct\recordtest.tif"
+                with skimtiff.TiffWriter(video_name, append = True, imagej = True)\
+                as tif:                
+                    write_starttime = time.time()
+                    for eachframe in range(frame_num): 
+                        image = np.resize(video_list[eachframe], (subarray_vsize, subarray_hsize))
+                        
+                        tif.save(image, compress=0)
+                print("Done writing " + str(frame_num) + " frames, recorded for "\
+                + str(round(AcquisitionEndTime,2)) + " seconds, saving video takes {} seconds.".format(round(time.time()-write_starttime, 2)))
             
             # Test 'fixed_length' acquisition.
             if False:
