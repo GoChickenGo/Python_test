@@ -19,6 +19,7 @@ from IPython import get_ipython
 import sys
 import numpy as np
 from skimage.io import imread
+from skimage.transform import rotate
 import threading
 import os
 import copy
@@ -29,11 +30,13 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import plotly.express as px
 from NIDAQ.constants import HardwareConstants
 import NIDAQ.Waveformer_for_screening
 from EvolutionScanningThread import ScanningExecutionThread, ShowTopCellsThread # This is the thread file for execution.
 from ImageAnalysis.EvolutionAnalysis_v2 import ProcessImage
 from SampleStageControl.stage import LudlStage
+from NIDAQ.generalDaqerThread import execute_tread_singlesample_digital
 
 import FocusCalibrater
 import GalvoWidget.PMTWidget
@@ -199,15 +202,28 @@ class Mainbody(QWidget):
         
         ButtonRankResetCoordImg = QPushButton('Reset coord', self)
         ButtonRankResetCoordImg.clicked.connect(self.ResetRankCoord)
-        ImageDisplayContainerLayout.addWidget(ButtonRankResetCoordImg, 0, 7)
+        ImageDisplayContainerLayout.addWidget(ButtonRankResetCoordImg, 0, 6)
         
         ButtonRankPreviousCoordImg = QPushButton('Previous', self)
         ButtonRankPreviousCoordImg.clicked.connect(lambda: self.GoThroughTopCells('previous'))
-        ImageDisplayContainerLayout.addWidget(ButtonRankPreviousCoordImg, 1, 7)
+        ImageDisplayContainerLayout.addWidget(ButtonRankPreviousCoordImg, 1, 6)
         
+        self.ButtonShowInScatter = QPushButton('Show in scatter', self)
+        self.ButtonShowInScatter.setCheckable(True)
+        self.ButtonShowInScatter.clicked.connect(self.ShowScatterPos)
+        ImageDisplayContainerLayout.addWidget(self.ButtonShowInScatter, 2, 6)
+
         ButtonRankNextCoordImg = QPushButton('Next', self)
         ButtonRankNextCoordImg.clicked.connect(lambda: self.GoThroughTopCells('next'))
-        ImageDisplayContainerLayout.addWidget(ButtonRankNextCoordImg, 2, 7)
+        ImageDisplayContainerLayout.addWidget(ButtonRankNextCoordImg, 1, 7)
+        
+        ButtonRankDeleteFromList = QPushButton('Delete', self)
+        ButtonRankDeleteFromList.clicked.connect(self.DeleteFromTopCells)
+        ImageDisplayContainerLayout.addWidget(ButtonRankDeleteFromList, 2, 7)
+        
+        ButtonRankSaveList = QPushButton('Save array', self)
+        ButtonRankSaveList.clicked.connect(self.SaveCellsProArray)
+        ImageDisplayContainerLayout.addWidget(ButtonRankSaveList, 3, 6)
         
 #        ButtonRankNextCoordImg = QPushButton('Move here', self)
 #        ButtonRankNextCoordImg.setObjectName('Startbutton')
@@ -246,7 +262,12 @@ class Mainbody(QWidget):
         
         self.OpenInsightWidgetButton = QPushButton('Insight X3', self)
         ToolWidgetsLayout.addWidget(self.OpenInsightWidgetButton, 1, 1)
-        self.OpenInsightWidgetButton.clicked.connect(self.openInsightWidget)        
+        self.OpenInsightWidgetButton.clicked.connect(self.openInsightWidget)    
+        
+        self.switchbutton_LED = QPushButton('LED')
+        self.switchbutton_LED.setCheckable(True)
+        self.switchbutton_LED.clicked.connect(lambda: self.execute_tread_single_sample_digital('LED'))
+        ToolWidgetsLayout.addWidget(self.switchbutton_LED, 0, 3)
         
         ToolWidgetsContainer.setLayout(ToolWidgetsLayout)
 
@@ -399,54 +420,43 @@ class Mainbody(QWidget):
         
         UpdateScattersButton = QtWidgets.QPushButton('Update scatters')
         UpdateScattersButton.clicked.connect(self.UpdateSelectionScatter)
-        UpdateProcessTab_1.layout.addWidget(UpdateScattersButton, 0, 4)   
+        UpdateProcessTab_1.layout.addWidget(UpdateScattersButton, 0, 4)
+        
+        UpdateProcessTab_2 = QWidget()
+        UpdateProcessTab_2.layout = QGridLayout()   
+        
+        self.WeightBoxSelectionFactor_1 = QDoubleSpinBox(self)
+        self.WeightBoxSelectionFactor_1.setDecimals(2)
+        self.WeightBoxSelectionFactor_1.setMinimum(0)
+        self.WeightBoxSelectionFactor_1.setMaximum(1)
+        self.WeightBoxSelectionFactor_1.setValue(1)
+        self.WeightBoxSelectionFactor_1.setSingleStep(0.1)  
+        UpdateProcessTab_2.layout.addWidget(self.WeightBoxSelectionFactor_1, 0, 1)
+        UpdateProcessTab_2.layout.addWidget(QLabel("Weight for axis 1:"), 0, 0)
+        
+        self.WeightBoxSelectionFactor_2 = QDoubleSpinBox(self)
+        self.WeightBoxSelectionFactor_2.setDecimals(2)
+        self.WeightBoxSelectionFactor_2.setMinimum(0)
+        self.WeightBoxSelectionFactor_2.setMaximum(1)
+        self.WeightBoxSelectionFactor_2.setValue(1)
+        self.WeightBoxSelectionFactor_2.setSingleStep(0.1)  
+        UpdateProcessTab_2.layout.addWidget(self.WeightBoxSelectionFactor_2, 0, 3)  
+        UpdateProcessTab_2.layout.addWidget(QLabel("Weight for axis 2:"), 0, 2)
+        
+        self.WeightBoxSelectionFactor_3 = QDoubleSpinBox(self)
+        self.WeightBoxSelectionFactor_3.setDecimals(2)
+        self.WeightBoxSelectionFactor_3.setMinimum(0)
+        self.WeightBoxSelectionFactor_3.setMaximum(1)
+        self.WeightBoxSelectionFactor_3.setValue(1)
+        self.WeightBoxSelectionFactor_3.setSingleStep(0.1)  
+        UpdateProcessTab_2.layout.addWidget(self.WeightBoxSelectionFactor_3, 0, 5)  
+        UpdateProcessTab_2.layout.addWidget(QLabel("Weight for axis 3:"), 0, 4)
         
         UpdateProcessTab_1.setLayout(UpdateProcessTab_1.layout)
+        UpdateProcessTab_2.setLayout(UpdateProcessTab_2.layout)
         UpdateProcessTab.addTab(UpdateProcessTab_1,"Normalized distance") 
-        SelectionsettingTab.layout.addWidget(UpdateProcessTab, 0, 3, 2, 4)  
-#        self.selec_num_box = QSpinBox(self)
-#        self.selec_num_box.setMaximum(2000)
-#        self.selec_num_box.setMinimum(1)
-#        self.selec_num_box.setValue(20)
-#        self.selec_num_box.setSingleStep(1)
-#        SelectionsettingLayout.addWidget(self.selec_num_box, 1, 1)
-#        SelectionsettingLayout.addWidget(QLabel("Winners number:"), 1, 0)
-#        
-#        self.ComBoxSelectionFactor_1 = QComboBox()
-#        self.ComBoxSelectionFactor_1.addItems(['Mean intensity in contour weight','Contour soma ratio weight','Change weight'])
-#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_1, 1, 2)
-#        
-#        self.WeightBoxSelectionFactor_1 = QDoubleSpinBox(self)
-#        self.WeightBoxSelectionFactor_1.setDecimals(4)
-#        self.WeightBoxSelectionFactor_1.setMinimum(0)
-#        self.WeightBoxSelectionFactor_1.setMaximum(1)
-#        self.WeightBoxSelectionFactor_1.setValue(0.5)
-#        self.WeightBoxSelectionFactor_1.setSingleStep(0.1)  
-#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_1, 1, 3)
-#        
-#        self.ComBoxSelectionFactor_2 = QComboBox()
-#        self.ComBoxSelectionFactor_2.addItems(['Contour soma ratio weight', 'Mean intensity in contour weight','Change weight'])
-#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_2, 1, 4)
-#        
-#        self.WeightBoxSelectionFactor_2 = QDoubleSpinBox(self)
-#        self.WeightBoxSelectionFactor_2.setDecimals(4)
-#        self.WeightBoxSelectionFactor_2.setMinimum(0)
-#        self.WeightBoxSelectionFactor_2.setMaximum(1)
-#        self.WeightBoxSelectionFactor_2.setValue(0.5)
-#        self.WeightBoxSelectionFactor_2.setSingleStep(0.1)  
-#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_2, 1, 5)
-#        
-#        self.ComBoxSelectionFactor_3 = QComboBox()
-#        self.ComBoxSelectionFactor_3.addItems(['Change weight', 'Mean intensity in contour weight','Contour soma ratio weight'])
-#        SelectionsettingLayout.addWidget(self.ComBoxSelectionFactor_3, 1, 6)
-#        
-#        self.WeightBoxSelectionFactor_3 = QDoubleSpinBox(self)
-#        self.WeightBoxSelectionFactor_3.setDecimals(4)
-#        self.WeightBoxSelectionFactor_3.setMinimum(0)
-#        self.WeightBoxSelectionFactor_3.setMaximum(1)
-#        self.WeightBoxSelectionFactor_3.setValue(0.0)
-#        self.WeightBoxSelectionFactor_3.setSingleStep(0.1)  
-#        SelectionsettingLayout.addWidget(self.WeightBoxSelectionFactor_3, 1, 7)
+        UpdateProcessTab.addTab(UpdateProcessTab_2,"Axes weights") 
+        SelectionsettingTab.layout.addWidget(UpdateProcessTab, 0, 3, 2, 4)
         
         SelectionsettingTab.setLayout(SelectionsettingTab.layout)
         
@@ -981,7 +991,8 @@ class Mainbody(QWidget):
             self.FocusCorrectionMatrixDict = []
         
 #        print(self.FocusCorrectionMatrixDict.keys())
-#        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 'AftRoundNum', 'smallestsize', 'openingfactor', 'closingfactor', 'cellopeningfactor', 
+#        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 
+#                            'AftRoundNum', 'smallestsize', 'openingfactor', 'closingfactor', 'cellopeningfactor', 
 #                           'cellclosingfactor', 'binary_adaptive_block_size', 'self_findcontour_thres', 'contour_dilation', 'savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
 #        
 #        generallist = [selectnum, MeanIntensityContourWeight, ContourSomaRatioWeight, ChangeWeight, BefRoundNum, AftRoundNum, smallestsize, openingfactor, closingfactor, cellopeningfactor, 
@@ -1075,7 +1086,8 @@ class Mainbody(QWidget):
             
             self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
             self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
+            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
+                                                           self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
             self.ShowTopCellsInstance.run()
     #        self.ax = self.ShowTopCellsInstance.gg()
     #        self.ax = self.Matdisplay_Figure.add_subplot(111)
@@ -1090,7 +1102,8 @@ class Mainbody(QWidget):
                 
                 self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
                 self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
+                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
+                                                               self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
                 self.ShowTopCellsInstance.run()
         #        self.ax = self.ShowTopCellsInstance.gg()
         #        self.ax = self.Matdisplay_Figure.add_subplot(111)
@@ -1246,9 +1259,11 @@ class Mainbody(QWidget):
                 try:
                     if len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']) != 0:
                         self.normalOutputWritten('Round {}, Digital signals:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))
-                        self.normalOutputWritten('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
+                        self.normalOutputWritten('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+
+                                                 str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
                         
-                        print('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
+                        print('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+
+                              str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
                         print('Round {}, Digital signals:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))#
 #                    else:
 #                        self.normalOutputWritten('Round {} No Digital signals.\n'.format(eachround+1))
@@ -1333,15 +1348,19 @@ class Mainbody(QWidget):
         
         self.Matdisplay_Figure.clear()
         if self.Selection_boundaryBox.currentText() == 'Circular radius':
-            selectionRadiusPercent = self.AnalysisCirclePercentBox.value()/100
+            selectionRadiusPercent = 100 - self.AnalysisCirclePercentBox.value()
             if len(self.EvaluatingPara_list) == 2:
                 # Organize and add 'ranking' and 'boundingbox' fields to the structured array.
-                Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, IntensityThreshold, self.EvaluatingPara_list[0], self.EvaluatingPara_list[1])
+                axis_1_weight = self.WeightBoxSelectionFactor_1.value()
+                axis_2_weight = self.WeightBoxSelectionFactor_2.value()
+                self.Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, IntensityThreshold, 
+                                                                         self.EvaluatingPara_list[0], axis_1_weight, self.EvaluatingPara_list[1], axis_2_weight)
+                self.Overview_LookupBook = ProcessImage.DistanceSelecting(self.Overview_LookupBook, 100) # Sort the original array according to distance from origin.
                 
-                self.Overview_LookupBook_filtered = ProcessImage.DistanceSelecting(Overview_LookupBook, selectionRadiusPercent)
+                self.Overview_LookupBook_filtered = ProcessImage.DistanceSelecting(self.Overview_LookupBook, selectionRadiusPercent)
                 
                 ax1 = self.Matdisplay_Figure.add_subplot(111)
-                ax1.scatter(Overview_LookupBook[self.EvaluatingPara_list[0]], Overview_LookupBook[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
+                ax1.scatter(self.Overview_LookupBook[self.EvaluatingPara_list[0]], self.Overview_LookupBook[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
                 ax1.scatter(self.Overview_LookupBook_filtered[self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.EvaluatingPara_list[1]], s=np.pi*3, c='red', alpha=0.5)
                 ax1.set_xlabel(self.EvaluatingPara_list[0])
                 ax1.set_ylabel(self.EvaluatingPara_list[1])
@@ -1349,12 +1368,18 @@ class Mainbody(QWidget):
                 self.Matdisplay_Canvas.draw()
                 
                 # Some numbers ready for tracing back
-                self.TotalCoordsNum = len(self.Overview_LookupBook_filtered)
-                self.normalOutputWritten('---- Total cells selected: {}----\n'.format(self.TotalCoordsNum))
+                self.TotaNumofCellSelected = len(self.Overview_LookupBook_filtered)
+                self.TotalCellNum = len(self.Overview_LookupBook)
+                self.normalOutputWritten('---- Total cells selected: {}; Total cells: {}----\n'.format(self.TotaNumofCellSelected, self.TotalCellNum))
+                
+                fig = px.scatter(self.Overview_LookupBook, x=self.EvaluatingPara_list[0], y=self.EvaluatingPara_list[1], 
+                hover_name= 'ID', color= 'Normalized distance', 
+                hover_data= ['Sequence', 'Mean intensity'], width=1050, height=950)
+                fig.write_html('Screening scatters.html', auto_open=True)
                 
     def GoThroughTopCells(self, direction):
         if direction == 'next':
-            if self.popnexttopimgcounter > (self.TotalCoordsNum-1):#Make sure it doesn't go beyond the last coords.
+            if self.popnexttopimgcounter > (self.TotaNumofCellSelected-1):#Make sure it doesn't go beyond the last coords.
                 self.popnexttopimgcounter -= 1
             
             self.CurrentRankCellpProperties = self.Overview_LookupBook_filtered[self.popnexttopimgcounter]
@@ -1362,9 +1387,9 @@ class Mainbody(QWidget):
             #--------------------Show image with cell in box----------------------
             spec = self.CurrentRankCellpProperties['ID']
     #        #-------------- readin image---------------
-            lib_imagefilename = os.path.join(self.Lib_folder, spec+'_PMT_0Zmax.tif')
+            tag_imagefilename = os.path.join(self.Tag_folder, spec+'_PMT_0Zmax.tif')
 
-            loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
+            loaded_tag_image_display = imread(tag_imagefilename, as_gray=True)
             # Retrieve boundingbox information
             Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
             minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
@@ -1374,7 +1399,7 @@ class Mainbody(QWidget):
             
             self.Matdisplay_Figure.clear()
             ax1 = self.Matdisplay_Figure.add_subplot(111)
-            ax1.imshow(loaded_lib_image_display)#Show the first image
+            ax1.imshow(loaded_tag_image_display)#Show the first image
             #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
             rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
             ax1.add_patch(rect)
@@ -1383,12 +1408,12 @@ class Mainbody(QWidget):
             self.Matdisplay_Canvas.draw()
             
             #-------------------Print details of cell of interest----------------
-            self.normalOutputWritten('--------------------No.{} out of {}------------------\n'.format(self.popnexttopimgcounter, self.TotalCoordsNum))
+            self.normalOutputWritten('------------------No.{} out of {}----------------\n'.format(self.popnexttopimgcounter+1, self.TotaNumofCellSelected))
             self.normalOutputWritten('ID: {}\n{}: {}\n{}: {}\n'.format(spec, self.EvaluatingPara_list[0], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[0]], 4), \
                                                                      self.EvaluatingPara_list[1], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[1]], 4)))
             #------------------Stage move----------------------------------------
-            self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
-            self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
+#            self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
+#            self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
             
             self.popnexttopimgcounter += 1 # Alwasy plus 1 to get it ready for next move.
             
@@ -1401,9 +1426,9 @@ class Mainbody(QWidget):
                 #--------------------Show image with cell in box----------------------
                 spec = self.CurrentRankCellpProperties['ID']
         #        #-------------- readin image---------------
-                lib_imagefilename = os.path.join(self.Lib_folder, spec+'_PMT_0Zmax.tif')
+                tag_imagefilename = os.path.join(self.Tag_folder, spec+'_PMT_0Zmax.tif')
     
-                loaded_lib_image_display = imread(lib_imagefilename, as_gray=True)
+                loaded_tag_image_display = imread(tag_imagefilename, as_gray=True)
                 # Retrieve boundingbox information
                 Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
                 minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
@@ -1413,7 +1438,7 @@ class Mainbody(QWidget):
                 
                 self.Matdisplay_Figure.clear()
                 ax1 = self.Matdisplay_Figure.add_subplot(111)
-                ax1.imshow(loaded_lib_image_display)#Show the first image
+                ax1.imshow(loaded_tag_image_display)#Show the first image
                 #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
                 rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
                 ax1.add_patch(rect)
@@ -1422,19 +1447,74 @@ class Mainbody(QWidget):
                 self.Matdisplay_Canvas.draw()
                 
                 #-------------------Print details of cell of interest----------------
-                self.normalOutputWritten('--------------------No.{} out of {}------------------\n'.format(self.popnexttopimgcounter, self.TotalCoordsNum))
+                self.normalOutputWritten('------------------No.{} out of {}----------------\n'.format(self.popnexttopimgcounter+1, self.TotaNumofCellSelected))
                 self.normalOutputWritten('ID: {}\n{}: {}\n{}: {}\n'.format(spec, self.EvaluatingPara_list[0], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[0]], 4), \
                                                                      self.EvaluatingPara_list[1], round(self.CurrentRankCellpProperties[self.EvaluatingPara_list[1]], 4)))
                 
                 #------------------Stage move----------------------------------------
-                self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
-                self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
+#                self.CurrentPos = spec[spec.index('_R')+2:len(spec)].split('C')
+#                self.ludlStage.moveAbs(int(self.CurrentPos[0]),int(self.CurrentPos[1]))
                 
-                if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
+                if self.popnexttopimgcounter < (self.TotaNumofCellSelected-1):
                     self.popnexttopimgcounter += 1
             else:
                 self.popnexttopimgcounter = 0
                 
+        elif direction == 'null':
+            self.popnexttopimgcounter -= 1
+            
+            self.CurrentRankCellpProperties = self.Overview_LookupBook_filtered[self.popnexttopimgcounter]
+            
+            #--------------------Show image with cell in box----------------------
+            spec = self.CurrentRankCellpProperties['ID']
+    #        #-------------- readin image---------------
+            tag_imagefilename = os.path.join(self.Tag_folder, spec+'_PMT_0Zmax.tif')
+
+            loaded_tag_image_display = imread(tag_imagefilename, as_gray=True)
+            # Retrieve boundingbox information
+            Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
+            minr = int(Each_bounding_box[Each_bounding_box.index('minr')+4:Each_bounding_box.index('_minc')])
+            maxr = int(Each_bounding_box[Each_bounding_box.index('maxr')+4:Each_bounding_box.index('_maxc')])        
+            minc = int(Each_bounding_box[Each_bounding_box.index('minc')+4:Each_bounding_box.index('_maxr')])
+            maxc = int(Each_bounding_box[Each_bounding_box.index('maxc')+4:len(Each_bounding_box)])
+            
+            self.Matdisplay_Figure.clear()
+            ax1 = self.Matdisplay_Figure.add_subplot(111)
+            ax1.imshow(loaded_tag_image_display)#Show the first image
+            #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
+            rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='cyan', linewidth=2)
+            ax1.add_patch(rect)
+            ax1.text(maxc, minr, 'NO_{}'.format(self.popnexttopimgcounter),fontsize=10, color='orange', style='italic')
+            self.Matdisplay_Figure.tight_layout()
+            self.Matdisplay_Canvas.draw()
+            
+            self.popnexttopimgcounter += 1
+            
+    def ShowScatterPos(self):
+        if self.ButtonShowInScatter.isChecked():
+            self.Matdisplay_Figure.clear()
+            ax1 = self.Matdisplay_Figure.add_subplot(111)
+            ax1.scatter(self.Overview_LookupBook[self.EvaluatingPara_list[0]], self.Overview_LookupBook[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
+            ax1.scatter(self.Overview_LookupBook_filtered[self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.EvaluatingPara_list[1]], s=np.pi*3, c='red', alpha=0.5)
+            ax1.scatter(self.Overview_LookupBook_filtered[self.popnexttopimgcounter-1][self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.popnexttopimgcounter-1][self.EvaluatingPara_list[1]], 
+                        s=np.pi*6, c='yellow', alpha=0.5)
+            ax1.set_xlabel(self.EvaluatingPara_list[0])
+            ax1.set_ylabel(self.EvaluatingPara_list[1])
+            self.Matdisplay_Figure.tight_layout()
+            self.Matdisplay_Canvas.draw()            
+        else:
+            self.GoThroughTopCells('null')
+            
+    def DeleteFromTopCells(self):
+        self.popnexttopimgcounter -= 1
+        self.Overview_LookupBook_filtered = np.delete(self.Overview_LookupBook_filtered, self.popnexttopimgcounter, 0)
+#        self.Overview_LookupBook = np.delete(self.Overview_LookupBook, self.popnexttopimgcounter, 0) # Overview_LookupBook is also sorted according to distance, 
+#                                                                                                     # that's why delete the same index as above.
+        self.TotaNumofCellSelected -= 1
+    
+    def SaveCellsProArray(self):
+        np.save(os.path.join(self.savedirectory, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_CellsProperties'), self.Overview_LookupBook)
+        
     def ResetRankCoord(self):
         self.popnexttopimgcounter = 0
     """
@@ -1457,6 +1537,17 @@ class Mainbody(QWidget):
     def openInsightWidget(self):
         self.InsightWindow = InsightX3.TwoPhotonLaserUI.InsightWidgetUI()
         self.InsightWindow.show()
+        
+    def execute_tread_single_sample_digital(self, channel):
+        if channel == 'LED':
+            if self.switchbutton_LED.isChecked():
+                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
+                execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
+                execute_tread_singlesample_AOTF_digital.start()
+            else:
+                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
+                execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
+                execute_tread_singlesample_AOTF_digital.start() 
         
 if __name__ == "__main__":
     def run_app():

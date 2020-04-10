@@ -214,10 +214,10 @@ class FocusMatrixFeeder(QWidget):
     def GenerateScanCoords(self):
         if self.SetStageScanCoordsButton.isChecked():
 
-            try:
-                self.stage_movement_thread = StagemovementAbsoluteThread()
-            except:
-                print('Stage not initialized.')
+            # try:
+            # self.stage_movement_thread = StagemovementAbsoluteThread()
+            # except:
+            #     print('Stage not initialized.')
             
             self.FeederCoordContainer = np.array([])
             # settings for scanning index
@@ -265,8 +265,9 @@ class FocusMatrixFeeder(QWidget):
     def MoveToDefinedCoords(self):
         self.DefinedTargetRowIndex = int(self.StageMoveRowIndexSpinbox.value())
         self.DefinedTargetColIndex = int(self.StageMoveColumnIndexSpinbox.value())
-        
-        self.stage_movement_thread.SetTargetPos(self.DefinedTargetRowIndex, self.DefinedTargetColIndex)
+        # self.stage_movement_thread = StagemovementAbsoluteThread()
+        # self.stage_movement_thread.SetTargetPos(self.DefinedTargetRowIndex, self.DefinedTargetColIndex)
+        self.stage_movement_thread = StagemovementAbsoluteThread(self.DefinedTargetRowIndex, self.DefinedTargetColIndex)
 #        stage_movement_thread.current_position.connect(self.update_stage_current_pos)
         self.stage_movement_thread.start()
         time.sleep(0.5)
@@ -274,6 +275,7 @@ class FocusMatrixFeeder(QWidget):
         self.stage_movement_thread.wait()
         
     def MoveToNextPos(self, direction):
+        # self.stage_movement_thread = StagemovementAbsoluteThread()
         if direction == 'next':
             if self.CurrentCoordsSequence > (self.CoordsNum-1):
                 self.CurrentCoordsSequence -= 1
@@ -282,7 +284,8 @@ class FocusMatrixFeeder(QWidget):
             self.TargetRowIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][0]
             self.TargetColIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][1]
             
-            self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
+            # self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
+            self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex, self.TargetColIndex)
             self.stage_movement_thread.current_position.connect(self.update_stage_current_pos)
             self.stage_movement_thread.start()
 #            time.sleep(0.5)
@@ -299,7 +302,8 @@ class FocusMatrixFeeder(QWidget):
                 self.TargetRowIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][0]
                 self.TargetColIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][1]
                 
-                self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
+                # self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
+                self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex, self.TargetColIndex)
                 self.stage_movement_thread.current_position.connect(self.update_stage_current_pos)
                 self.stage_movement_thread.start()
 #                time.sleep(0.5)

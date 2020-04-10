@@ -66,9 +66,9 @@ class ScanningExecutionThread(QThread):
             self.Laserinstance = InsightX3('COM11')
             try:
                 querygap = 1.1
-                self.Laserinstance.SetWatchdogTimer(15)
-                Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=[querygap], daemon=True)
-                Status_watchdog_thread.start() 
+                # self.Laserinstance.SetWatchdogTimer(0) # Disable the laser watchdog!
+#                Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=[querygap], daemon=True)
+#                Status_watchdog_thread.start() 
                 time.sleep(1)
                 #-------------Initialize laser--------------
                 self.watchdog_flag = False
@@ -82,19 +82,19 @@ class ScanningExecutionThread(QThread):
                     except:
                         time.sleep(0.6)
                         
-                if int(warmupstatus) == 100:
-                    self.warmupstatus = True
-                    print('Laser fully warmed up.')
-                    if 'Laser state:Ready' in self.Status_list:
-                        self.Laserinstance.Turn_On_PumpLaser()
-                        self.laserRun = True
-                    elif 'Laser state:RUN' in self.Status_list:
-                        self.laserRun = True
+                # if int(warmupstatus) == 100:
+                #     self.warmupstatus = True
+                #     print('Laser fully warmed up.')
+                #     if 'Laser state:Ready' in self.Status_list:
+                #         self.Laserinstance.Turn_On_PumpLaser()
+                #         self.laserRun = True
+                #     elif 'Laser state:RUN' in self.Status_list:
+                #         self.laserRun = True
                         
                 self.watchdog_flag = True
                 time.sleep(0.5)
             except:
-                self.LaserStatuslabel.setText('Laser not connected.')
+                print('Laser not connected.')
             
         for EachRound in range(int(len(self.RoundQueueDict)/2-1)): # EachRound is the round sequence number starting from 0, while the actual number used in dictionary is 1.
             print ('----------------------------------------------------------------------------')            
@@ -169,7 +169,12 @@ class ScanningExecutionThread(QThread):
                 if 'Shutter_Open' in InsightText:
                     self.watchdog_flag = False
                     time.sleep(0.5)
-                    self.Laserinstance.Open_TunableBeamShutter()
+                    while True:
+                        try:
+                            self.Laserinstance.Open_TunableBeamShutter()
+                            break
+                        except:
+                            time.sleep(1)
                     time.sleep(0.5)
                     print('Laser shutter open.')
                     self.watchdog_flag = True
@@ -178,7 +183,12 @@ class ScanningExecutionThread(QThread):
                 elif 'Shutter_Close' in InsightText:
                     self.watchdog_flag = False
                     time.sleep(0.5)
-                    self.Laserinstance.Close_TunableBeamShutter()
+                    while True:
+                        try:
+                            self.Laserinstance.Close_TunableBeamShutter()
+                            break
+                        except:
+                            time.sleep(1)
                     time.sleep(0.5)
                     print('Laser shutter closed.')
                     self.watchdog_flag = True
@@ -188,7 +198,12 @@ class ScanningExecutionThread(QThread):
                     time.sleep(0.5)
                     TargetWavelen = int(InsightText[InsightText.index('To_')+3:len(InsightText)])
                     print(TargetWavelen)
-                    self.Laserinstance.SetWavelength(TargetWavelen)
+                    while True:
+                        try:
+                            self.Laserinstance.SetWavelength(TargetWavelen)
+                            break
+                        except:
+                            time.sleep(1)
                     time.sleep(5)
                     self.watchdog_flag = True
                     time.sleep(0.5)
@@ -202,7 +217,12 @@ class ScanningExecutionThread(QThread):
                     self.watchdog_flag = False
                     time.sleep(0.5)
                     TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
-                    self.Laserinstance.SetWavelength(TargetWavelen)
+                    while True:
+                        try:
+                            self.Laserinstance.SetWavelength(TargetWavelen)
+                            break
+                        except:
+                            time.sleep(1)
                     time.sleep(5)
                     self.Laserinstance.Open_TunableBeamShutter()
                     time.sleep(1)
