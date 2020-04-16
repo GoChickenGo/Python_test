@@ -68,7 +68,7 @@ class FocusMatrixFeeder(QWidget):
         self.FeederScanEndColumnIndexTextbox = QSpinBox(self)
         self.FeederScanEndColumnIndexTextbox.setMinimum(-20000)
         self.FeederScanEndColumnIndexTextbox.setMaximum(10000000)
-        self.FeederScanEndColumnIndexTextbox.setSingleStep(500)
+        self.FeederScanEndColumnIndexTextbox.setSingleStep(1650)
         ScanSettingLayout.addWidget(self.FeederScanEndColumnIndexTextbox, 1, 3)
         ScanSettingLayout.addWidget(QLabel("End index-column:"), 1, 2)      
 
@@ -79,9 +79,24 @@ class FocusMatrixFeeder(QWidget):
         ScanSettingLayout.addWidget(self.FeederScanstepTextbox, 0, 5)
         ScanSettingLayout.addWidget(QLabel("Step size:"), 0, 4)
         
+        self.meshgridnumberBox = QSpinBox(self)
+        self.meshgridnumberBox.setMaximum(2000)
+        self.meshgridnumberBox.setMinimum(1)
+        self.meshgridnumberBox.setValue(1)
+        self.meshgridnumberBox.setSingleStep(1)
+        ScanSettingLayout.addWidget(self.meshgridnumberBox, 1, 5)
+        ScanSettingLayout.addWidget(QLabel("Meshgrid number:"), 1, 4)   
+        
+        self.meshgridoffsetStepBox = QSpinBox(self)
+        self.meshgridoffsetStepBox.setMaximum(200000)
+        self.meshgridoffsetStepBox.setValue(1)
+        self.meshgridoffsetStepBox.setSingleStep(1)
+        ScanSettingLayout.addWidget(self.meshgridoffsetStepBox, 0, 7)
+        ScanSettingLayout.addWidget(QLabel("Offset step:"), 0, 6)
+        
         self.SetStageScanCoordsButton = QPushButton('Set', self)
         self.SetStageScanCoordsButton.setCheckable(True)
-        ScanSettingLayout.addWidget(self.SetStageScanCoordsButton, 1, 5)
+        ScanSettingLayout.addWidget(self.SetStageScanCoordsButton, 1, 7)
         self.SetStageScanCoordsButton.clicked.connect(self.GenerateScanCoords)        
         self.SetStageScanCoordsButton.clicked.connect(self.disableCoords)
         
@@ -99,31 +114,31 @@ class FocusMatrixFeeder(QWidget):
         self.StageMoveRowIndexSpinbox.setMinimum(-20000)
         self.StageMoveRowIndexSpinbox.setMaximum(20000)
         self.StageMoveRowIndexSpinbox.setSingleStep(500)
-        StageMoveContainerLayout.addWidget(self.StageMoveRowIndexSpinbox, 0, 1)
-        StageMoveContainerLayout.addWidget(QLabel("Row index:"), 0, 0)
+        StageMoveContainerLayout.addWidget(self.StageMoveRowIndexSpinbox, 1, 1)
+        StageMoveContainerLayout.addWidget(QLabel("Row index:"), 1, 0)
       
         self.StageMoveColumnIndexSpinbox = QSpinBox(self)
         self.StageMoveColumnIndexSpinbox.setMinimum(-20000)
         self.StageMoveColumnIndexSpinbox.setMaximum(20000)
         self.StageMoveColumnIndexSpinbox.setSingleStep(500)
-        StageMoveContainerLayout.addWidget(self.StageMoveColumnIndexSpinbox, 0, 3)
-        StageMoveContainerLayout.addWidget(QLabel("Column index:"), 0, 2)
+        StageMoveContainerLayout.addWidget(self.StageMoveColumnIndexSpinbox, 1, 3)
+        StageMoveContainerLayout.addWidget(QLabel("Column index:"), 1, 2)
         
         self.StageMoveCoordsButton = QPushButton('Move here', self)
-        StageMoveContainerLayout.addWidget(self.StageMoveCoordsButton, 0, 4)
+        StageMoveContainerLayout.addWidget(self.StageMoveCoordsButton, 1, 4)
         self.StageMoveCoordsButton.clicked.connect(self.MoveToDefinedCoords)
         
         self.StageMovePreviousCoordsButton = QPushButton('Previous pos.', self)
-        StageMoveContainerLayout.addWidget(self.StageMovePreviousCoordsButton, 1, 0, 1, 2)
+        StageMoveContainerLayout.addWidget(self.StageMovePreviousCoordsButton, 2, 0, 1, 2)
         self.StageMovePreviousCoordsButton.clicked.connect(lambda: self.MoveToNextPos('previous'))
         
         self.StageMoveNextCoordsButton = QPushButton('Next pos.', self)
-        StageMoveContainerLayout.addWidget(self.StageMoveNextCoordsButton, 1, 2, 1, 2)
+        StageMoveContainerLayout.addWidget(self.StageMoveNextCoordsButton, 2, 2, 1, 2)
         self.StageMoveNextCoordsButton.clicked.connect(lambda: self.MoveToNextPos('next'))
         
         StageMoveContainer.setLayout(StageMoveContainerLayout)
 #        StageMoveContainer.setMaximumWidth(200)
-        self.layout.addWidget(StageMoveContainer, 2, 0, 2, 4)   
+        self.layout.addWidget(StageMoveContainer, 2, 0, 3, 4)   
         
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for MotorMoveContainer-------------------------------------------------
@@ -176,12 +191,20 @@ class FocusMatrixFeeder(QWidget):
         MotorMoveContainer.setLayout(MotorMoveContainerLayout)
         
         self.layout.addWidget(MotorMoveContainer, 2, 4, 4, 3)
+        
+        self.CurrentmeshgridnumberBox = QSpinBox(self)
+        self.CurrentmeshgridnumberBox.setMaximum(2000)
+        self.CurrentmeshgridnumberBox.setMinimum(0)
+        self.CurrentmeshgridnumberBox.setValue(0)
+        self.CurrentmeshgridnumberBox.setSingleStep(1)
+        self.layout.addWidget(self.CurrentmeshgridnumberBox, 5, 1)
+        self.layout.addWidget(QLabel("Current grid:"), 5, 0) 
     
         self.SetFocusPos4CurrentCoordsButton = QPushButton('Set Focus', self)
         self.SetFocusPos4CurrentCoordsButton.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                    "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
-        self.layout.addWidget(self.SetFocusPos4CurrentCoordsButton, 4, 0, 1, 2)
+        self.layout.addWidget(self.SetFocusPos4CurrentCoordsButton, 5, 2, 1, 1)
         self.SetFocusPos4CurrentCoordsButton.clicked.connect(self.SetFocusPos)
         
 #        self.SetAndMoveNextCoordsButton = QPushButton('Set and Next pos.', self)
@@ -193,7 +216,7 @@ class FocusMatrixFeeder(QWidget):
         self.EmitCoordsButton.setStyleSheet("QPushButton {color:white;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
                                           "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
-        self.layout.addWidget(self.EmitCoordsButton, 4, 3)
+        self.layout.addWidget(self.EmitCoordsButton, 5, 3)
         self.EmitCoordsButton.clicked.connect(self.EmitCorrectionMatrix) 
     
     #---------------------------------------------------------------Functions for StageScan------------------------------------------------------
@@ -204,21 +227,21 @@ class FocusMatrixFeeder(QWidget):
             self.FeederScanStartColumnIndexTextbox.setEnabled(False)
             self.FeederScanEndColumnIndexTextbox.setEnabled(False)
             self.FeederScanstepTextbox.setEnabled(False)
+            self.meshgridnumberBox.setEnabled(False)
+            self.meshgridoffsetStepBox.setEnabled(False)
         else:
             self.FeederScanStartRowIndexTextbox.setEnabled(True)
             self.FeederScanEndRowIndexTextbox.setEnabled(True)
             self.FeederScanStartColumnIndexTextbox.setEnabled(True)
             self.FeederScanEndColumnIndexTextbox.setEnabled(True)
-            self.FeederScanstepTextbox.setEnabled(True)           
+            self.FeederScanstepTextbox.setEnabled(True)   
+            self.meshgridnumberBox.setEnabled(True)
+            self.meshgridoffsetStepBox.setEnabled(True)
         
     def GenerateScanCoords(self):
         if self.SetStageScanCoordsButton.isChecked():
-
-            # try:
-            # self.stage_movement_thread = StagemovementAbsoluteThread()
-            # except:
-            #     print('Stage not initialized.')
             
+            self.CorrectionDictForDuplicateMethod = {}
             self.FeederCoordContainer = np.array([])
             # settings for scanning index
             position_index=[]
@@ -256,7 +279,7 @@ class FocusMatrixFeeder(QWidget):
             self.RowIndexMeshgrid = RowIndex.astype(int)
             
             self.FocusCalibrationContainer = 3.278*np.ones((len(Y), len(X)))
-            self.FocusCalibrationContainer[0,1] = 3.3
+            # self.FocusCalibrationContainer[0,1] = 3.3
             
             print('Row index matrix: {}'.format(self.RowIndexMeshgrid))
             print('Column index matrix: {}'.format(self.ColumnIndexMeshgrid))
@@ -284,8 +307,11 @@ class FocusMatrixFeeder(QWidget):
             self.TargetRowIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][0]
             self.TargetColIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][1]
             
+            ScanningGridOffset_Row = int(self.CurrentmeshgridnumberBox.value() % self.meshgridnumberBox.value()) * (self.meshgridoffsetStepBox.value()) # Offset coordinate row value for each well.
+            ScanningGridOffset_Col = int(self.CurrentmeshgridnumberBox.value()/(self.meshgridnumberBox.value())) * (self.meshgridoffsetStepBox.value()) # Offset coordinate colunm value for each well.
+            
             # self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
-            self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex, self.TargetColIndex)
+            self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex + ScanningGridOffset_Row, self.TargetColIndex + ScanningGridOffset_Col)
             self.stage_movement_thread.current_position.connect(self.update_stage_current_pos)
             self.stage_movement_thread.start()
 #            time.sleep(0.5)
@@ -302,8 +328,11 @@ class FocusMatrixFeeder(QWidget):
                 self.TargetRowIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][0]
                 self.TargetColIndex = self.FeederCoordContainer[self.CurrentCoordsSequence*2:self.CurrentCoordsSequence*2+2][1]
                 
+                ScanningGridOffset_Row = int(self.CurrentmeshgridnumberBox.value() % self.meshgridnumberBox.value()) * (self.meshgridoffsetStepBox.value()) # Offset coordinate row value for each well.
+                ScanningGridOffset_Col = int(self.CurrentmeshgridnumberBox.value()/(self.meshgridnumberBox.value())) * (self.meshgridoffsetStepBox.value()) # Offset coordinate colunm value for each well.
+                
                 # self.stage_movement_thread.SetTargetPos(self.TargetRowIndex, self.TargetColIndex)
-                self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex, self.TargetColIndex)
+                self.stage_movement_thread = StagemovementAbsoluteThread(self.TargetRowIndex + ScanningGridOffset_Row, self.TargetColIndex + ScanningGridOffset_Col)
                 self.stage_movement_thread.current_position.connect(self.update_stage_current_pos)
                 self.stage_movement_thread.start()
 #                time.sleep(0.5)
@@ -372,7 +401,10 @@ class FocusMatrixFeeder(QWidget):
         self.CalibrationContainerRowIndex = np.where(self.RowIndexMeshgrid[0,:] == self.TargetRowIndex)[0][0]
         self.CalibrationContainerColIndex = np.where(self.ColumnIndexMeshgrid[:,0] == self.TargetColIndex)[0][0]        
         # Row index is actually the column index in python.
-        self.FocusCalibrationContainer[self.CalibrationContainerColIndex, self.CalibrationContainerRowIndex] = self.ObjCurrentPos['1']
+        try:
+            self.FocusCalibrationContainer[self.CalibrationContainerColIndex, self.CalibrationContainerRowIndex] = self.ObjCurrentPos['1']
+        except:
+            self.FocusCalibrationContainer[self.CalibrationContainerColIndex, self.CalibrationContainerRowIndex] = 3.333
         
         print(self.FocusCalibrationContainer)
         
@@ -384,8 +416,13 @@ class FocusMatrixFeeder(QWidget):
             print('Interpolate failed.')
     
         self.CorrectionForDuplicateMethod = np.vstack((self.FeederCoordContainer[::2],self.FeederCoordContainer[1::2], self.FocusCalibrationContainer.flatten('F')))#‘F’ means to flatten in column-major (Fortran- style) order.
-        self.FocusCorrectionForDuplicateMethod.emit(self.CorrectionForDuplicateMethod)
-        print('Duplicate correction emitted.')
+        
+        self.CorrectionDictForDuplicateMethod['Grid_{}'.format(self.CurrentmeshgridnumberBox.value())] = self.CorrectionForDuplicateMethod
+        
+        for key in self.CorrectionDictForDuplicateMethod:
+            print(self.CorrectionDictForDuplicateMethod[key])
+        self.FocusCorrectionForDuplicateMethod.emit(self.CorrectionDictForDuplicateMethod)
+        print('Grid_{}, Duplicate correction emitted.'.format(self.CurrentmeshgridnumberBox.value()))
 #        print(self.CorrectionForDuplicateMethod[2,:])
                
         

@@ -42,9 +42,14 @@ class ScanningExecutionThread(QThread):
         self.clock_source = 'Dev1 as clock source' # Should be set by GUI.
         
         self.scansavedirectory = self.GeneralSettingDict['savedirectory']
+        self.meshgridnumber = int(self.GeneralSettingDict['Meshgrid'])
         
     def run(self):
-        
+        """
+        # ==========================================================================================================================================================
+        #                                                                       Initialization
+        # ==========================================================================================================================================================
+        """
 #        if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:# if focus correction matrix was generated.
         """
         # =============================================================================
@@ -95,342 +100,340 @@ class ScanningExecutionThread(QThread):
                 time.sleep(0.5)
             except:
                 print('Laser not connected.')
-            
-        for EachRound in range(int(len(self.RoundQueueDict)/2-1)): # EachRound is the round sequence number starting from 0, while the actual number used in dictionary is 1.
-            print ('----------------------------------------------------------------------------')            
-            print('Below is Round {}.'.format(EachRound+1)) # EachRound+1 is the corresponding round number when setting the dictionary starting from round 1.
-            
+                
+            # If turn on the laser shutter in the beginning
+            if 'Shutter_Open' in self.GeneralSettingDict['StartUpEvents']:
+                time.sleep(0.5)
+                while True:
+                    try:
+                        self.Laserinstance.Open_TunableBeamShutter()
+                        break
+                    except:
+                        time.sleep(1)
+                time.sleep(0.5)                
+        
+        """
+        # ==========================================================================================================================================================
+        #                                                                       Execution
+        # ==========================================================================================================================================================
+        """
+   
+        GridSequence = 0
+        TotalGridNumber = self.meshgridnumber**2
+        ScanningMaxCoord = int(np.amax(self.RoundCoordsDict['CoordsPackage_1'])) # Get the largest coordinate
+        for EachGrid in range(TotalGridNumber):
             """
             # =============================================================================
-            #         Unpack the settings for each round
+            #         For each small repeat unit in the scanning meshgrid
             # =============================================================================
             """
-            # Initialize variables
-            CoordOrder = 0      # Counter for n th coordinates, for appending cell properties array.      
-            CellPropertiesDict = {}
-            ND_filter1_Pos = None
-            ND_filter2_Pos = None
-            EM_filter_Pos = None
-            cp_end_index = -1
-            self.IndexLookUpCellPropertiesDict = {} #look up dictionary for each cell properties
+            ScanningGridOffset_Row = int(GridSequence % self.meshgridnumber) * (ScanningMaxCoord + self.GeneralSettingDict['Scanning step']) # Offset coordinate row value for each well.
+            ScanningGridOffset_Col = int(GridSequence/self.meshgridnumber) * (ScanningMaxCoord + self.GeneralSettingDict['Scanning step']) # Offset coordinate colunm value for each well.
+            GridSequence += 1
+            time.sleep(0.5)
             
-            #-------------Unpack the focus stack information.
-            ZStackinfor = self.GeneralSettingDict['FocusStackInfoDict']['RoundPackage_{}'.format(EachRound+1)]
-            self.ZStackNum = int(ZStackinfor[ZStackinfor.index('Focus')+5])
-            self.ZStackStep = float(ZStackinfor[ZStackinfor.index('Being')+5:len(ZStackinfor)])
-            
-            #-------------Unpack infor for stage move.
-            CoordsNum = int(len(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)])/2) #Each pos has 2 coords
-            
-            #-------------Unpack infor for filter event. In the list, the first one is for ND filter and the second one is for emission filter.
-            FilterEventIndexList = [i for i,x in enumerate(self.RoundQueueDict['FilterEvents']) if 'Round_{}'.format(EachRound+1) in x]
-            
-            if len(FilterEventIndexList) > 0:
-                NDposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[0]]
-                NDnumber = NDposText[NDposText.index('ToPos_')+6:len(NDposText)]
+            for EachRound in range(int(len(self.RoundQueueDict)/2-1)): # EachRound is the round sequence number starting from 0, while the actual number used in dictionary is 1.
+                print ('----------------------------------------------------------------------------')            
+                print('Below is Grid {}, Round {}.'.format(EachGrid, EachRound+1)) # EachRound+1 is the corresponding round number when setting the dictionary starting from round 1.
                 
-                EMposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[1]]
-                EMprotein = EMposText[EMposText.index('ToPos_')+6:len(EMposText)]
+                """
+                # =============================================================================
+                #         Unpack the settings for each round
+                # =============================================================================
+                """
+                # Initialize variables
+                CoordOrder = 0      # Counter for n th coordinates, for appending cell properties array.      
+                CellPropertiesDict = {}
+                ND_filter1_Pos = None
+                ND_filter2_Pos = None
+                EM_filter_Pos = None
+                cp_end_index = -1
+                self.IndexLookUpCellPropertiesDict = {} #look up dictionary for each cell properties
                 
-                # "COM9" for filter 1 port, which has ND values from 0 to 3.
-                # "COM7" for filter 2 port, which has ND values from 0 to 0.5.
-                if NDnumber == '0':
-                    ND_filter1_Pos = 0
-                    ND_filter2_Pos = 0
-                elif NDnumber == '1':
-                    ND_filter1_Pos = 1
-                    ND_filter2_Pos = 0
-                elif NDnumber == '2':
-                    ND_filter1_Pos = 2
-                    ND_filter2_Pos = 0
-                elif NDnumber == '0.5':
-                    ND_filter1_Pos = 0
-                    ND_filter2_Pos = 3        
-                elif NDnumber == '0.3':
-                    ND_filter1_Pos = 0
-                    ND_filter2_Pos = 2
+                #-------------Unpack the focus stack information.
+                ZStackinfor = self.GeneralSettingDict['FocusStackInfoDict']['RoundPackage_{}'.format(EachRound+1)]
+                self.ZStackNum = int(ZStackinfor[ZStackinfor.index('Focus')+5])
+                self.ZStackStep = float(ZStackinfor[ZStackinfor.index('Being')+5:len(ZStackinfor)])
                 
-                if EMprotein == 'Arch':
-                    EM_filter_Pos = 0
-                elif EMprotein == 'eGFP':
-                    EM_filter_Pos = 1
+                #-------------Unpack infor for stage move.
+                CoordsNum = int(len(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)])/2) #Each pos has 2 coords
                 
-            #-------------Unpack infor for Insight X3. In the list, the first one is for shutter event and the second one is for wavelength event. 
-            InsightX3EventIndexList = [i for i,x in enumerate(self.RoundQueueDict['InsightEvents']) if 'Round_{}'.format(EachRound+1) in x]
-            
-            """
-            # =============================================================================
-            #         Execute Insight event at the beginning of each round
-            # =============================================================================
-            """            
-            if len(InsightX3EventIndexList) == 1:
-                print(InsightX3EventIndexList)
-                InsightText = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
-                if 'Shutter_Open' in InsightText:
-                    self.watchdog_flag = False
-                    time.sleep(0.5)
-                    while True:
-                        try:
-                            self.Laserinstance.Open_TunableBeamShutter()
-                            break
-                        except:
-                            time.sleep(1)
-                    time.sleep(0.5)
-                    print('Laser shutter open.')
-                    self.watchdog_flag = True
-                    time.sleep(0.5)
-
-                elif 'Shutter_Close' in InsightText:
-                    self.watchdog_flag = False
-                    time.sleep(0.5)
-                    while True:
-                        try:
-                            self.Laserinstance.Close_TunableBeamShutter()
-                            break
-                        except:
-                            time.sleep(1)
-                    time.sleep(0.5)
-                    print('Laser shutter closed.')
-                    self.watchdog_flag = True
-                    time.sleep(0.5)
-                elif 'WavelengthTo' in InsightText:
-                    self.watchdog_flag = False
-                    time.sleep(0.5)
-                    TargetWavelen = int(InsightText[InsightText.index('To_')+3:len(InsightText)])
-                    print(TargetWavelen)
-                    while True:
-                        try:
-                            self.Laserinstance.SetWavelength(TargetWavelen)
-                            break
-                        except:
-                            time.sleep(1)
-                    time.sleep(5)
-                    self.watchdog_flag = True
-                    time.sleep(0.5)
+                #-------------Unpack infor for filter event. In the list, the first one is for ND filter and the second one is for emission filter.
+                FilterEventIndexList = [i for i,x in enumerate(self.RoundQueueDict['FilterEvents']) if 'Round_{}'.format(EachRound+1) in x]
+                
+                if len(FilterEventIndexList) > 0:
+                    NDposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[0]]
+                    NDnumber = NDposText[NDposText.index('ToPos_')+6:len(NDposText)]
                     
-            elif len(InsightX3EventIndexList) == 2:
-                
-                InsightText_wl = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[1]]
-                InsightText_st = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
-                
-                if 'WavelengthTo' in InsightText_wl and 'Shutter_Open' in InsightText_st:
-                    self.watchdog_flag = False
-                    time.sleep(0.5)
-                    TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
-                    while True:
-                        try:
-                            self.Laserinstance.SetWavelength(TargetWavelen)
-                            break
-                        except:
-                            time.sleep(1)
-                    time.sleep(5)
-                    self.Laserinstance.Open_TunableBeamShutter()
-                    time.sleep(1)
-                    print('Laser shutter open.')
-                    self.watchdog_flag = True
-                    time.sleep(0.5)
+                    EMposText = self.RoundQueueDict['FilterEvents'][FilterEventIndexList[1]]
+                    EMprotein = EMposText[EMposText.index('ToPos_')+6:len(EMposText)]
                     
-                elif 'WavelengthTo' in InsightText_wl and 'Shutter_Close' in InsightText_st:
-                    self.watchdog_flag = False
-                    time.sleep(0.5)
-                    TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
-                    self.Laserinstance.SetWavelength(TargetWavelen)
-                    time.sleep(5)
-                    self.Laserinstance.Close_TunableBeamShutter()
-                    time.sleep(1)
-                    print('Laser shutter closed.')
-                    self.watchdog_flag = True
-                    time.sleep(0.5)
+                    # "COM9" for filter 1 port, which has ND values from 0 to 3.
+                    # "COM7" for filter 2 port, which has ND values from 0 to 0.5.
+                    if NDnumber == '0':
+                        ND_filter1_Pos = 0
+                        ND_filter2_Pos = 0
+                    elif NDnumber == '1':
+                        ND_filter1_Pos = 1
+                        ND_filter2_Pos = 0
+                    elif NDnumber == '2':
+                        ND_filter1_Pos = 2
+                        ND_filter2_Pos = 0
+                    elif NDnumber == '2.3':
+                        ND_filter1_Pos = 2
+                        ND_filter2_Pos = 2
+                    elif NDnumber == '2.5':
+                        ND_filter1_Pos = 2
+                        ND_filter2_Pos = 3
+                    elif NDnumber == '0.5':
+                        ND_filter1_Pos = 0
+                        ND_filter2_Pos = 3        
+                    elif NDnumber == '0.3':
+                        ND_filter1_Pos = 0
+                        ND_filter2_Pos = 2
                     
-                time.sleep(2)
-                
-            """
-            # =============================================================================
-            #         Execute filter event at the beginning of each round
-            # =============================================================================
-            """            
-            if ND_filter1_Pos != None and ND_filter2_Pos != None:
-                #Move filter 1
-                self.filter1 = ELL9Filter("COM9")
-                self.filter1.moveToPosition(ND_filter1_Pos)
-                time.sleep(1)
-                #Move filter 2
-                self.filter2 = ELL9Filter("COM7")
-                self.filter2.moveToPosition(ND_filter2_Pos)
-                time.sleep(1)
-            if EM_filter_Pos != None:
-                self.filter3 = ELL9Filter("COM15")
-                self.filter3.moveToPosition(EM_filter_Pos)
-                time.sleep(1)
-
-                
-            self.currentCoordsSeq = 0
-            for EachCoord in range(CoordsNum):
-                """
-                #------------------------------------------At each stage position:-------------------------------------------
-                """
-                self.error_massage = None
-                
-                print ('Round {}. Current index: {}.'.format(EachRound+1, self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2]))
-                self.currentCoordsSeq += 1
-                
-                """
-                # =============================================================================
-                #         Stage movement
-                # =============================================================================
-                """
-                RowIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][0])
-                ColumnIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][1])
-
-                try:
-                    self.ludlStage.moveAbs(RowIndex,ColumnIndex) # Row/Column indexs of np.array are opposite of stage row-col indexs.
-                except:
-                    self.error_massage = 'Fail_MoveStage'
-                    self.errornum += 1
-                    print('Stage move failed! Error number: {}'.format(int(self.errornum)))
-                
-                time.sleep(1)
-                
-                """
-                # =============================================================================
-                #         Get the z stack objective positions ready
-                # =============================================================================
-                """
-                #-------------------------------------------If focus correction applies----------------------------------------
-                if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:
-                    FocusPosArray = self.GeneralSettingDict['FocusCorrectionMatrixDict']['RoundPackage_{}'.format(EachRound+1)]
-#                    print(FocusPosArray)
-                    FocusPosArray = FocusPosArray.flatten('F')
-                    FocusPos_fromCorrection = FocusPosArray[EachCoord]
-                    print('Target focus pos: '.format(FocusPos_fromCorrection))
-                
-                # Without focus correction
-                if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) == 0:
-                    ZStacklinspaceStart = self.ObjCurrentPos['1'] - (math.floor(self.ZStackNum/2)-1)*self.ZStackStep
-                    ZStacklinspaceEnd = self.ObjCurrentPos['1'] + (self.ZStackNum - math.floor(self.ZStackNum/2))*self.ZStackStep
-                # With focus correction
-                elif len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:
-                    ZStacklinspaceStart = FocusPos_fromCorrection - (math.floor(self.ZStackNum/2)-1)*self.ZStackStep
-                    ZStacklinspaceEnd = FocusPos_fromCorrection + (self.ZStackNum - math.floor(self.ZStackNum/2))*self.ZStackStep                    
+                    if EMprotein == 'Arch':
+                        EM_filter_Pos = 0
+                    elif EMprotein == 'eGFP':
+                        EM_filter_Pos = 1
                     
-                ZStackPosList = np.linspace(ZStacklinspaceStart, ZStacklinspaceEnd, num = self.ZStackNum)       
-                print(ZStackPosList)
+                #-------------Unpack infor for Insight X3. In the list, the first one is for shutter event and the second one is for wavelength event. 
+                InsightX3EventIndexList = [i for i,x in enumerate(self.RoundQueueDict['InsightEvents']) if 'Round_{}'.format(EachRound+1) in x]
                 
                 """
                 # =============================================================================
-                #         Execute waveform packages
+                #         Execute Insight event at the beginning of each round
                 # =============================================================================
-                """
-                self.WaveforpackageNum = int(len(self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]))
-                #Execute each individual waveform package
-                print('*******************************************Round {}. Current index: {}.**************************************************'.format(EachRound+1, self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2]))
-                for EachZStackPos in range(self.ZStackNum): # Move to Z stack focus 
-                    print('--------------------------------------------Stack {}--------------------------------------------------'.format(EachZStackPos+1))
-                    if self.ZStackNum > 1:
-                        self.ZStackOrder = int(EachZStackPos +1) # Here the first one is 1, not starting from 0.
-                        FocusPos = ZStackPosList[EachZStackPos]
-                        print('Target focus pos: {}'.format(FocusPos))
-
-                        pos = PIMotor.move(self.pi_device_instance.pidevice, FocusPos)
-                        self.ObjCurrentPosInStack = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
-                        print("Current position: {:.4f}".format(self.ObjCurrentPosInStack['1']))
-                        
-                        time.sleep(0.3)
-                    else:
-                        self.ZStackOrder = 1
-                    
-                    for EachWaveform in range(self.WaveforpackageNum):
-                        WaveformPackageToBeExecute = self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]['WaveformPackage_{}'.format(EachWaveform+1)]
-                        WaveformPackageGalvoInfor = self.RoundQueueDict['GalvoInforPackage_{}'.format(EachRound+1)]['GalvoInfor_{}'.format(EachWaveform+1)]  
-                        self.readinchan = WaveformPackageToBeExecute[3]
-                        self.RoundWaveformIndex = [EachRound+1, EachWaveform+1] # first is current round number, second is current waveform package number.
-                        self.CurrentPosIndex = [RowIndex, ColumnIndex]
-#                        self.ProcessData_executed = False
-                        
-                        if WaveformPackageGalvoInfor != 'NoGalvo': # Unpack the information of galvo scanning.
-                            self.readinchan = WaveformPackageGalvoInfor[0]
-                            self.repeatnum = WaveformPackageGalvoInfor[1]
-                            self.PMT_data_index_array = WaveformPackageGalvoInfor[2]
-                            self.averagenum = WaveformPackageGalvoInfor[3]
-                            self.lenSample_1 = WaveformPackageGalvoInfor[4]
-                            self.ScanArrayXnum = WaveformPackageGalvoInfor[5]
+                """            
+                if len(InsightX3EventIndexList) == 1:
+                    print(InsightX3EventIndexList)
+                    InsightText = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
+                    if 'Shutter_Open' in InsightText:
+                        self.watchdog_flag = False
+                        time.sleep(0.5)
+                        while True:
+                            try:
+                                self.Laserinstance.Open_TunableBeamShutter()
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(0.5)
+                        print('Laser shutter open.')
+                        self.watchdog_flag = True
+                        time.sleep(0.5)
     
-                        if self.clock_source == 'Dev1 as clock source':
-                            self.adcollector = execute_analog_readin_optional_digital_thread()
-                            self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3]) #[0] = sampling rate, [1] = analogcontainer_array, [2] = digitalcontainer_array, [3] = readinchan
-                            self.adcollector.collected_data.connect(self.ProcessData)
-                            self.adcollector.run()
-                            #self.ai_dev_scaling_coeff = self.adcollector.get_ai_dev_scaling_coeff()
-                        elif self.clock_source == 'Cam as clock source' :
-                            self.adcollector = execute_analog_and_readin_digital_optional_camtrig_thread()
-                            self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3])
-                            self.adcollector.collected_data.connect(self.ProcessData)
-                            self.adcollector.run()
-                            
+                    elif 'Shutter_Close' in InsightText:
+                        self.watchdog_flag = False
+                        time.sleep(0.5)
+                        while True:
+                            try:
+                                self.Laserinstance.Close_TunableBeamShutter()
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(0.5)
+                        print('Laser shutter closed.')
+                        self.watchdog_flag = True
+                        time.sleep(0.5)
+                    elif 'WavelengthTo' in InsightText:
+                        self.watchdog_flag = False
+                        time.sleep(0.5)
+                        TargetWavelen = int(InsightText[InsightText.index('To_')+3:len(InsightText)])
+                        print(TargetWavelen)
+                        while True:
+                            try:
+                                self.Laserinstance.SetWavelength(TargetWavelen)
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(5)
+                        self.watchdog_flag = True
+                        time.sleep(0.5)
                         
-                    time.sleep(0.6) # Wait for receiving data to be done.
-                time.sleep(0.3)
-                print('*************************************************************************************************************************')
-                
-                # Image anaylsis part.!!!!!!!!!!!!!NOT working!!!!!!!!!!!!!!!!!!
-#                if  EachRound+100 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
-#                    
-#                    try:
-#                        time.sleep(1) # Here to make sure self.ProcessData is run before Image anaylsis part. self.ProcessData and this part are started at the same time.                 
-#                        print('Image analysis start.')                    
-#                        #------------------------------------------------------------------ Image processing ----------------------------------------------------------------------
-#                        #Pull the Bef and Aft image from the dictionary
-#                        ImageBef = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]
-#                        ImageAft = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['AftRoundNum'])]['row_{}_column_{}'.format(RowIndex, ColumnIndex)]            
-#                        print(ImageAft.shape) # NOT ready for 3d stack
-#                        
-#                        try:
-#                            self.ImageAnalysisInstance = ImageAnalysis(ImageBef, ImageAft)
-#                            MaskedImageBef, MaskedImageAft, MaskBef, MaskAft, thres = self.ImageAnalysisInstance.applyMask(self.GeneralSettingDict['openingfactor'], 
-#                                                                                                                      self.GeneralSettingDict['closingfactor'], 
-#                                                                                                                      self.GeneralSettingDict['binary_adaptive_block_size']) #v1 = Thresholded whole image
-#        
-#                            CellPropertiesArray, coutourmask, coutourimg, intensityimage_intensity, contour_change_ratio = self.ImageAnalysisInstance.get_intensity_properties(self.GeneralSettingDict['smallestsize'], 
-#                                                                                                                                                        MaskBef, thres, MaskedImageBef, MaskedImageAft, 
-#                                                                                                                                                        RowIndex, ColumnIndex, 
-#                                                                                                                                                        self.GeneralSettingDict['self_findcontour_thres'],
-#                                                                                                                                                        self.GeneralSettingDict['contour_dilation'],
-#                                                                                                                                                        self.GeneralSettingDict['cellopeningfactor'], 
-#                                                                                                                                                        self.GeneralSettingDict['cellclosingfactor'])
-#                            self.ImageAnalysisInstance.showlabel(self.GeneralSettingDict['smallestsize'], MaskBef, MaskedImageBef, thres, RowIndex, ColumnIndex, CellPropertiesArray)
-#        
-#                            print (CellPropertiesArray)
-#                            CellPropertiesDict[CoordOrder] = CellPropertiesArray
-#                            if CoordOrder == 0:
-#                                self.AllCellPropertiesDict = CellPropertiesDict[0]
-#                            if CoordOrder != 0:
-#                                self.AllCellPropertiesDict = np.append(self.AllCellPropertiesDict, CellPropertiesDict[CoordOrder], axis=0)
-#                            
-#                            cp_end_index = cp_end_index + len(CellPropertiesArray)
-#                            cp_start_index = cp_end_index - len(CellPropertiesArray) +1
-#                            self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(RowIndex, ColumnIndex)] = [cp_start_index, cp_end_index]
-#                            # As cell properties are stored in sequence, the lookup dictionary provides information of to which stage coordinates the cp data in cell properties array belong.
-#                        except:
-#                            print('Image analysis failed.')
-#                        time.sleep(0.3)
-#                        
-#                    except:
-#                        pass
-#                   
-#                    CoordOrder = CoordOrder+1
-#            
-#            # Sort the cell properties array
-#            if  EachRound+1 == self.GeneralSettingDict['AftRoundNum']: # When it's the round for after Kcl assay image acquisition.
-#                
-#                try:
-#                    self.RankedAllCellProperties, self.FinalMergedCoords = self.SortingPropertiesArray(self.AllCellPropertiesDict)
-#                except:
-#                    pass
-#        
-#        try:
-#            self.ScanningResult.emit(self.RankedAllCellProperties, self.FinalMergedCoords, self.IndexLookUpCellPropertiesDict, self.PMTimageDict)
-#        except:
-#            print('Failed to generate cell properties ranking.')
+                elif len(InsightX3EventIndexList) == 2:
+                    
+                    InsightText_wl = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[1]]
+                    InsightText_st = self.RoundQueueDict['InsightEvents'][InsightX3EventIndexList[0]]
+                    
+                    if 'WavelengthTo' in InsightText_wl and 'Shutter_Open' in InsightText_st:
+                        self.watchdog_flag = False
+                        time.sleep(0.5)
+                        TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
+                        while True:
+                            try:
+                                self.Laserinstance.SetWavelength(TargetWavelen)
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(5)
+                        while True:
+                            try:
+                                self.Laserinstance.Open_TunableBeamShutter()
+                                break
+                            except:
+                                time.sleep(1)
+                        print('Laser shutter open.')
+                        self.watchdog_flag = True
+                        time.sleep(0.5)
+                        
+                    elif 'WavelengthTo' in InsightText_wl and 'Shutter_Close' in InsightText_st:
+                        self.watchdog_flag = False
+                        time.sleep(0.5)
+                        TargetWavelen = int(InsightText_wl[InsightText_wl.index('To_')+3:len(InsightText_wl)])
+                        while True:
+                            try:                        
+                                self.Laserinstance.SetWavelength(TargetWavelen)
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(5)
+                        while True:
+                            try:
+                                self.Laserinstance.Close_TunableBeamShutter()
+                                break
+                            except:
+                                time.sleep(1)
+                        time.sleep(1)
+                        print('Laser shutter closed.')
+                        self.watchdog_flag = True
+                        time.sleep(0.5)
+                        
+                    time.sleep(2)
+                    
+                """
+                # =============================================================================
+                #         Execute filter event at the beginning of each round
+                # =============================================================================
+                """            
+                if ND_filter1_Pos != None and ND_filter2_Pos != None:
+                    #Move filter 1
+                    self.filter1 = ELL9Filter("COM9")
+                    self.filter1.moveToPosition(ND_filter1_Pos)
+                    time.sleep(1)
+                    #Move filter 2
+                    self.filter2 = ELL9Filter("COM7")
+                    self.filter2.moveToPosition(ND_filter2_Pos)
+                    time.sleep(1)
+                if EM_filter_Pos != None:
+                    self.filter3 = ELL9Filter("COM15")
+                    self.filter3.moveToPosition(EM_filter_Pos)
+                    time.sleep(1)
+    
+                    
+                self.currentCoordsSeq = 0
+                for EachCoord in range(CoordsNum):
+                    """
+                    #------------------------------------------At each stage position:-------------------------------------------
+                    """
+                    self.error_massage = None
+                    
+                    self.currentCoordsSeq += 1
+                    
+                    """
+                    # =============================================================================
+                    #         Stage movement
+                    # =============================================================================
+                    """
+                    RowIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][0]) + ScanningGridOffset_Row
+                    ColumnIndex = int(self.RoundCoordsDict['CoordsPackage_{}'.format(EachRound+1)][EachCoord*2:EachCoord*2+2][1]) + ScanningGridOffset_Col
+    
+                    try:
+                        self.ludlStage.moveAbs(RowIndex,ColumnIndex) # Row/Column indexs of np.array are opposite of stage row-col indexs.
+                    except:
+                        self.error_massage = 'Fail_MoveStage'
+                        self.errornum += 1
+                        print('Stage move failed! Error number: {}'.format(int(self.errornum)))
+                    
+                    print ('Round {}. Current index: {}.'.format(EachRound+1, [RowIndex,ColumnIndex]))
+
+                    time.sleep(1)
+                    
+                    """
+                    # =============================================================================
+                    #         Get the z stack objective positions ready
+                    # =============================================================================
+                    """
+                    #-------------------------------------------If focus correction applies----------------------------------------
+                    if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:
+                        FocusPosArray = self.GeneralSettingDict['FocusCorrectionMatrixDict']['RoundPackage_{}_Grid_{}'.format(EachRound+1, EachGrid)]
+    #                    print(FocusPosArray)
+                        FocusPosArray = FocusPosArray.flatten('F')
+                        FocusPos_fromCorrection = FocusPosArray[EachCoord]
+                        print('Target focus pos: '.format(FocusPos_fromCorrection))
+                    
+                    # Without focus correction
+                    if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) == 0:
+                        ZStacklinspaceStart = self.ObjCurrentPos['1'] - (math.floor(self.ZStackNum/2)-1)*self.ZStackStep
+                        ZStacklinspaceEnd = self.ObjCurrentPos['1'] + (self.ZStackNum - math.floor(self.ZStackNum/2))*self.ZStackStep
+                    # With focus correction
+                    elif len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:
+                        ZStacklinspaceStart = FocusPos_fromCorrection - (math.floor(self.ZStackNum/2)-1)*self.ZStackStep
+                        ZStacklinspaceEnd = FocusPos_fromCorrection + (self.ZStackNum - math.floor(self.ZStackNum/2))*self.ZStackStep                    
+                        
+                    ZStackPosList = np.linspace(ZStacklinspaceStart, ZStacklinspaceEnd, num = self.ZStackNum)       
+                    print(ZStackPosList)
+                    
+                    """
+                    # =============================================================================
+                    #         Execute waveform packages
+                    # =============================================================================
+                    """
+                    self.WaveforpackageNum = int(len(self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]))
+                    #Execute each individual waveform package
+                    print('*******************************************Round {}. Current index: {}.**************************************************'.format(EachRound+1, [RowIndex,ColumnIndex]))
+                    for EachZStackPos in range(self.ZStackNum): # Move to Z stack focus 
+                        print('--------------------------------------------Stack {}--------------------------------------------------'.format(EachZStackPos+1))
+                        if self.ZStackNum > 1:
+                            self.ZStackOrder = int(EachZStackPos +1) # Here the first one is 1, not starting from 0.
+                            FocusPos = ZStackPosList[EachZStackPos]
+                            print('Target focus pos: {}'.format(FocusPos))
+    
+                            pos = PIMotor.move(self.pi_device_instance.pidevice, FocusPos)
+                            self.ObjCurrentPosInStack = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
+                            print("Current position: {:.4f}".format(self.ObjCurrentPosInStack['1']))
+                            
+                            time.sleep(0.3)
+                        else:
+                            self.ZStackOrder = 1
+                        
+                        for EachWaveform in range(self.WaveforpackageNum):
+                            WaveformPackageToBeExecute = self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]['WaveformPackage_{}'.format(EachWaveform+1)]
+                            WaveformPackageGalvoInfor = self.RoundQueueDict['GalvoInforPackage_{}'.format(EachRound+1)]['GalvoInfor_{}'.format(EachWaveform+1)]  
+                            self.readinchan = WaveformPackageToBeExecute[3]
+                            self.RoundWaveformIndex = [EachRound+1, EachWaveform+1] # first is current round number, second is current waveform package number.
+                            self.CurrentPosIndex = [RowIndex, ColumnIndex]
+    #                        self.ProcessData_executed = False
+                            
+                            if WaveformPackageGalvoInfor != 'NoGalvo': # Unpack the information of galvo scanning.
+                                self.readinchan = WaveformPackageGalvoInfor[0]
+                                self.repeatnum = WaveformPackageGalvoInfor[1]
+                                self.PMT_data_index_array = WaveformPackageGalvoInfor[2]
+                                self.averagenum = WaveformPackageGalvoInfor[3]
+                                self.lenSample_1 = WaveformPackageGalvoInfor[4]
+                                self.ScanArrayXnum = WaveformPackageGalvoInfor[5]
+        
+                            if self.clock_source == 'Dev1 as clock source':
+                                self.adcollector = execute_analog_readin_optional_digital_thread()
+                                self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3]) #[0] = sampling rate, [1] = analogcontainer_array, [2] = digitalcontainer_array, [3] = readinchan
+                                self.adcollector.collected_data.connect(self.ProcessData)
+                                self.adcollector.run()
+                                #self.ai_dev_scaling_coeff = self.adcollector.get_ai_dev_scaling_coeff()
+                            elif self.clock_source == 'Cam as clock source' :
+                                self.adcollector = execute_analog_and_readin_digital_optional_camtrig_thread()
+                                self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3])
+                                self.adcollector.collected_data.connect(self.ProcessData)
+                                self.adcollector.run()
+                                
+                            
+                        time.sleep(0.6) # Wait for receiving data to be done.
+                    time.sleep(0.3)
+                    print('*************************************************************************************************************************')
+
+        """
+        # ==========================================================================================================================================================
+        #                                                                       Finalizing
+        # ==========================================================================================================================================================
+        """                
         
         # Switch off laser
         if len(self.RoundQueueDict['InsightEvents']) != 0:
@@ -440,8 +443,12 @@ class ScanningExecutionThread(QThread):
             self.Laserinstance.Close_TunableBeamShutter()
             time.sleep(0.5)
             self.Laserinstance.SaveVariables()
-            self.Laserinstance.Turn_Off_PumpLaser()
-
+            while True:
+                try:                        
+                    self.Laserinstance.Turn_Off_PumpLaser()
+                    break
+                except:
+                    time.sleep(1)
         
         # Disconnect focus motor
         try:

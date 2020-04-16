@@ -509,6 +509,18 @@ class Mainbody(QWidget):
         PipelineContainerLayout.addWidget(ButtonClearRound, 0, 4)
         ButtonClearRound.clicked.connect(self.ClearRoundQueue)
         
+        self.ScanRepeatTextbox = QSpinBox(self)
+        self.ScanRepeatTextbox.setMinimum(1)
+        self.ScanRepeatTextbox.setMaximum(100000)
+        self.ScanRepeatTextbox.setSingleStep(1)
+        PipelineContainerLayout.addWidget(self.ScanRepeatTextbox, 0, 7)
+        PipelineContainerLayout.addWidget(QLabel("Meshgrid:"), 0, 6)  
+        
+        self.OpenTwoPLaserShutterCheckbox = QCheckBox("Open shutter first")
+        self.OpenTwoPLaserShutterCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
+        self.OpenTwoPLaserShutterCheckbox.setChecked(True)
+        PipelineContainerLayout.addWidget(self.OpenTwoPLaserShutterCheckbox, 0, 8)
+        
 #        self.BefKCLRoundNumBox = QSpinBox(self)
 #        self.BefKCLRoundNumBox.setMinimum(1)
 #        self.BefKCLRoundNumBox.setMaximum(1000)
@@ -575,44 +587,45 @@ class Mainbody(QWidget):
 
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for StageScanContainer-------------------------------------------------
-        #**************************************************************************************************************************************        
-        ScanContainer = QGroupBox()        
+        #**************************************************************************************************************************************    
+        ScanContainer = QWidget()     
         ScanSettingLayout = QGridLayout() #Layout manager
+        ScanContainer.layout = ScanSettingLayout
         
         self.ScanStartRowIndexTextbox = QSpinBox(self)
         self.ScanStartRowIndexTextbox.setMinimum(-20000)
         self.ScanStartRowIndexTextbox.setMaximum(100000)
-        self.ScanStartRowIndexTextbox.setSingleStep(500)
+        self.ScanStartRowIndexTextbox.setSingleStep(1650)
         ScanSettingLayout.addWidget(self.ScanStartRowIndexTextbox, 0, 1)
         ScanSettingLayout.addWidget(QLabel("Start index-row:"), 0, 0)
       
         self.ScanEndRowIndexTextbox = QSpinBox(self)
         self.ScanEndRowIndexTextbox.setMinimum(-20000)
         self.ScanEndRowIndexTextbox.setMaximum(100000)
-        self.ScanEndRowIndexTextbox.setSingleStep(500)
-        ScanSettingLayout.addWidget(self.ScanEndRowIndexTextbox, 0, 5)
-        ScanSettingLayout.addWidget(QLabel("End index-row:"), 0, 4)
+        self.ScanEndRowIndexTextbox.setSingleStep(1650)
+        ScanSettingLayout.addWidget(self.ScanEndRowIndexTextbox, 0, 3)
+        ScanSettingLayout.addWidget(QLabel("End index-row:"), 0, 2)
         
         self.ScanStartColumnIndexTextbox = QSpinBox(self)
         self.ScanStartColumnIndexTextbox.setMinimum(-20000)
         self.ScanStartColumnIndexTextbox.setMaximum(100000)
-        self.ScanStartColumnIndexTextbox.setSingleStep(500)
-        ScanSettingLayout.addWidget(self.ScanStartColumnIndexTextbox, 0, 3)
-        ScanSettingLayout.addWidget(QLabel("Start index-column:"), 0, 2)   
+        self.ScanStartColumnIndexTextbox.setSingleStep(1650)
+        ScanSettingLayout.addWidget(self.ScanStartColumnIndexTextbox, 1, 1)
+        ScanSettingLayout.addWidget(QLabel("Start index-column:"), 1, 0)   
         
         self.ScanEndColumnIndexTextbox = QSpinBox(self)
         self.ScanEndColumnIndexTextbox.setMinimum(-20000)
         self.ScanEndColumnIndexTextbox.setMaximum(100000)
-        self.ScanEndColumnIndexTextbox.setSingleStep(500)
-        ScanSettingLayout.addWidget(self.ScanEndColumnIndexTextbox, 0, 7)
-        ScanSettingLayout.addWidget(QLabel("End index-column:"), 0, 6)      
+        self.ScanEndColumnIndexTextbox.setSingleStep(1650)
+        ScanSettingLayout.addWidget(self.ScanEndColumnIndexTextbox, 1, 3)
+        ScanSettingLayout.addWidget(QLabel("End index-column:"), 1, 2)      
 
         self.ScanstepTextbox = QSpinBox(self)
         self.ScanstepTextbox.setMaximum(20000)
-        self.ScanstepTextbox.setValue(1500)
+        self.ScanstepTextbox.setValue(1650)
         self.ScanstepTextbox.setSingleStep(500)
-        ScanSettingLayout.addWidget(self.ScanstepTextbox, 1, 1)
-        ScanSettingLayout.addWidget(QLabel("Step size:"), 1, 0)
+        ScanSettingLayout.addWidget(self.ScanstepTextbox, 0, 5)
+        ScanSettingLayout.addWidget(QLabel("Step size:"), 0, 4)
         
         self.FocusStackNumTextbox = QSpinBox(self)
         self.FocusStackNumTextbox.setMinimum(1)
@@ -671,7 +684,7 @@ class Mainbody(QWidget):
         TwoPLaserSettingLayout.addWidget(NDfilterlabel, 0, 3)
         NDfilterlabel.setAlignment(Qt.AlignRight)
         self.NDfilterCombox = QComboBox()
-        self.NDfilterCombox.addItems(['1', '2', '3', '0.5'])
+        self.NDfilterCombox.addItems(['1', '2', '2.3', '2.5', '3', '0.5'])
         TwoPLaserSettingLayout.addWidget(self.NDfilterCombox, 0, 4)
         
         Emifilterlabel = QLabel("Emission filter:")
@@ -811,11 +824,11 @@ class Mainbody(QWidget):
         column_start = int(self.ScanStartColumnIndexTextbox.value())
         column_end = int(self.ScanEndColumnIndexTextbox.value())+1  # With additional plus one, the range is fully covered by steps.
         
-        step = int(self.ScanstepTextbox.value()) #length of each step, 1500 for -5~5V FOV
+        self.step = int(self.ScanstepTextbox.value()) #length of each step, 1500 for -5~5V FOV
       
-        for i in range(row_start, row_end, step):
+        for i in range(row_start, row_end, self.step):
             position_index.append(int(i))
-            for j in range(column_start, column_end, step):
+            for j in range(column_start, column_end, self.step):
                 position_index.append(int(j))
                 
                 self.CoordContainer = np.append(self.CoordContainer, (position_index))
@@ -823,7 +836,7 @@ class Mainbody(QWidget):
                 del position_index[-1]
                 
             position_index=[]
-        
+
         CurrentRoundSequence = self.RoundOrderBox.value()
         self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRoundSequence)] = self.CoordContainer
         
@@ -886,9 +899,13 @@ class Mainbody(QWidget):
 #        self_findcontour_thres = float(self.find_contour_thres_box.value())
 #        contour_dilation = int(self.contour_dilation_box.value())
         savedirectory = self.savedirectory
-        
+        meshrepeat = self.ScanRepeatTextbox.value()
+        StartUpEvents = []
+        if self.OpenTwoPLaserShutterCheckbox.isChecked():
+            StartUpEvents.append('Shutter_Open')
         #--------------------------------------------------------Generate the focus correction matrix-----------------------------------------------------------
         if self.ApplyFocusSetCheckbox.isChecked():
+            self.FocusCorrectionMatrixDict = {}
             if self.FocusInterStrategy.currentText() == 'Interpolation':
             
                 for CurrentRound in range(len(self.RoundCoordsDict)):
@@ -935,60 +952,99 @@ class Mainbody(QWidget):
                         
                         
             elif self.FocusInterStrategy.currentText() == 'Duplicate':
-                RawDuplicateRow = self.FocusDuplicateMethodInfor[0,:] # The row index from calibration step (Corresponding to column index in python array)
-                RawDuplicateCol = self.FocusDuplicateMethodInfor[1,:]
-                RawDuplicateFocus = self.FocusDuplicateMethodInfor[2,:]
-                sparsestep = RawDuplicateCol[1] - RawDuplicateCol[0]
-#                print('sparse step {}'.format(sparsestep))
-                for CurrentRound in range(len(self.RoundCoordsDict)):
-                    
-                    if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
-                        #---------------numpy.meshgrid method------------------------
-                        OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
-                        
-                        Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
-                        
-                        OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
-                        OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
-                        
-                        row_start = np.amin(OriginalCoordsOdd_Row)
-                        row_end = np.amax(OriginalCoordsOdd_Row)
-                        
-                        column_start = np.amin(OriginalCoordsEven_Col)
-                        column_end = np.amax(OriginalCoordsEven_Col)     
-                        
-                        linspace_num_x = int((row_end-row_start)/Originalstep)+1
-                        linspace_num_y = int((column_end-column_start)/Originalstep)+1
-                        X = np.linspace(row_start,row_end,linspace_num_x)
-                        Y = np.linspace(column_start,column_end,linspace_num_y)
-                        
-                        ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
-                        
-                        FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
- 
-                        c = int(sparsestep/Originalstep)
-#                        print('RawDuplicateFocus'+str(RawDuplicateFocus))
-#                        print(FocusCorrectionMatrixContainer)
-                        for i in range(len(RawDuplicateRow)):
-                            row = int(RawDuplicateRow[i]/sparsestep)
-                            col = int(RawDuplicateCol[i]/sparsestep)
+                for EachGrid in range(meshrepeat**2):
+                    if len(self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:]) > 1:
+                        RawDuplicateRow = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:] # The row index from calibration step (Corresponding to column index in python array)
+                        RawDuplicateCol = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][1,:]
+                        RawDuplicateFocus = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][2,:]
+                        sparsestep = RawDuplicateCol[1] - RawDuplicateCol[0]
+        #                print('sparse step {}'.format(sparsestep))
+                        for CurrentRound in range(len(self.RoundCoordsDict)):
                             
-#                            print('row{},col{}'.format(row, col))
+                            if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
+                                #---------------numpy.meshgrid method------------------------
+                                OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
+                                
+                                Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
+                                
+                                OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
+                                OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
+                                
+                                row_start = np.amin(OriginalCoordsOdd_Row)
+                                row_end = np.amax(OriginalCoordsOdd_Row)
+                                
+                                column_start = np.amin(OriginalCoordsEven_Col)
+                                column_end = np.amax(OriginalCoordsEven_Col)     
+                                
+                                linspace_num_x = int((row_end-row_start)/Originalstep)+1
+                                linspace_num_y = int((column_end-column_start)/Originalstep)+1
+                                X = np.linspace(row_start,row_end,linspace_num_x)
+                                Y = np.linspace(column_start,column_end,linspace_num_y)
+                                
+                                ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
+                                
+                                FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
+         
+                                c = int(sparsestep/Originalstep)
+        #                        print('RawDuplicateFocus'+str(RawDuplicateFocus))
+        #                        print(FocusCorrectionMatrixContainer)
+                                for i in range(len(RawDuplicateRow)):
+                                    row = int(RawDuplicateRow[i]/sparsestep)
+                                    col = int(RawDuplicateCol[i]/sparsestep)
+                                    
+        #                            print('row{},col{}'.format(row, col))
+                                    
+                                    try:    
+                                        FocusCorrectionMatrixContainer[col*c:col*c+c, row*c:row*c+c] = RawDuplicateFocus[i]
+                                    except:
+                                        pass# Last row should stay the same
+                                
+                                FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
+                                FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
+        #                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
+                                
+        #                        print(FocusCorrectionMatrixContainer.shape)
+                                self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)] = FocusCorrectionMatrixContainer               
+                                print(self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)])
+                                
+                    elif len(self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:]) == 1:
+                        RawDuplicateFocus = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][2,:]
+
+                        for CurrentRound in range(len(self.RoundCoordsDict)):
                             
-                            try:    
-                                FocusCorrectionMatrixContainer[col*c:col*c+c, row*c:row*c+c] = RawDuplicateFocus[i]
-                            except:
-                                pass# Last row should stay the same
-                        
-                        FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
-                        FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
-#                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
-                        
-#                        print(FocusCorrectionMatrixContainer.shape)
-                        self.FocusCorrectionMatrixDict['RoundPackage_{}'.format(CurrentRound+1)] = FocusCorrectionMatrixContainer               
-                        print(self.FocusCorrectionMatrixDict['RoundPackage_{}'.format(CurrentRound+1)])
+                            if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
+                                #---------------numpy.meshgrid method------------------------
+                                OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
+                                
+                                Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
+                                
+                                OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
+                                OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
+                                
+                                row_start = np.amin(OriginalCoordsOdd_Row)
+                                row_end = np.amax(OriginalCoordsOdd_Row)
+                                
+                                column_start = np.amin(OriginalCoordsEven_Col)
+                                column_end = np.amax(OriginalCoordsEven_Col)     
+                                
+                                linspace_num_x = int((row_end-row_start)/Originalstep)+1
+                                linspace_num_y = int((column_end-column_start)/Originalstep)+1
+                                X = np.linspace(row_start,row_end,linspace_num_x)
+                                Y = np.linspace(column_start,column_end,linspace_num_y)
+                                
+                                ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
+                                
+                                FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
+                                
+                                FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
+                                FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
+        #                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
+                                
+        #                        print(FocusCorrectionMatrixContainer.shape)
+                                self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)] = FocusCorrectionMatrixContainer               
+                                print(self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)])
         else:
-            self.FocusCorrectionMatrixDict = []
+            self.FocusCorrectionMatrixDict = {}
         
 #        print(self.FocusCorrectionMatrixDict.keys())
 #        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 
@@ -997,9 +1053,9 @@ class Mainbody(QWidget):
 #        
 #        generallist = [selectnum, MeanIntensityContourWeight, ContourSomaRatioWeight, ChangeWeight, BefRoundNum, AftRoundNum, smallestsize, openingfactor, closingfactor, cellopeningfactor, 
 #                       cellclosingfactor, binary_adaptive_block_size, self_findcontour_thres, contour_dilation, savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
-        generalnamelist = ['savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
+        generalnamelist = ['savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict', 'Meshgrid', 'Scanning step', 'StartUpEvents']
         
-        generallist = [savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
+        generallist = [savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict, meshrepeat, self.step, StartUpEvents]
         
         for item in range(len(generallist)):
             self.GeneralSettingDict[generalnamelist[item]] = generallist[item]
@@ -1050,8 +1106,8 @@ class Mainbody(QWidget):
     def CaptureFocusCorrectionMatrix(self, CorrectionFomula):
         self.CorrectionFomula = CorrectionFomula
         
-    def CaptureFocusDuplicateMethodMatrix(self, FocusDuplicateMethodInfor):
-        self.FocusDuplicateMethodInfor = FocusDuplicateMethodInfor
+    def CaptureFocusDuplicateMethodMatrix(self, CorrectionDictForDuplicateMethod):
+        self.FocusDuplicateMethodInfor = CorrectionDictForDuplicateMethod
         
     def ExecutePipeline(self):
         get_ipython().run_line_magic('matplotlib', 'inline') # before start, set spyder back to inline
@@ -1130,6 +1186,7 @@ class Mainbody(QWidget):
 
         #--------------------------------------------------------Generate the focus correction matrix-----------------------------------------------------------
         if self.ApplyFocusSetCheckbox.isChecked():
+            self.FocusCorrectionMatrixDict = {}
             if self.FocusInterStrategy.currentText() == 'Interpolation':
             
                 for CurrentRound in range(len(self.RoundCoordsDict)):
@@ -1176,59 +1233,99 @@ class Mainbody(QWidget):
                         
                         
             elif self.FocusInterStrategy.currentText() == 'Duplicate':
-                RawDuplicateRow = self.FocusDuplicateMethodInfor[0,:] # The row index from calibration step (Corresponding to column index in python array)
-                RawDuplicateCol = self.FocusDuplicateMethodInfor[1,:]
-                RawDuplicateFocus = self.FocusDuplicateMethodInfor[2,:]
-                sparsestep = RawDuplicateCol[1] - RawDuplicateCol[0]
-                print('sparse step {}'.format(sparsestep))
-                for CurrentRound in range(len(self.RoundCoordsDict)):
-                    
-                    if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
-                        #---------------numpy.meshgrid method------------------------
-                        OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
-                        
-                        Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
-                        
-                        OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
-                        OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
-                        
-                        row_start = np.amin(OriginalCoordsOdd_Row)
-                        row_end = np.amax(OriginalCoordsOdd_Row)
-                        
-                        column_start = np.amin(OriginalCoordsEven_Col)
-                        column_end = np.amax(OriginalCoordsEven_Col)     
-                        
-                        linspace_num_x = int((row_end-row_start)/Originalstep)+1
-                        linspace_num_y = int((column_end-column_start)/Originalstep)+1
-                        X = np.linspace(row_start,row_end,linspace_num_x)
-                        Y = np.linspace(column_start,column_end,linspace_num_y)
-                        
-                        ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
-                        
-                        FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
- 
-                        c = int(sparsestep/Originalstep)
-                        print('RawDuplicateFocus'+str(RawDuplicateFocus))
-#                        print(FocusCorrectionMatrixContainer)
-                        for i in range(len(RawDuplicateRow)):
-                            row = int(RawDuplicateRow[i]/sparsestep)
-                            col = int(RawDuplicateCol[i]/sparsestep)
+                meshrepeat = self.ScanRepeatTextbox.value()
+                for EachGrid in range(meshrepeat**2):
+                    if len(self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:]) > 1:
+                        RawDuplicateRow = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:] # The row index from calibration step (Corresponding to column index in python array)
+                        RawDuplicateCol = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][1,:]
+                        RawDuplicateFocus = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][2,:]
+                        sparsestep = RawDuplicateCol[1] - RawDuplicateCol[0]
+                        print('sparse step {}'.format(sparsestep))
+                        for CurrentRound in range(len(self.RoundCoordsDict)):
                             
-                            print('row{},col{}'.format(row, col))
+                            if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
+                                #---------------numpy.meshgrid method------------------------
+                                OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
+                                
+                                Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
+                                
+                                OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
+                                OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
+                                
+                                row_start = np.amin(OriginalCoordsOdd_Row)
+                                row_end = np.amax(OriginalCoordsOdd_Row)
+                                
+                                column_start = np.amin(OriginalCoordsEven_Col)
+                                column_end = np.amax(OriginalCoordsEven_Col)     
+                                
+                                linspace_num_x = int((row_end-row_start)/Originalstep)+1
+                                linspace_num_y = int((column_end-column_start)/Originalstep)+1
+                                X = np.linspace(row_start,row_end,linspace_num_x)
+                                Y = np.linspace(column_start,column_end,linspace_num_y)
+                                
+                                ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
+                                
+                                FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
+         
+                                c = int(sparsestep/Originalstep)
+                                print('RawDuplicateFocus'+str(RawDuplicateFocus))
+        #                        print(FocusCorrectionMatrixContainer)
+                                for i in range(len(RawDuplicateRow)):
+                                    row = int(RawDuplicateRow[i]/sparsestep)
+                                    col = int(RawDuplicateCol[i]/sparsestep)
+                                    
+                                    print('row{},col{}'.format(row, col))
+                                    
+                                    try:    
+                                        FocusCorrectionMatrixContainer[col*c:col*c+c, row*c:row*c+c] = RawDuplicateFocus[i]
+                                    except:
+                                        pass# Last row should stay the same
+                                
+                                FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
+                                FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
+        #                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
+                                
+                                self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)] = FocusCorrectionMatrixContainer               
+                                print(self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)])
+                                
+                    elif len(self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][0,:]) == 1:
+                        RawDuplicateFocus = self.FocusDuplicateMethodInfor['Grid_{}'.format(EachGrid)][2,:]
+
+                        for CurrentRound in range(len(self.RoundCoordsDict)):
                             
-                            try:    
-                                FocusCorrectionMatrixContainer[col*c:col*c+c, row*c:row*c+c] = RawDuplicateFocus[i]
-                            except:
-                                pass# Last row should stay the same
-                        
-                        FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
-                        FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
-#                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
-                        
-                        self.FocusCorrectionMatrixDict['RoundPackage_{}'.format(CurrentRound+1)] = FocusCorrectionMatrixContainer               
-                        print(self.FocusCorrectionMatrixDict['RoundPackage_{}'.format(CurrentRound+1)])
+                            if len(self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]) > 2: # If it's more than 1 pos.
+                                #---------------numpy.meshgrid method------------------------
+                                OriginalCoordsPackage = self.RoundCoordsDict['CoordsPackage_{}'.format(CurrentRound+1)]
+                                
+                                Originalstep = OriginalCoordsPackage[3] - OriginalCoordsPackage[1]
+                                
+                                OriginalCoordsOdd_Row = OriginalCoordsPackage[::2]
+                                OriginalCoordsEven_Col = OriginalCoordsPackage[1::2]
+                                
+                                row_start = np.amin(OriginalCoordsOdd_Row)
+                                row_end = np.amax(OriginalCoordsOdd_Row)
+                                
+                                column_start = np.amin(OriginalCoordsEven_Col)
+                                column_end = np.amax(OriginalCoordsEven_Col)     
+                                
+                                linspace_num_x = int((row_end-row_start)/Originalstep)+1
+                                linspace_num_y = int((column_end-column_start)/Originalstep)+1
+                                X = np.linspace(row_start,row_end,linspace_num_x)
+                                Y = np.linspace(column_start,column_end,linspace_num_y)
+                                
+                                ExeRowIndex, ExeColIndex = np.meshgrid(X,Y)
+                                
+                                FocusCorrectionMatrixContainer = RawDuplicateFocus[0]*np.ones((len(Y), len(X)))
+                                
+                                FocusCorrectionMatrixContainer = copy.deepcopy(FocusCorrectionMatrixContainer)
+                                FocusCorrectionMatrixContainer += self.FocusCorrectionOffsetBox.value()
+        #                        FocusCorrectionMatrixContainer = FocusCorrectionMatrixContainer.flatten()
+                                
+        #                        print(FocusCorrectionMatrixContainer.shape)
+                                self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)] = FocusCorrectionMatrixContainer               
+                                print(self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)])
         else:
-            self.FocusCorrectionMatrixDict = []
+            self.FocusCorrectionMatrixDict = {}
         
         self.GeneralSettingDict['FocusCorrectionMatrixDict'] = self.FocusCorrectionMatrixDict # Refresh the focus correction
         self.GeneralSettingDict['savedirectory'] = self.savedirectory
