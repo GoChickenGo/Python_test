@@ -42,7 +42,7 @@ class InsightWidgetUI(QWidget):
         self.warmupstatus = False
         self.laserReady = False
         self.laserRun = False
-        ini_watchdogtimeout = 5
+        ini_watchdogtimeout = 0
         # =============================================================================
         #        Operation panel
         # =============================================================================
@@ -126,20 +126,24 @@ class InsightWidgetUI(QWidget):
         # =============================================================================        
         try:
             querygap = 1.1
-            self.Laserinstance.SetWatchdogTimer(ini_watchdogtimeout)
+            self.Laserinstance.SetWatchdogTimer(0)
             time.sleep(0.3)
             self.Status_queue = queue.Queue()
             self.current_wavelength = self.Laserinstance.QueryWavelength()
             self.SWavelengthTextbox.setValue(int(self.current_wavelength))
             time.sleep(0.3)
             self.pill2kill = threading.Event()
-            self.Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=(self.Status_queue, querygap), daemon = True)
-            self.Status_watchdog_thread.start()    
+            # self.Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=(self.Status_queue, querygap), daemon = True)
+            # self.Status_watchdog_thread.start()    
         except:
             self.LaserStatuslabel.setText('Laser not connected.')
+            
+            
+    """
     # =============================================================================
     #     Laser events
     # =============================================================================
+    """
     def Status_watchdog(self, Status_queue, querygap):
         
         while True:
@@ -164,7 +168,7 @@ class InsightWidgetUI(QWidget):
     def TurnOnLaser(self):
         self.watchdog_flag = False
         time.sleep(0.5)
-        
+        self.Status_list = self.Laserinstance.QueryStatus()
         #-------------Initialize laser--------------
         if self.warmupstatus == False:
             
@@ -182,6 +186,21 @@ class InsightWidgetUI(QWidget):
 
                 if 'Laser state:Ready' in self.Status_list:
                     self.Laserinstance.Turn_On_PumpLaser()
+                    
+                    Status_list = []
+        
+                    while 'Laser state:RUN' not in Status_list:
+                        time.sleep(1)
+                        
+                        try:
+                            Status_list = self.Laserinstance.QueryStatus()
+                        except:
+                            pass
+                        
+                        if 'Laser state:RUN'  in Status_list:
+                            self.laserRun = True
+                            print('Laser state:RUN')
+                            break
                     
         time.sleep(0.5)
         self.watchdog_flag = True
@@ -233,6 +252,7 @@ class InsightWidgetUI(QWidget):
             turnOFFShuThread.start()
     
     def TurnOnLaserShutter(self):
+        self.Status_list = self.Laserinstance.QueryStatus()
         if 'Tunable beam shutter closed' in self.Status_list:        
             self.watchdog_flag = False
             time.sleep(0.5)
@@ -241,6 +261,7 @@ class InsightWidgetUI(QWidget):
             self.watchdog_flag = True     
         
     def TurnOffLaserShutter(self):
+        self.Status_list = self.Laserinstance.QueryStatus()
         if 'Tunable beam shutter open' in self.Status_list:
             self.watchdog_flag = False
             time.sleep(0.5)
