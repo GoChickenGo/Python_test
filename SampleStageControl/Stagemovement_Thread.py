@@ -19,7 +19,7 @@ class StagemovementRelativeThread(QThread):
         
     def run(self):
         self.ludlStage.moveRel(self.xRel,self.yRel)
-        time.sleep(0.5)
+        time.sleep(0.7)
         self.xPosition, self.yPosition = self.ludlStage.getPos()
         self.current_position_array = np.array([self.xPosition, self.yPosition])
         #print(self.current_position_array)
@@ -35,7 +35,7 @@ class StagemovementAbsoluteThread(QThread):
         
     def run(self):
         self.ludlStage.moveAbs(self.xAbs,self.yAbs)
-        time.sleep(0.5)
+        time.sleep(0.7)
         self.xPosition, self.yPosition = self.ludlStage.getPos()
         self.current_position_array = np.array([self.xPosition, self.yPosition])
         #print(self.current_position_array)
