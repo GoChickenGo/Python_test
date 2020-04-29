@@ -1,0 +1,26 @@
+QPushButton#Startbutton{ 
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                 stop: 0 white, stop: 1 rgb(200, 200, 200));
+    border-style: outset;
+    border-width: 1px;
+    border-color: rgb(180, 180, 180);
+    border-radius: 8px;
+    
+    font: 12px;
+    font-family: Helvetica;
+}
+
+QPushButton#Startbutton:hover {
+    border-width: 1px;
+    border-color: rgb(63, 128, 246);
+    border-style: outset;
+}
+
+QPushButton#Startbutton:pressed {
+    
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                 stop: 0 rgb(200, 200, 200), stop: 1 white);
+    border-style: inset;
+}
+
+
