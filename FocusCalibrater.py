@@ -112,14 +112,14 @@ class FocusMatrixFeeder(QWidget):
         
         self.StageMoveRowIndexSpinbox = QSpinBox(self)
         self.StageMoveRowIndexSpinbox.setMinimum(-20000)
-        self.StageMoveRowIndexSpinbox.setMaximum(20000)
+        self.StageMoveRowIndexSpinbox.setMaximum(2000000)
         self.StageMoveRowIndexSpinbox.setSingleStep(500)
         StageMoveContainerLayout.addWidget(self.StageMoveRowIndexSpinbox, 1, 1)
         StageMoveContainerLayout.addWidget(QLabel("Row index:"), 1, 0)
       
         self.StageMoveColumnIndexSpinbox = QSpinBox(self)
         self.StageMoveColumnIndexSpinbox.setMinimum(-20000)
-        self.StageMoveColumnIndexSpinbox.setMaximum(20000)
+        self.StageMoveColumnIndexSpinbox.setMaximum(2000000)
         self.StageMoveColumnIndexSpinbox.setSingleStep(500)
         StageMoveContainerLayout.addWidget(self.StageMoveColumnIndexSpinbox, 1, 3)
         StageMoveContainerLayout.addWidget(QLabel("Column index:"), 1, 2)

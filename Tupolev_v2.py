@@ -32,6 +32,7 @@ from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, Q
                              QFileDialog, QProgressBar, QTextEdit, QStyleFactory)
 
 import pyqtgraph as pg
+import StylishQT
 
 import PatchClamp.ui_patchclamp_sealtest
 import NIDAQ.Waveformer_for_screening
@@ -43,8 +44,8 @@ import ThorlabsFilterSlider.FilterSliderWidget
 import PI_ObjectiveMotor.ObjMotorWidget
 
 import pyqtgraph.console
-#import ui_camera_lab
-import DMDWidget.ui_dmd_management
+import HamamatsuCam.HamamatsuUI
+import DMDManager.ui_dmd_management
 
 
 #Setting graph settings
@@ -62,6 +63,13 @@ import DMDWidget.ui_dmd_management
 class Mainbody(QWidget):
     
 #    waveforms_generated = pyqtSignal(object, object, list, int)
+    
+    # def closeEvent(self, event):
+    #     ## Because the software combines both PyQt and PyQtGraph, using the
+    #     ## closeEvent() from PyQt will cause a segmentation fault. Calling 
+    #     ## also the exit() from PyQtGraph solves this problem. 
+    #     pg.exit()    
+    #     event.accept()
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,7 +105,7 @@ class Mainbody(QWidget):
         self.PatchClamp_WidgetInstance = PatchClamp.ui_patchclamp_sealtest.PatchclampSealTestUI()
         #self.tab4 = ui_camera_lab_5.CameraUI()
         self.Analysis_WidgetInstance = ImageAnalysis.AnalysisWidget.AnalysisWidgetUI()
-        self.DMD_WidgetInstance = DMDWidget.ui_dmd_management.DMD_management_UI()
+        self.DMD_WidgetInstance = DMDManager.ui_dmd_management.DMD_management_UI()
         
         #--------------Add tab widgets-------------------
         self.tabs.addTab(self.Galvo_WidgetInstance,"PMT imaging")
@@ -181,8 +189,9 @@ class Mainbody(QWidget):
         # =============================================================================
         #         GUI for camera button       
         # =============================================================================
-        self.open_cam = QPushButton('Open Camera')
-        # self.open_cam.clicked.connect(self.open_camera)
+        self.open_cam = StylishQT.FancyPushButton(55, 25)
+        self.open_cam.setText("Open Camera")
+        self.open_cam.clicked.connect(self.open_camera)
         self.layout.addWidget(self.open_cam,5,0)
         
         self.console_text_edit = QTextEdit()
@@ -234,18 +243,11 @@ class Mainbody(QWidget):
         
         self.Analysis_WidgetInstance.savedirectory = self.savedirectory
     # =============================================================================
-    #     Fucs for camera options
+    #    Fucs for camera options
     # =============================================================================
-    # def open_camera(self):
-        # self.camWindow = ui_camera_lab.CameraUI()
-        
-        # '''
-        # I set the roiwindow immeadiately to save time, however this funcion also 
-        # sets the ROI. This is why I clear the ROI afterwards.
-        # '''
-        
-        # self.camWindow.setGeometry(QRect(100, 100, 600, 600))
-        # self.camWindow.show()
+    def open_camera(self):
+        self.camWindow = HamamatsuCam.HamamatsuUI.CameraUI()
+        self.camWindow.show()
         
     # =============================================================================
     #     Fucs for console display

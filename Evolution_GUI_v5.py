@@ -53,7 +53,7 @@ class Mainbody(QWidget):
         os.chdir('./')# Set directory to current folder.
         self.setFont(QFont("Arial"))
         
-        self.setMinimumSize(1080,1920)
+        self.setMinimumSize(1080, 1920)
         self.setWindowTitle("McDonnell")
         self.layout = QGridLayout(self)
         
@@ -331,7 +331,7 @@ class Mainbody(QWidget):
         IPLayout.addWidget(QLabel("Cell opening factor:"), 2, 0)
         
         self.cellclosing_factorBox = QSpinBox(self)
-        self.cellclosing_factorBox.setMaximum(2000)
+        self.cellclosing_factorBox.setMaximum(20000)
         self.cellclosing_factorBox.setValue(2)
         self.cellclosing_factorBox.setSingleStep(1)
         IPLayout.addWidget(self.cellclosing_factorBox, 2, 3)
@@ -381,15 +381,6 @@ class Mainbody(QWidget):
         SelectionsettingTab.layout.addWidget(self.SeleParaBox, 0, 2)
         SelectionsettingTab.layout.addWidget(QLabel('Scatter axes'), 0, 1)
         
-        SelectionsettingTab.layout.addWidget(QLabel("Intensity threshold:"), 1, 0)
-        self.SelectionMeanInten_thres_box = QDoubleSpinBox(self)
-        self.SelectionMeanInten_thres_box.setDecimals(4)
-        self.SelectionMeanInten_thres_box.setMinimum(0)
-        self.SelectionMeanInten_thres_box.setMaximum(10)
-        self.SelectionMeanInten_thres_box.setValue(0.150)
-        self.SelectionMeanInten_thres_box.setSingleStep(0.0001)  
-        SelectionsettingTab.layout.addWidget(self.SelectionMeanInten_thres_box, 1, 1)    
-        
         self.AnalysisTypeSwitchBox = QComboBox()
         self.AnalysisTypeSwitchBox.addItems(['Brightness screening', 'Lib'])
         SelectionsettingTab.layout.addWidget(self.AnalysisTypeSwitchBox, 0, 0)
@@ -411,12 +402,12 @@ class Mainbody(QWidget):
         self.Selection_boundaryBox.addItems(['Circular radius', 'Rank'])
         UpdateProcessTab_1.layout.addWidget(self.Selection_boundaryBox, 0, 1)
         
-        self.AnalysisCirclePercentBox = QSpinBox(self)
-        self.AnalysisCirclePercentBox.setMaximum(100)
-        self.AnalysisCirclePercentBox.setValue(50)
-        self.AnalysisCirclePercentBox.setSingleStep(1)
-        UpdateProcessTab_1.layout.addWidget(self.AnalysisCirclePercentBox, 0, 3)
-        UpdateProcessTab_1.layout.addWidget(QLabel("Percentage(%):"), 0, 2)
+#        self.AnalysisCirclePercentBox = QSpinBox(self)
+#        self.AnalysisCirclePercentBox.setMaximum(100)
+#        self.AnalysisCirclePercentBox.setValue(50)
+#        self.AnalysisCirclePercentBox.setSingleStep(1)
+#        UpdateProcessTab_1.layout.addWidget(self.AnalysisCirclePercentBox, 0, 3)
+#        UpdateProcessTab_1.layout.addWidget(QLabel("Percentage(%):"), 0, 2)
         
         UpdateScattersButton = QtWidgets.QPushButton('Update scatters')
         UpdateScattersButton.clicked.connect(self.UpdateSelectionScatter)
@@ -438,7 +429,7 @@ class Mainbody(QWidget):
         self.WeightBoxSelectionFactor_2.setDecimals(2)
         self.WeightBoxSelectionFactor_2.setMinimum(0)
         self.WeightBoxSelectionFactor_2.setMaximum(1)
-        self.WeightBoxSelectionFactor_2.setValue(1)
+        self.WeightBoxSelectionFactor_2.setValue(0.5)
         self.WeightBoxSelectionFactor_2.setSingleStep(0.1)  
         UpdateProcessTab_2.layout.addWidget(self.WeightBoxSelectionFactor_2, 0, 3)  
         UpdateProcessTab_2.layout.addWidget(QLabel("Weight for axis 2:"), 0, 2)
@@ -459,9 +450,45 @@ class Mainbody(QWidget):
         SelectionsettingTab.layout.addWidget(UpdateProcessTab, 0, 3, 2, 4)
         
         SelectionsettingTab.setLayout(SelectionsettingTab.layout)
+
+        #**************************************************************************************************************************************
+        #-----------------------------------------------------------GUI for Selection threshold settings---------------------------------------
+        #**************************************************************************************************************************************
+        SelectionthresholdsettingTab = QWidget()
+        SelectionthresholdsettingTab.layout = QGridLayout()
+        
+        SelectionthresholdsettingTab.layout.addWidget(QLabel("Intensity threshold:"), 0, 0)
+        self.SelectionMeanInten_thres_box = QDoubleSpinBox(self)
+        self.SelectionMeanInten_thres_box.setDecimals(4)
+        self.SelectionMeanInten_thres_box.setMinimum(0)
+        self.SelectionMeanInten_thres_box.setMaximum(10)
+        self.SelectionMeanInten_thres_box.setValue(0.150)
+        self.SelectionMeanInten_thres_box.setSingleStep(0.0001)  
+        SelectionthresholdsettingTab.layout.addWidget(self.SelectionMeanInten_thres_box, 0, 1)
+        
+        SelectionthresholdsettingTab.layout.addWidget(QLabel("Contour/Soma threshold:"), 1, 0)
+        self.SelectionCSratio_thres_box = QDoubleSpinBox(self)
+        self.SelectionCSratio_thres_box.setDecimals(3)
+        self.SelectionCSratio_thres_box.setMinimum(0)
+        self.SelectionCSratio_thres_box.setMaximum(10)
+        self.SelectionCSratio_thres_box.setValue(0.80)
+        self.SelectionCSratio_thres_box.setSingleStep(0.0001)  
+        SelectionthresholdsettingTab.layout.addWidget(self.SelectionCSratio_thres_box, 1, 1) 
+        
+        SelectionthresholdsettingTab.layout.addWidget(QLabel("Roundness threshold:"), 0, 2)
+        self.SelectionRoundness_thres_box = QDoubleSpinBox(self)
+        self.SelectionRoundness_thres_box.setDecimals(3)
+        self.SelectionRoundness_thres_box.setMinimum(0)
+        self.SelectionRoundness_thres_box.setMaximum(10)
+        self.SelectionRoundness_thres_box.setValue(1.10)
+        self.SelectionRoundness_thres_box.setSingleStep(0.0001)  
+        SelectionthresholdsettingTab.layout.addWidget(self.SelectionRoundness_thres_box, 0, 3) 
+        
+        SelectionthresholdsettingTab.setLayout(SelectionthresholdsettingTab.layout)
         
         self.PostProcessTab.addTab(SelectionsettingTab,"Analysis selection")        
         self.PostProcessTab.addTab(LoadSettingContainer,"Loading settings")
+        self.PostProcessTab.addTab(SelectionthresholdsettingTab,"Threshold settings")
         self.PostProcessTab.addTab(ImageProcessingContainer,"Image analysis settings")
 
         # ==========================================================================================================================================================
@@ -1429,7 +1456,7 @@ class Mainbody(QWidget):
             tag_round = 'Round{}'.format(self.Tag_round_infor[0])
             lib_round = 'Round{}'.format(self.Lib_round_infor[0])
             
-            tagprotein_cell_properties_dict = ProcessImage.TagFluorescenceAnalysis(tag_folder, tag_round)
+            tagprotein_cell_properties_dict = ProcessImage.TagFluorescenceAnalysis(tag_folder, tag_round, Roundness_threshold = self.SelectionRoundness_thres_box.value())
             self.normalOutputWritten('tag done...\n')
             
             lib_cell_properties_dict = ProcessImage.LibFluorescenceAnalysis(lib_folder, tag_round, lib_round, tagprotein_cell_properties_dict)
@@ -1441,16 +1468,18 @@ class Mainbody(QWidget):
     def UpdateSelectionScatter(self):
         lib_cell_properties_dict = self.lib_cell_properties_dict
         IntensityThreshold = self.SelectionMeanInten_thres_box.value()
+        CSratioThreshold = self.SelectionCSratio_thres_box.value()
         self.EvaluatingPara_list = str(self.SeleParaBox.currentText()).split("/")
         
         self.Matdisplay_Figure.clear()
         if self.Selection_boundaryBox.currentText() == 'Circular radius':
-            selectionRadiusPercent = 100 - self.AnalysisCirclePercentBox.value()
+#            selectionRadiusPercent = 100 - self.AnalysisCirclePercentBox.value()
+            selectionRadiusPercent = 100
             if len(self.EvaluatingPara_list) == 2:
                 # Organize and add 'ranking' and 'boundingbox' fields to the structured array.
                 axis_1_weight = self.WeightBoxSelectionFactor_1.value()
                 axis_2_weight = self.WeightBoxSelectionFactor_2.value()
-                self.Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, IntensityThreshold, 
+                self.Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, ['Mean intensity in contour', IntensityThreshold, 'Contour soma ratio', CSratioThreshold], 
                                                                          self.EvaluatingPara_list[0], axis_1_weight, self.EvaluatingPara_list[1], axis_2_weight)
                 self.Overview_LookupBook = ProcessImage.DistanceSelecting(self.Overview_LookupBook, 100) # Sort the original array according to distance from origin.
                 
@@ -1475,6 +1504,7 @@ class Mainbody(QWidget):
                 fig.write_html('Screening scatters.html', auto_open=True)
                 
     def GoThroughTopCells(self, direction):
+        
         if direction == 'next':
             if self.popnexttopimgcounter > (self.TotaNumofCellSelected-1):#Make sure it doesn't go beyond the last coords.
                 self.popnexttopimgcounter -= 1
@@ -1483,9 +1513,10 @@ class Mainbody(QWidget):
             
             #--------------------Show image with cell in box----------------------
             spec = self.CurrentRankCellpProperties['ID']
+            print(spec)
     #        #-------------- readin image---------------
             tag_imagefilename = os.path.join(self.Tag_folder, spec+'_PMT_0Zmax.tif')
-
+            print(tag_imagefilename)
             loaded_tag_image_display = imread(tag_imagefilename, as_gray=True)
             # Retrieve boundingbox information
             Each_bounding_box = self.CurrentRankCellpProperties['BoundingBox']
@@ -1592,7 +1623,7 @@ class Mainbody(QWidget):
             self.Matdisplay_Figure.clear()
             ax1 = self.Matdisplay_Figure.add_subplot(111)
             ax1.scatter(self.Overview_LookupBook[self.EvaluatingPara_list[0]], self.Overview_LookupBook[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
-            ax1.scatter(self.Overview_LookupBook_filtered[self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.EvaluatingPara_list[1]], s=np.pi*3, c='red', alpha=0.5)
+            ax1.scatter(self.Overview_LookupBook_filtered[self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.EvaluatingPara_list[1]], s=np.pi*3, c='blue', alpha=0.5)
             ax1.scatter(self.Overview_LookupBook_filtered[self.popnexttopimgcounter-1][self.EvaluatingPara_list[0]], self.Overview_LookupBook_filtered[self.popnexttopimgcounter-1][self.EvaluatingPara_list[1]], 
                         s=np.pi*6, c='yellow', alpha=0.5)
             ax1.set_xlabel(self.EvaluatingPara_list[0])
