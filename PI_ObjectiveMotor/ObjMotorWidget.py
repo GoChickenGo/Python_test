@@ -19,6 +19,7 @@ from PyQt5.QtCore import QThread
 import pyqtgraph as pg
 import numpy as np
 import sys
+import threading
 
 from PI_ObjectiveMotor.focuser import PIMotor
 
@@ -44,7 +45,7 @@ class ObjMotorWidgetUI(QWidget):
         #**************************************************************************************************************************************
         
         # Movement based on relative positions.
-        ObjMotorcontrolContainer = QGroupBox("Objective motor control")
+        self.ObjMotorcontrolContainer = QGroupBox("Objective motor control")
         self.ObjMotorcontrolLayout = QGridLayout()
         
         self.ObjMotor_connect = QPushButton("Connect")
@@ -120,9 +121,9 @@ class ObjMotorWidgetUI(QWidget):
 #        self.line640.returnPressed.connect(lambda:self.updatesider(640))
         self.ObjMotorcontrolLayout.addWidget(self.FocusSlider, 4, 0, 1, 3)
         
-        ObjMotorcontrolContainer.setLayout(self.ObjMotorcontrolLayout)
-        ObjMotorcontrolContainer.setMaximumHeight(300)
-        self.layout.addWidget(ObjMotorcontrolContainer, 4, 0)          
+        self.ObjMotorcontrolContainer.setLayout(self.ObjMotorcontrolLayout)
+        self.ObjMotorcontrolContainer.setMaximumHeight(300)
+        self.layout.addWidget(self.ObjMotorcontrolContainer, 4, 0)          
         
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -130,7 +131,7 @@ class ObjMotorWidgetUI(QWidget):
         #--------------------------------------------------------------------------------------------------------------------------------------          
         #**************************************************************************************************************************************         
     def ConnectMotor(self):
-        self.ObjMotor_connect.setEnabled(False)
+        self.ObjMotorcontrolContainer.setEnabled(False)
         self.ObjMotor_disconnect.setEnabled(True)
         
         self.device_instance = ConnectObj_Thread()
@@ -149,6 +150,13 @@ class ObjMotorWidgetUI(QWidget):
         decimal_places = len(str(self.ObjCurrentPos['1']).split('.')[1])
         print(int(self.ObjCurrentPos['1']*(10**decimal_places)))
         self.FocusSlider.setValue(int(self.ObjCurrentPos['1']*(10**6)))
+        self.ObjMotorcontrolContainer.setEnabled(True)
+        
+    def MovingMotorThread(self, target):
+        if target == "MoveMotor":
+            # StartLiveThread = threading.Thread(target = self.LIVE)
+            # StartLiveThread.start()
+            pass
         
     def MoveMotor(self):
         
