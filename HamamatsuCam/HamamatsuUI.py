@@ -7,19 +7,29 @@ Created on Tue Apr 14 18:47:31 2020
 
 from __future__ import division
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject, QSize
-from PyQt5.QtGui import QImage, QPalette, QBrush, QFont, QPainter, QColor, QPen, QIcon
+from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject, QSize, QTimer
+from PyQt5.QtGui import QImage, QPalette, QBrush, QFont, QPainter, QColor, QPen, QIcon, QMovie
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory, QMainWindow, QMenu, QAction)
+                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory, QMainWindow, QMenu, QAction, QStackedWidget)
 import pyqtgraph as pg
 import sys
+import os
+import time
+import threading
 import numpy as np
 import ctypes
 import ctypes.util
 import skimage.external.tifffile as skimtiff
-from HamamatsuDCAM import *
+from PIL import Image
+try:
+    from HamamatsuDCAM import *
+except:
+    from HamamatsuCam.HamamatsuDCAM import *
+# Append parent folder to system path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import StylishQT
 
 '''
 Some general settings for pyqtgraph, these only have to do with appearance 
@@ -33,15 +43,19 @@ pg.setConfigOption('useOpenGL', True)
 pg.setConfigOption('leftButtonPan', False)
 
 class CameraUI(QMainWindow):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
+        self.isLiving = False
+        self.isStreaming = False
+        self.Live_item_autolevel = True
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
         self.setWindowTitle("Hamamatsu Orca Flash")
         self.setFont(QFont("Arial"))
-        self.setMinimumSize(1200,980)
+        self.setMinimumSize(1200,900)
         self.layout = QGridLayout()        
         #----------------Create menu bar and add action------------------------
         menuBar = self.menuBar()
@@ -72,8 +86,18 @@ class CameraUI(QMainWindow):
         # =============================================================================
         """
         CameraSettingContainer = QGroupBox('General settings')
+        CameraSettingContainer.setStyleSheet("QGroupBox {\
+                                        font: bold;\
+                                        border: 1px solid silver;\
+                                        border-radius: 6px;\
+                                        margin-top: 10px;\
+                                        color:Navy}\
+                                        font-size: 14px;\
+                                        QGroupBox::title{subcontrol-origin: margin;\
+                                                         left: 7px;\
+                                                         padding: 5px 5px 5px 5px;}")
         CameraSettingContainer.setMaximumHeight(400)
-        CameraSettingContainer.setMaximumWidth(360)
+        CameraSettingContainer.setMaximumWidth(365)
         CameraSettingLayout = QGridLayout()
         
         self.CamStatusLabel = QLabel('Camera not connected.')
@@ -93,7 +117,7 @@ class CameraUI(QMainWindow):
         CameraSettingTab_1.layout = QGridLayout()
         
         CameraSettingTab_1.layout.addWidget(QLabel("Readout speed:"), 2, 0)
-        self.ReadoutSpeedSwitchButton = MySwitch('Normal', 'yellow', 'Fast', 'cyan', width = 50)
+        self.ReadoutSpeedSwitchButton = StylishQT.MySwitch('Normal', 'yellow', 'Fast', 'cyan', width = 50)
         self.ReadoutSpeedSwitchButton.clicked.connect(self.ReadoutSpeedSwitchEvent)
         CameraSettingTab_1.layout.addWidget(self.ReadoutSpeedSwitchButton, 2, 1, 1, 2)
         
@@ -173,7 +197,7 @@ class CameraUI(QMainWindow):
         CameraSettingTab_2.layout = QGridLayout()
         
         CameraSettingTab_2.layout.addWidget(QLabel("Sub Array:"), 0, 0)
-        self.SubArrayModeSwitchButton = MySwitch('Sub Array Mode', 'lemon chiffon', 'Full Image Size', 'lavender', width = 100)
+        self.SubArrayModeSwitchButton = StylishQT.MySwitch('Sub Array Mode', 'lemon chiffon', 'Full Image Size', 'lavender', width = 100)
         self.SubArrayModeSwitchButton.setChecked(False)
         self.SubArrayModeSwitchButton.clicked.connect(self.SubArrayModeSwitchEvent)
         CameraSettingTab_2.layout.addWidget(self.SubArrayModeSwitchButton, 0, 1, 1, 3)
@@ -181,7 +205,7 @@ class CameraUI(QMainWindow):
         # Adapted from Douwe's ROI part.
         self.center_roiButton = QPushButton()
         self.center_roiButton.setText("Symmetric to Center Line")        
-#        self.center_roiButton.clicked.connect(lambda: self.set_roi_flag())
+        self.center_roiButton.clicked.connect(lambda: self.set_roi_flag())
         '''
         set_roi_flag checks whether the centering button is pushed and 
         acts accordingly.
@@ -205,38 +229,43 @@ class CameraUI(QMainWindow):
         CameraROIPosContainer = QGroupBox("ROI position")
         CameraROIPosLayout = QGridLayout()
         
-        CameraROIPosLayout.addWidget(QLabel("Offset"), 0, 1)
-        CameraROIPosLayout.addWidget(QLabel("Size"), 0, 2)
+        OffsetLabel = QLabel("Offset")
+        OffsetLabel.setFixedHeight(30)
+        ROISizeLabel = QLabel("Size")
+        ROISizeLabel.setFixedHeight(30)
         
-        self.x_position = QSpinBox()
-        self.x_position.setMaximum(2048)
-        self.x_position.setValue(0)
-        self.x_position.valueChanged.connect(self.spin_value_changed)
-        CameraROIPosLayout.addWidget(self.x_position, 1, 1)
+        CameraROIPosLayout.addWidget(OffsetLabel, 0, 1)
+        CameraROIPosLayout.addWidget(ROISizeLabel, 0, 2)
         
-        self.y_position = QSpinBox()
-        self.y_position.setMaximum(2048)
-        self.y_position.setValue(0)
-        self.x_position.valueChanged.connect(self.spin_value_changed)
-        CameraROIPosLayout.addWidget(self.y_position, 2, 1)
+        self.ROI_hpos_spinbox = QSpinBox()
+        self.ROI_hpos_spinbox.setMaximum(2048)
+        self.ROI_hpos_spinbox.setValue(0)
+        self.ROI_hpos_spinbox.valueChanged.connect(self.spin_value_changed)
+        CameraROIPosLayout.addWidget(self.ROI_hpos_spinbox, 1, 1)
         
-        self.x_size = QSpinBox()
-        self.x_size.setMaximum(2048)
-        self.x_size.setValue(2048)
-        self.x_position.valueChanged.connect(self.spin_value_changed)
-        CameraROIPosLayout.addWidget(self.x_size, 1, 2)
+        self.ROI_vpos_spinbox = QSpinBox()
+        self.ROI_vpos_spinbox.setMaximum(2048)
+        self.ROI_vpos_spinbox.setValue(0)
+        self.ROI_vpos_spinbox.valueChanged.connect(self.spin_value_changed)
+        CameraROIPosLayout.addWidget(self.ROI_vpos_spinbox, 2, 1)
         
-        self.y_size = QSpinBox()
-        self.y_size.setMaximum(2048)
-        self.y_size.setValue(2048)
-        self.x_position.valueChanged.connect(self.spin_value_changed)
-        CameraROIPosLayout.addWidget(self.y_size, 2, 2)
+        self.ROI_hsize_spinbox = QSpinBox()
+        self.ROI_hsize_spinbox.setMaximum(2048)
+        self.ROI_hsize_spinbox.setValue(2048)
+        self.ROI_hsize_spinbox.valueChanged.connect(self.spin_value_changed)
+        CameraROIPosLayout.addWidget(self.ROI_hsize_spinbox, 1, 2)
+        
+        self.ROI_vsize_spinbox = QSpinBox()
+        self.ROI_vsize_spinbox.setMaximum(2048)
+        self.ROI_vsize_spinbox.setValue(2048)
+        self.ROI_vsize_spinbox.valueChanged.connect(self.spin_value_changed)
+        CameraROIPosLayout.addWidget(self.ROI_vsize_spinbox, 2, 2)
         
         CameraROIPosLayout.addWidget(QLabel("Horizontal"), 1, 0)
         CameraROIPosLayout.addWidget(QLabel("Vertical"), 2, 0)
         
         CameraROIPosContainer.setLayout(CameraROIPosLayout)
-        CameraROIPosContainer.setFixedHeight(120)
+        CameraROIPosContainer.setFixedHeight(105)
         CameraSettingTab_2.layout.addWidget(CameraROIPosContainer, 3, 0, 1, 4)
         
         self.ApplyROIButton = QPushButton()
@@ -256,6 +285,53 @@ class CameraUI(QMainWindow):
         """
         CameraSettingTab_3 = QWidget()
         CameraSettingTab_3.layout = QGridLayout()
+        
+        self.TriggerButtongroup = QButtonGroup(self)
+        self.TriggerButton_1 = QPushButton("Intern")
+        self.TriggerButton_1.setCheckable(True)
+        # self.TriggerButton_1.setChecked(True)
+        self.TriggerButtongroup.addButton(self.TriggerButton_1, 1)
+        self.TriggerButton_1.clicked.connect(lambda: self.TimingstackedWidget.setCurrentIndex(0))
+        
+        self.TriggerButton_2 = QPushButton("Extern")
+        self.TriggerButton_2.setCheckable(True)
+        self.TriggerButtongroup.addButton(self.TriggerButton_2, 2)
+        self.TriggerButton_2.clicked.connect(lambda: self.TimingstackedWidget.setCurrentIndex(1))
+        
+        self.TriggerButton_3 = QPushButton("MasterPulse")
+        self.TriggerButton_3.setCheckable(True)
+        self.TriggerButtongroup.addButton(self.TriggerButton_3, 3)
+        self.TriggerButton_3.clicked.connect(lambda: self.TimingstackedWidget.setCurrentIndex(2))
+        self.TriggerButtongroup.setExclusive(True)
+        
+        self.TriggerButtongroup.buttonClicked[int].connect(self.SetTimingTrigger)
+        
+        CameraSettingTab_3.layout.addWidget(QLabel('Acquisition Control:'), 0, 0, 1, 2)
+        CameraSettingTab_3.layout.addWidget(self.TriggerButton_1, 1, 1)
+        CameraSettingTab_3.layout.addWidget(self.TriggerButton_2, 1, 2)
+        CameraSettingTab_3.layout.addWidget(self.TriggerButton_3, 1, 3)
+        
+        InternTriggerWidget =  QWidget()
+        ExternTriggerWidget =  QWidget()
+        MasterPulseWidget =  QWidget()
+        
+        self.TimingstackedWidget =  QStackedWidget()
+        self.TimingstackedWidget.addWidget(InternTriggerWidget)
+        self.TimingstackedWidget.addWidget(ExternTriggerWidget)
+        self.TimingstackedWidget.addWidget(MasterPulseWidget)
+        self.TimingstackedWidget.setCurrentIndex(0)
+        
+        #-------------------------ExternTrigger--------------------------------
+        ExternTriggerWidget.layout = QGridLayout()
+        ExternTriggerWidget.layout.addWidget(QLabel("Trigger Signal:"), 0, 0)
+        self.ExternTriggerSingalComboBox = QComboBox()
+        self.ExternTriggerSingalComboBox.addItems(['EDGE', 'LEVEL', 'SYNCREADOUT'])
+        self.ExternTriggerSingalComboBox.activated.connect(self.SetTriggerActive)
+        ExternTriggerWidget.layout.addWidget(self.ExternTriggerSingalComboBox, 0, 1)
+                
+        ExternTriggerWidget.setLayout(ExternTriggerWidget.layout)
+        
+        CameraSettingTab_3.layout.addWidget(self.TimingstackedWidget, 2, 0, 4, 4)
 
         CameraSettingTab_3.setLayout(CameraSettingTab_3.layout)        
         #----------------------------------------------------------------------
@@ -273,32 +349,245 @@ class CameraUI(QMainWindow):
         # =============================================================================
         """
 
-        CameraAcquisitionContainer = QGroupBox('Acquisition settings')
-        CameraAcquisitionContainer.setMaximumHeight(430)
-        CameraAcquisitionContainer.setMaximumWidth(360)
+        CameraAcquisitionContainer = QGroupBox('Acquisition')
+        CameraAcquisitionContainer.setStyleSheet("QGroupBox {\
+                                        font: bold;\
+                                        border: 1px solid silver;\
+                                        border-radius: 6px;\
+                                        margin-top: 10px;\
+                                        color:Navy}\
+                                        font-size: 14px;\
+                                        QGroupBox::title{subcontrol-origin: margin;\
+                                                         left: 7px;\
+                                                         padding: 5px 5px 5px 5px;}")
+        CameraAcquisitionContainer.setMaximumHeight(438)
+        CameraAcquisitionContainer.setMaximumWidth(365)
         CameraAcquisitionLayout = QGridLayout()
         
+        #----------------------------------------------------------------------
+        CamSpecContainer = QGroupBox("浜松 Hamamastu specs")
+        CamSpecContainer.setStyleSheet("QGroupBox {\
+                                        font: bold;\
+                                        border: 1px solid silver;\
+                                        border-radius: 6px;\
+                                        margin-top: 6px;\
+                                        color:olive;background-color:azure;}\
+                                        QGroupBox::title{subcontrol-origin: margin;\
+                                                         left: 7px;\
+                                                         padding: 0px 5px 0px 5px;}")
+        CamSpectLayout = QGridLayout()
         
+        self.CamFPSLabel = QLabel("Frame rate:     ")
+        self.CamFPSLabel.setStyleSheet("QLabel { background-color : azure; color : teal; }")
+#        self.CamFPSLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        CamSpectLayout.addWidget(self.CamFPSLabel, 0, 0, 1, 1)
+        
+        self.CamReadoutTimeLabel = QLabel("Readout speed:     ")
+        self.CamReadoutTimeLabel.setStyleSheet("QLabel { background-color : azure; color : teal; }")
+#        self.CamFPSLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        CamSpectLayout.addWidget(self.CamReadoutTimeLabel, 1, 0, 1, 1)
+        
+        CamSpecContainer.setFixedHeight(130)
+        
+        CamSpecContainer.setLayout(CamSpectLayout)
+        CameraAcquisitionLayout.addWidget(CamSpecContainer, 0, 0)
+        
+        #----------------------------------------------------------------------
+        CameraAcquisitionTab = QTabWidget()
+        CameraAcquisitionTab.layout = QGridLayout()
+        
+        """
+        ------------------------------Live tab---------------------------------
+        """
+        CameraAcquisitionTab_1 = QWidget()
+        CameraAcquisitionTab_1.layout = QGridLayout()
+        
+        CamLiveActionContainer = QGroupBox()
+        CamLiveActionContainer.setFixedHeight(50)
+        CamLiveActionLayout = QGridLayout()
+        
+        CamLiveActionLayout.addWidget(QLabel("Status:"), 0, 0)
+        self.LiveButton = StylishQT.MySwitch('LIVING', 'spring green', 'STOPPED', 'indian red', width = 50)
+        self.LiveButton.clicked.connect(self.LiveSwitchEvent)
+        CamLiveActionLayout.addWidget(self.LiveButton, 0, 1, 1, 2)   
+        
+        SaveLiveImngButton = StylishQT.FancyPushButton(20, 22)
+#        SaveLiveImngButton = QPushButton()
+        SaveLiveImngButton.setText("Save image")
+        SaveLiveImngButton.clicked.connect(lambda: self.SaveLiveImg())
+        CamLiveActionLayout.addWidget(SaveLiveImngButton, 0, 3, 1, 1) 
+        
+        CamLiveActionContainer.setLayout(CamLiveActionLayout)
+        CameraAcquisitionTab_1.layout.addWidget(CamLiveActionContainer, 0, 0)
+        
+        self.LiveAutoLevelSwitchButton = QPushButton()
+        self.LiveAutoLevelSwitchButton.setText("Auto Level")
+        self.LiveAutoLevelSwitchButton.clicked.connect(self.AutoLevelSwitchEvent)
+        self.LiveAutoLevelSwitchButton.setCheckable(True)
+        self.LiveAutoLevelSwitchButton.setChecked(True)
+        CameraAcquisitionTab_1.layout.addWidget(self.LiveAutoLevelSwitchButton, 1,0)        
+        
+        CameraAcquisitionTab_1.setLayout(CameraAcquisitionTab_1.layout)
+        
+        """
+        ----------------------------Stream tab---------------------------------
+        """
+        CameraAcquisitionTab_2 = QWidget()
+        CameraAcquisitionTab_2.layout = QGridLayout()
+        
+        self.CamStreamActionContainer = QGroupBox()
+        self.CamStreamActionContainer.setFixedHeight(120)
+        CamStreamActionLayout = QGridLayout()
+        
+        self.StreamStopSingalComBox = QComboBox()
+#        self.StreamStopSingalComBox.lineEdit().setAlignment(Qt.AlignCenter)
+        self.StreamStopSingalComBox.addItems(['Stop signal: Time', 'Stop signal: Frames'])
+        CamStreamActionLayout.addWidget(self.StreamStopSingalComBox, 1, 0)
+
+        EstFPSLabel = QLabel("Estimated FPS")
+        EstFPSLabel.setFixedHeight(30)
+        TotalTimeLabel = QLabel("Total time(s)")
+        TotalTimeLabel.setFixedHeight(30)
+        
+        CamStreamActionLayout.addWidget(EstFPSLabel, 0, 1)
+        CamStreamActionLayout.addWidget(TotalTimeLabel, 0, 2)
+        
+        self.EstFPS_spinbox = QSpinBox()
+        self.EstFPS_spinbox.setMaximum(4048)
+        self.EstFPS_spinbox.setValue(1000)
+        CamStreamActionLayout.addWidget(self.EstFPS_spinbox, 1, 1)
+        self.EstFPS_spinbox.valueChanged.connect(self.UpdateBufferNumber)
+        
+        self.StreamTotalTime_spinbox = QSpinBox()
+        self.StreamTotalTime_spinbox.setMaximum(1200)
+        self.StreamTotalTime_spinbox.setValue(0)
+        CamStreamActionLayout.addWidget(self.StreamTotalTime_spinbox, 1, 2)
+        self.StreamTotalTime_spinbox.valueChanged.connect(self.UpdateBufferNumber)
+        
+        self.StreamBufferTotalFrames_spinbox = QSpinBox()
+        self.StreamBufferTotalFrames_spinbox.setMaximum(120000)
+        self.StreamBufferTotalFrames_spinbox.setValue(0)
+        CamStreamActionLayout.addWidget(self.StreamBufferTotalFrames_spinbox, 2, 2)
+        CamStreamActionLayout.addWidget(QLabel("Buffers:"), 2, 1)
+        
+        self.StreamMemMethodComBox = QComboBox()
+#        self.StreamStopSingalComBox.lineEdit().setAlignment(Qt.AlignCenter)
+        self.StreamMemMethodComBox.addItems(['Stream to RAM', 'Stream to Hard disk'])
+        CamStreamActionLayout.addWidget(self.StreamMemMethodComBox, 2, 0)
+        
+        #----------------------------------------------------------------------
+        self.Streamdirectorytextbox = QLineEdit(self)
+        self.Streamdirectorytextbox.setPlaceholderText('Stream File')
+        CameraAcquisitionTab_2.layout.addWidget(self.Streamdirectorytextbox, 5, 0)
+        
+        self.BrowseStreamFileButton = QPushButton()
+        self.BrowseStreamFileButton.setIcon(QIcon('./Icons/Browse.png')) 
+        self.BrowseStreamFileButton.clicked.connect(lambda: self.SetStreamFileName())
+        CameraAcquisitionTab_2.layout.addWidget(self.BrowseStreamFileButton, 5, 1)
+        
+        ApplyStreamSettingButton = StylishQT.FancyPushButton(50, 22)
+        ApplyStreamSettingButton.setText("Apply")
+        ApplyStreamSettingButton.clicked.connect(self.SetStreamSpecs)
+        CameraAcquisitionTab_2.layout.addWidget(ApplyStreamSettingButton, 5, 2)     
+        
+        self.StartStreamButton = QPushButton()
+        self.StartStreamButton.setIcon(QIcon('./Icons/StartStreaming.png'))        
+        self.StartStreamButton.setCheckable(True)
+        self.StartStreamButton.clicked.connect(self.StreamingSwitchEvent)
+        CameraAcquisitionTab_2.layout.addWidget(self.StartStreamButton, 5, 3)
+        
+        """
+        ------------------------Acquisition status-----------------------------
+        """
+#        CamStreamProgressContainer = QGroupBox()
+#        CamStreamProgressContainer.layout = QGridLayout()
+#        CamStreamProgressContainer.setStyleSheet("QGroupBox {\
+#                                                    border: 1px solid silver;\
+#                                                    border-width: 1px; \
+#                                                    border-radius: 2px;\
+#                                                    margin-top: 0px;\
+#                                                    color:Navy}")
+#        CamStreamProgressContainer.setFixedHeight(50)
+
+        self.CamStreamIsFree = QLabel("No Stream Activity")
+        self.CamStreamIsFree.setStyleSheet("QLabel { background-color : azure; color : teal; font: bold;}")
+        self.CamStreamIsFree.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        
+        CamStreamBusyWidget =  QWidget()        
+        CamStreamSavingWidget =  QWidget()
+        
+        self.StreamStatusStackedWidget =  QStackedWidget()
+        self.StreamStatusStackedWidget.setFixedHeight(50)
+        self.StreamStatusStackedWidget.setStyleSheet("QStackedWidget { background-color : #F0F8FF;}")
+        
+        self.StreamStatusStackedWidget.addWidget(self.CamStreamIsFree)
+        self.StreamStatusStackedWidget.addWidget(CamStreamBusyWidget)        
+        self.StreamStatusStackedWidget.addWidget(CamStreamSavingWidget)
+        self.StreamStatusStackedWidget.setCurrentIndex(0)
+        
+        #----------------------------------------------------------------------
+        CamStreamBusyWidget.layout = QGridLayout()
+        CamStreamBusylabel = QLabel()
+        CamStreamBusylabel.setFixedHeight(35)
+        CamStreamBusylabel.setAlignment(Qt.AlignVCenter)
+        self.StreamBusymovie = QMovie("./Icons/progressbar.gif")
+
+        CamStreamBusylabel.setMovie(self.StreamBusymovie)
+        CamStreamBusyWidget.layout.addWidget(CamStreamBusylabel, 0, 1)
+        
+        self.CamStreamingLabel = QLabel("Recording")
+        self.CamStreamingLabel.setFixedWidth(135)
+        self.CamStreamingLabel.setStyleSheet("QLabel { color : #208000; font: Times New Roman;}")
+        self.CamStreamingLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        CamStreamBusyWidget.layout.addWidget(self.CamStreamingLabel, 0, 0)
+        CamStreamBusyWidget.setLayout(CamStreamBusyWidget.layout)
+  
+        
+        #-----------------------Saving prograssbar-----------------------------
+        CamStreamSavingWidget.layout = QGridLayout()
+        CamStreamSavingWidget.layout.addWidget(QLabel('File saving progress:'), 0, 0)
+        self.CamStreamSaving_progressbar = QProgressBar(self)
+        self.CamStreamSaving_progressbar.setMaximumWidth(250)
+        self.CamStreamSaving_progressbar.setMaximum(100)
+        self.CamStreamSaving_progressbar.setStyleSheet('QProgressBar {color: black;border: 1px solid grey; border-radius:3px;text-align: center;}'
+                                                 'QProgressBar::chunk {background-color: #E6E6FA; width: 5px; margin: 1px;}')
+        CamStreamSavingWidget.layout.addWidget(self.CamStreamSaving_progressbar, 0, 1, 1, 4)
+        CamStreamSavingWidget.setLayout(CamStreamSavingWidget.layout)
+        
+#        CamStreamProgressContainer.layout.addWidget(self.StreamStatusStackedWidget, 6, 0, 1, 4)
+#        CamStreamProgressContainer.setLayout(CamStreamProgressContainer.layout)
+        CameraAcquisitionTab_2.layout.addWidget(self.StreamStatusStackedWidget, 6, 0, 1, 4)
+         #----------------------------------------------------------------------
+        self.CamStreamActionContainer.setLayout(CamStreamActionLayout)
+        
+        CameraAcquisitionTab_2.layout.addWidget(self.CamStreamActionContainer, 0, 0, 5, 4)
+    
+        CameraAcquisitionTab_2.setLayout(CameraAcquisitionTab_2.layout)
+        
+        CameraAcquisitionTab.addTab(CameraAcquisitionTab_1,"Live")
+        CameraAcquisitionTab.addTab(CameraAcquisitionTab_2,"Stream")
+        CameraAcquisitionLayout.addWidget(CameraAcquisitionTab, 1, 0)
         
         CameraAcquisitionContainer.setLayout(CameraAcquisitionLayout)
         MainWinCentralWidget.layout.addWidget(CameraAcquisitionContainer, 1, 0)
         
         """
         # =============================================================================
-        # --------------------------------Livescreen---------------------------------
+        # --------------------------------Live Screen----------------------------------
         #   Initiating an imageview object for the main Livescreen. Hiding the pre
         # existing ROI and menubuttons.
         # =============================================================================        
         """
         LiveWidgetContainer = QGroupBox()
-        LiveWidgetContainer.setMaximumHeight(900)
+        LiveWidgetContainer.setMaximumHeight(920)
         LiveWidgetContainer.setMaximumWidth(950)
         LiveWidgetLayout = QGridLayout()
         
         self.LiveWidget = pg.ImageView()
-        self.Live_item = self.LiveWidget.getImageItem()
+        self.Live_item = self.LiveWidget.getImageItem() #setLevels
         self.Live_view = self.LiveWidget.getView()
         self.Live_item.setAutoDownsample(True)
+        
         self.LiveWidget.ui.roiBtn.hide()
         self.LiveWidget.ui.menuBtn.hide() 
         self.LiveWidget.ui.normGroup.hide()
@@ -317,8 +606,12 @@ class CameraUI(QMainWindow):
             self.ConnectCamera()
         except:
             pass
-    
-    
+        
+        """
+        #=========================================================================================================================================
+        #--------------------------------------------------------------END of GUI-----------------------------------------------------------------
+        #=========================================================================================================================================
+        """
     
     def ConnectCamera(self):
         """
@@ -354,37 +647,7 @@ class CameraUI(QMainWindow):
             self.CamExposureTime = self.hcam.getPropertyValue("exposure_time")[0]
             self.CamExposureBox.setValue(round(self.CamExposureTime, 6))
             
-            params = ["internal_frame_rate",
-                      "timing_readout_time",
-                      "exposure_time",
-                      "subarray_hsize",
-                      "subarray_hpos",
-                      "subarray_vsize",
-                      "subarray_vpos",
-                      "subarray_mode"]
-
-            #                      "image_height",
-            #                      "image_width",
-            #                      "image_framebytes",
-            #                      "buffer_framebytes",
-            #                      "buffer_rowbytes",
-            #                      "buffer_top_offset_bytes",
-            #                      "subarray_hsize",
-            #                      "subarray_vsize",
-            #                      "binning"]
-            for param in params:
-                if param == "subarray_hsize":
-                    self.subarray_hsize = self.hcam.getPropertyValue(param)[0]
-                    self.x_size.setValue(self.subarray_hsize)
-                if param == "subarray_hpos":
-                    self.subarray_hpos = self.hcam.getPropertyValue(param)[0]   
-                    self.x_position.setValue(self.subarray_hpos)
-                if param == "subarray_vsize":
-                    self.subarray_vsize = self.hcam.getPropertyValue(param)[0]
-                    self.y_size.setValue(self.subarray_vsize)
-                if param == "subarray_vpos":
-                    self.subarray_vpos = self.hcam.getPropertyValue(param)[0]
-                    self.y_position.setValue(self.subarray_vpos)
+            self.GetKeyCameraProperties()
                     
             if self.subarray_hsize == 2048 and self.subarray_vsize == 2048:
                 self.hcam.setPropertyValue("subarray_mode", "OFF")
@@ -392,12 +655,37 @@ class CameraUI(QMainWindow):
             else:
                 self.hcam.setPropertyValue("subarray_mode", "ON")
                 self.SubArrayModeSwitchButton.setChecked(True)                
-                    
+
+            # Get the frame rate and update in the tag        
+            self.CamFPSLabel.setText("Frame rate: {}".format(round(self.internal_frame_rate, 6)))
+            # Get the readout time and update in the tag       
+            self.CamReadoutTimeLabel.setText("Readout speed: {}".format(round(self.timing_readout_time, 6)))
+            # Get the trigger active button updated
+            if self.trigger_source == "INTERNAL":
+                self.TriggerButton_1.setChecked(True)
+            elif self.trigger_source == "EXTERNAL":
+                self.TriggerButton_2.setChecked(True)
+            elif self.trigger_source == "MASTER PULSE":
+                self.TriggerButton_3.setChecked(True)
+            # Get the trigger button updated
+            if self.trigger_active == "EDGE":
+                self.ExternTriggerSingalComboBox.setCurrentIndex(1)
+            elif self.trigger_active == "LEVEL":
+                self.ExternTriggerSingalComboBox.setCurrentIndex(2)
+            elif self.trigger_active == "SYNCREADOUT":
+                self.ExternTriggerSingalComboBox.setCurrentIndex(3)
+            
     def DisconnectCamera(self):
         self.hcam.shutdown()
         dcam.dcamapi_uninit()
         self.CamStatusLabel.setText('Camera disconnected.')
-        
+
+
+        """
+        # =============================================================================
+        #                              Properties Settings
+        # =============================================================================
+        """         
     def ListCameraProperties(self):
         
         print("Supported properties:")
@@ -417,6 +705,75 @@ class CameraUI(QMainWindow):
                 for key in sorted(text_values, key = text_values.get):
                     print("         ", key, "/", text_values[key])
                     
+    def GetKeyCameraProperties(self):
+        params = ["internal_frame_rate",
+                  "timing_readout_time",
+                  "exposure_time",
+                  "subarray_hsize",
+                  "subarray_hpos",
+                  "subarray_vsize",
+                  "subarray_vpos",
+                  "subarray_mode",
+                  "image_framebytes",
+                  "buffer_framebytes",
+                  "trigger_source",
+                  "trigger_active"]
+
+        #                      "image_height",
+        #                      "image_width",
+
+        #                      "buffer_rowbytes",
+        #                      "buffer_top_offset_bytes",
+        #                      "subarray_hsize",
+        #                      "subarray_vsize",
+        #                      "binning"]
+        for param in params:
+            if param == "subarray_hsize":
+                self.subarray_hsize = self.hcam.getPropertyValue(param)[0]
+                self.ROI_hsize_spinbox.setValue(self.subarray_hsize)
+            if param == "subarray_hpos":
+                self.subarray_hpos = self.hcam.getPropertyValue(param)[0]   
+                self.ROI_hpos_spinbox.setValue(self.subarray_hpos)
+            if param == "subarray_vsize":
+                self.subarray_vsize = self.hcam.getPropertyValue(param)[0]
+                self.ROI_vsize_spinbox.setValue(self.subarray_vsize)
+            if param == "subarray_vpos":
+                self.subarray_vpos = self.hcam.getPropertyValue(param)[0]
+                self.ROI_vpos_spinbox.setValue(self.subarray_vpos)
+            if param == "internal_frame_rate":
+                self.internal_frame_rate = self.hcam.getPropertyValue(param)[0]
+            if param == "image_framebytes":
+                self.image_framebytes = self.hcam.getPropertyValue(param)[0]
+            if param == "buffer_framebytes":
+                self.buffer_framebytes = self.hcam.getPropertyValue(param)[0]
+            if param == "timing_readout_time":
+                self.timing_readout_time = self.hcam.getPropertyValue(param)[0]
+            if param == "trigger_source":
+                if self.hcam.getPropertyValue(param)[0] == 1:
+                    self.trigger_source = "INTERNAL"
+                elif self.hcam.getPropertyValue(param)[0] == 2:
+                    self.trigger_source = "EXTERNAL"
+                elif self.hcam.getPropertyValue(param)[0] == 4:
+                    self.trigger_source = "MASTER PULSE"
+            if param == "trigger_active":
+                if self.hcam.getPropertyValue(param)[0] == 1:
+                    self.trigger_active = "EDGE"
+                elif self.hcam.getPropertyValue(param)[0] == 2:
+                    self.trigger_active = "LEVEL"
+                elif self.hcam.getPropertyValue(param)[0] == 3:
+                    self.trigger_active = "SYNCREADOUT"
+    
+    def UpdateStatusLabel(self):
+        # Get the frame rate and update in the tag
+        self.internal_frame_rate = self.hcam.getPropertyValue("internal_frame_rate")[0]        
+        self.CamFPSLabel.setText("Frame rate: {}".format(round(self.internal_frame_rate, 2)))
+        # Get the Readout time and update in the tag
+        self.timing_readout_time = self.hcam.getPropertyValue("timing_readout_time")[0]        
+        self.CamReadoutTimeLabel.setText("Readout speed: {}".format(round(1/self.timing_readout_time, 2)))
+    
+    def GeneralsetPropertyValue(self, property_name, property_value):
+        self.hcam.setPropertyValue(property_name, property_value)
+        
     def ReadoutSpeedSwitchEvent(self):
         """
         Set the readout speed. Default is fast, corresponding to 2 in "readout_speed".
@@ -440,14 +797,28 @@ class CameraUI(QMainWindow):
             self.hcam.setPropertyValue("readout_speed", 2)
             
     def SubArrayModeSwitchEvent(self):
+        # Set property only works strating living/recording next time
+        if self.isLiving == True:
+            self.StopLIVE()
+            
         if self.SubArrayModeSwitchButton.isChecked():
             self.hcam.setPropertyValue("subarray_mode", "ON")
         else:
             self.hcam.setPropertyValue("subarray_mode", "OFF")        
-            
+            self.hcam.setPropertyValue("subarray_hsize", 2048)
+            self.hcam.setPropertyValue("subarray_vsize", 2048)
+            self.hcam.setPropertyValue("subarray_hpos", 0)
+            self.hcam.setPropertyValue("subarray_vpos", 0)
+            self.subarray_vsize = 2048
+            self.subarray_hsize = 2048 
+
+        self.LiveSwitchEvent()
+         
     def SetExposureTime(self):
         self.CamExposureTime = self.hcam.setPropertyValue("exposure_time", self.CamExposureBox.value())
         self.CamExposureBox.setValue(round(self.CamExposureTime, 6))
+        
+        self.UpdateStatusLabel()
         
     def SetBinning(self):
         if self.BinningButtongroup.checkedId() == 1:
@@ -465,6 +836,22 @@ class CameraUI(QMainWindow):
         elif self.PixelTypeButtongroup.checkedId() == 3:
             self.hcam.setPropertyValue("image_pixeltype", "MONO16")
             
+    def SetTimingTrigger(self):
+        if self.TriggerButtongroup.checkedId() == 1:
+            self.hcam.setPropertyValue("trigger_source", "INTERNAL")
+        elif self.TriggerButtongroup.checkedId() == 2:
+            self.hcam.setPropertyValue("trigger_source", "EXTERNAL")
+        elif self.TriggerButtongroup.checkedId() == 3:
+            self.hcam.setPropertyValue("trigger_source", "MASTER PULSE")        
+    
+    def SetTriggerActive(self):
+        if self.ExternTriggerSingalComboBox.currentText() == "LEVEL":
+            self.hcam.setPropertyValue("trigger_active", "LEVEL")
+        elif self.ExternTriggerSingalComboBox.currentText() == "EDGE":
+            self.hcam.setPropertyValue("trigger_active", "EDGE")
+        elif self.ExternTriggerSingalComboBox.currentText() == "SYNCREADOUT":
+            self.hcam.setPropertyValue("trigger_active", "SYNCREADOUT")
+        
         """
         # =============================================================================
         #                               ROI functions
@@ -472,9 +859,10 @@ class CameraUI(QMainWindow):
         """            
     def ShowROISelector(self):
         if self.ShowROISelectorButton.isChecked():
-            try:
-                self.ROIWidget = pg.RectROI([self.hcam.getPropertyValue("subarray_hpos")[0],self.hcam.getPropertyValue("subarray_vpos")[0]],
-                                             [self.hcam.getPropertyValue("subarray_hsize")[0],self.hcam.getPropertyValue("subarray_vsize")[0]], pen=(0,9))
+            try:                            # Initialize the position and size of the ROI widget.
+                self.ROIWidget = pg.RectROI([self.hcam.getPropertyValue("subarray_hsize")[0]/4,self.hcam.getPropertyValue("subarray_vsize")[0]/4],
+                                            [self.hcam.getPropertyValue("subarray_hsize")[0]/2,self.hcam.getPropertyValue("subarray_vsize")[0]/2],
+                                            pen=(0,9))
             except:
                 self.ROIWidget = pg.RectROI([0,0], [200,200], pen=(0,9))
                 
@@ -482,7 +870,7 @@ class CameraUI(QMainWindow):
             self.ROIWidget.maxBounds= QRectF(0,0,2048,2048) 
             #setting the max ROI bounds to be within the camera resolution
             
-            self.ROIWidget.sigRegionChanged.connect(self.update_roi_coordinates) 
+            self.ROIWidget.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates) 
             #This function ensures the spinboxes show the actual roi coordinates
         else:
             self.Live_view.removeItem(self.ROIWidget)
@@ -490,15 +878,15 @@ class CameraUI(QMainWindow):
     #------------------------------ROI part from Douwe-------------------------
     def set_roi_flag(self):
         if self.center_roiButton.isChecked():
-            self.y_position.setReadOnly(True)
-            self.clear_roi()
-            self.center_frame = 0.5*self.camdev.mmc.getImageHeight()
+            self.ROI_vpos_spinbox.setReadOnly(True)
+#            self.ResetROI()
+            self.center_frame = 0.5*2048#self.hcam.getPropertyValue("subarray_vsize")[0]
             """
             I've put the center frame in the set_roi_flag so it automatically
             adjusts to the number of pixels (which is dependent on the binning
             settings for example.)
             """
-            self.set_roi()
+            # self.SetROI()
             self.ROIWidget.sigRegionChanged.connect(lambda: self.center_roi()) 
             #setting the ROI to the center every move
             """
@@ -507,70 +895,163 @@ class CameraUI(QMainWindow):
             """
         
         else:
-            self.y_position.setReadOnly(False)
+            self.ROI_vpos_spinbox.setReadOnly(False)
             self.ROIWidget.sigRegionChanged.disconnect() 
             '''
             I do not know how to disconnect one specific function, so I 
-            disconnect both and then reconnect the update_roi_coordinates 
+            disconnect both and then reconnect the update_ROI_spinbox_coordinates 
             function.
             '''
-            self.ROIWidget.sigRegionChanged.connect(self.update_roi_coordinates)
+            self.ROIWidget.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates)
 
-    def update_roi_coordinates(self):
-        self.roi_x = int(self.ROIWidget.pos()[0])
-        self.roi_y = int(self.ROIWidget.pos()[1])
-        self.roi_height = int(self.ROIWidget.size()[1])
-        self.roi_width = int(self.ROIWidget.size()[0])
+    def update_ROI_spinbox_coordinates(self):
+        self.ROI_hpos = int(self.ROIWidget.pos()[0])
+        self.ROI_vpos = int(self.ROIWidget.pos()[1])
+        self.ROI_vsize = int(self.ROIWidget.size()[1])
+        self.ROI_hsize = int(self.ROIWidget.size()[0])
         
-        self.x_position.setValue(self.roi_x)
-        self.y_position.setValue(self.roi_y)
-        self.x_size.setValue(self.roi_width)
-        self.y_size.setValue(self.roi_height)
+        self.ROI_hpos_spinbox.setValue(self.ROI_hpos)
+        self.ROI_vpos_spinbox.setValue(self.ROI_vpos)
+        self.ROI_hsize_spinbox.setValue(self.ROI_hsize)
+        self.ROI_vsize_spinbox.setValue(self.ROI_vsize)
       
     def spin_value_changed(self):
         
-        if self.x_size.value() != self.roi_x_size or self.y_size.value() != self.roi_y_size:
+        if self.ROI_hsize_spinbox.value() != self.ROI_hsize or self.ROI_vsize_spinbox.value() != self.ROI_vsize:
 
-            self.ROIWidget.setSize([self.x_size.value(),self.y_size.value()])
+            self.ROIWidget.setSize([self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()])
         
         
         if self.center_roiButton.isChecked():
-            if self.x_position.value() != self.roi_x:
-                self.ROIWidget.setPos(self.x_position.value())
+            if self.ROI_hpos_spinbox.value() != self.ROI_hpos:
+                self.ROIWidget.setPos(self.ROI_hpos_spinbox.value())
         else:
-            if self.x_position.value() != self.roi_x or self.y_position.value() != self.roi_y:
-                self.ROIWidget.setPos(self.x_position.value(),self.y_position.value())
-
+            if self.ROI_hpos_spinbox.value() != self.ROI_hpos or self.ROI_vpos_spinbox.value() != self.ROI_vpos:
+                self.ROIWidget.setPos(self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value())
+                
+        self.UpdateStatusLabel()
+        
     #----------------------------ROI centering functions-----------------------
     def center_roi(self):
         
-        self.y_center = int(self.center_frame-0.5*self.roi_height)
-        
-        if  self.roi_y != self.y_center:
-           self.ROIWidget.setPos(self.roi_x, self.y_center)
-           self.update_roi_coordinates()
+        self.v_center = int(self.center_frame-0.5*self.ROI_vsize)
+        if  self.ROI_vpos != self.v_center:
+           self.ROIWidget.setPos(self.ROI_hpos, self.v_center)
+           self.update_ROI_spinbox_coordinates()
     #--------------------------------------------------------------------------
     
     def SetROI(self):
-        self.subarray_hsize = self.x_size.value()
-        self.subarray_vsize = self.y_size.value()
-        self.subarray_hpos = self.x_position.value()
-        self.subarray_vpos = self.y_position.value()
+        # Set property only works strating living/recording next time
+        if self.isLiving == True:
+            self.StopLIVE()
+        # Remove the ROI
+        self.Live_view.removeItem(self.ROIWidget)
         
-        if self.subarray_hsize == 2048 and self.subarray_vsize == 2048:
+        self.ROI_hsize = self.ROI_hsize_spinbox.value()
+        self.ROI_vsize = self.ROI_vsize_spinbox.value()
+        self.ROI_hpos = self.ROI_hpos_spinbox.value()
+        self.ROI_vpos = self.ROI_vpos_spinbox.value()
+        
+        '''
+        The Hamamatsu flash 4 ROI only works with multiples of 4! Here I make 
+        sure that only multiples of 4 are passed on to the camera. Don't know if 
+        this has to do with binning. I also make sure it doesn't pass a ROI of 
+        0 size since this crashes the program!
+        '''
+        self.ROI_hpos = 4*int(self.ROI_hpos/4)
+
+        self.ROI_vpos = 4*int(self.ROI_vpos/4)
+
+        self.ROI_hsize = 4*int(self.ROI_hsize/4)
+        if self.ROI_hsize == 0:
+            self.ROI_hsize += 4
+            
+        self.ROI_vsize = 4*int(self.ROI_vsize/4)
+        if self.ROI_vsize == 0:
+            self.ROI_vsize += 4
+        
+        if self.ROI_hsize == 2048 and self.ROI_vsize == 2048:
             self.hcam.setPropertyValue("subarray_mode", "OFF")
             self.SubArrayModeSwitchButton.setChecked(False)
-
+            
+            self.subarray_vsize = 2048
+            self.subarray_hsize = 2048    
+            
         else:
         # set subarray mode off. This setting is not mandatory, but you have to control the setting order of offset and size when mode is on.
             self.hcam.setPropertyValue("subarray_mode", "OFF")
-            self.hcam.setPropertyValue("subarray_hsize", self.subarray_hsize)
-            self.hcam.setPropertyValue("subarray_vsize", self.subarray_vsize)
-            self.hcam.setPropertyValue("subarray_hpos", self.subarray_hpos)
-            self.hcam.setPropertyValue("subarray_vpos", self.subarray_vpos)
+            self.hcam.setPropertyValue("subarray_hsize", self.ROI_hsize)
+            self.hcam.setPropertyValue("subarray_vsize", self.ROI_vsize)
+            self.hcam.setPropertyValue("subarray_hpos", self.ROI_hpos)
+            self.hcam.setPropertyValue("subarray_vpos", self.ROI_vpos)
             self.hcam.setPropertyValue("subarray_mode", "ON")
             self.SubArrayModeSwitchButton.setChecked(True)
+            
+            self.subarray_vsize = self.ROI_vsize
+            self.subarray_hsize = self.ROI_hsize 
+            
+        # Auto scale and pan the view around the image such that the image fills the view.    
+        # self.LiveWidget.autoRange()
+        self.UpdateStatusLabel()
         
+        self.LiveSwitchEvent()
+        """
+        # =============================================================================
+        #                               LIVE functions
+        # =============================================================================
+        """            
+    def LiveSwitchEvent(self):
+        if self.LiveButton.isChecked():
+            StartLiveThread = threading.Thread(target = self.LIVE)
+            StartLiveThread.start()
+        else:
+            StopLiveThread = threading.Thread(target = self.StopLIVE)
+            StopLiveThread.start()
+    
+    def AutoLevelSwitchEvent(self):
+        if self.LiveAutoLevelSwitchButton.isChecked():
+            self.Live_item_autolevel = True
+        else:
+            self.Live_item_autolevel = False
+        
+    def LIVE(self):
+        self.UpdateStatusLabel()
+        
+        self.isLiving = True
+        self.hcam.acquisition_mode = "run_till_abort"
+        self.hcam.startAcquisition()
+        
+        while self.isLiving == True: 
+            [frames, dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+            self.Live_image = np.resize(frames[-1].np_array, (dims[1], dims[0]))
+            time.sleep(0.04) # 25 hz refreshing rate
+            self.UpdateScreen(self.Live_image)
+        
+    def StopLIVE(self):
+        self.isLiving = False
+        self.hcam.stopAcquisition()
+        
+    def SaveLiveImg(self):
+
+        files_types = "Tif (*.tif);;Pickle (*.pickle);;YAML (*.yml)"
+        options = QFileDialog.Options()
+        filename, _ = QFileDialog.getSaveFileName(
+                    self, 'Save as... File', 'untitled.tif', filter=files_types,options=options)
+        if len(filename) > 3:
+            Localimg = Image.fromarray(self.Live_image) #generate an image object
+            Localimg.save(filename) #save as tif
+        
+    def UpdateScreen(self, image):
+        if self.Live_item_autolevel == True:
+            self.Live_item.setImage(image, autoLevels=None)
+        elif self.Live_item_autolevel == False:
+            """
+            Set image scaling levels. Can be one of:
+                [blackLevel, whiteLevel]
+                [[minRed, maxRed], [minGreen, maxGreen], [minBlue, maxBlue]]
+            """
+            self.Live_item.setImage(image, autoLevels=False)
+            
     def closeEvent(self, event):
         try:
             self.hcam.shutdown()
@@ -578,50 +1059,149 @@ class CameraUI(QMainWindow):
         except:
             pass
         self.close()
+
+        """
+        # =============================================================================
+        #                              STREAM functions
+        # =============================================================================
+        """           
+    def SetStreamFileName(self):
+
+        files_types = "Tif (*.tif);;Pickle (*.pickle);;YAML (*.yml)"
+        options = QFileDialog.Options()
+        self.Streamfilename, _ = QFileDialog.getSaveFileName(
+                    self, 'Save as... File', 'untitled.tif', filter=files_types,options=options)
         
-class MySwitch(QtWidgets.QPushButton):
-    """
-    General switch button widget.
-    """
-    def __init__(self, label_1, color_1, label_2, color_2, width, parent = None):
-        super().__init__(parent)
-        self.setCheckable(True)
-        self.setMinimumWidth(66)
-        self.setMinimumHeight(22)
-        self.switch_label_1 = label_1
-        self.switch_label_2 = label_2
-        self.switch_color_1 = color_1
-        self.switch_color_2 = color_2
-        self.width = width
+        if len(self.Streamfilename) > 35:
+            self.Streamdirectorytextbox.setText('...' + self.Streamfilename[len(self.Streamfilename)-35:len(self.Streamfilename)])
+        elif len(self.Streamfilename) > 1:
+            self.Streamdirectorytextbox.setText(self.Streamfilename)
+            
+    def UpdateBufferNumber(self):
+        self.BufferNumber = self.EstFPS_spinbox.value() * self.StreamTotalTime_spinbox.value()
+        self.StreamBufferTotalFrames_spinbox.setValue(self.BufferNumber)
         
-    def paintEvent(self, event):
-        label = self.switch_label_1 if self.isChecked() else self.switch_label_2
-        
-        if self.isChecked():
-            bg_color = QColor(self.switch_color_1)
+    def SetStreamSpecs(self):
+        if self.CamStreamActionContainer.isEnabled():
+            self.CamStreamActionContainer.setEnabled(False)
+            self.Streamdirectorytextbox.setEnabled(False)
         else:
-            bg_color = QColor(self.switch_color_2)
+            self.CamStreamActionContainer.setEnabled(True)
+            self.Streamdirectorytextbox.setEnabled(True)      
+            
+        # Set the number of buffers get prepared.
+        self.BufferNumber = self.StreamBufferTotalFrames_spinbox.value()
+        
+        if self.StreamStopSingalComBox.currentText() == 'Stop signal: Time':
+            self.StopSignal = "Time"
+            self.StreamDuration = self.StreamTotalTime_spinbox.value()
+            self.hcam.acquisition_mode = "fixed_length"
+            
+        elif self.StreamStopSingalComBox.currentText() == 'Stop signal: Frames':
+            self.StopSignal = "Frames"
+            self.StreamDuration = -1
+            self.hcam.acquisition_mode = "fixed_length"
+    
+    def StreamingSwitchEvent(self):
+        if self.StartStreamButton.isChecked():
+            self.StreamBusymovie.start()
+            self.StreamStatusStackedWidget.setCurrentIndex(1)
+            self.StartStreamButton.setIcon(QIcon('./Icons/STOP.png'))
+            self.StartStreamingThread()
+        else:
+            self.StartStreamButton.setIcon(QIcon('./Icons/StartStreaming.png'))
+            self.StopStreamingThread()
+            
+    def StartStreamingThread(self):
+        if self.isStreaming == False and self.isLiving == False:
+            self.StartStream_Thread = threading.Thread(target = self.StartStreaming, args=(self.StopSignal, self.BufferNumber, self.StreamDuration))
+            self.StartStream_Thread.start()
+    
+    def StopStreamingThread(self):
+        if self.isStreaming == True and self.isLiving == False:
+            self.StartStreamButton.setChecked(False)
+            self.StartStreamButton.setIcon(QIcon('./Icons/StartStreaming.png'))
+            self.StartStreamButton.setEnabled(False)
+            self.CamStreamActionContainer.setEnabled(False)
+            
+            self.StopStream_Thread = threading.Thread(target = self.StopStreaming)
+            self.StopStream_Thread.start()            
+            
+    def StartStreaming(self, StopSignal, BufferNumber, StreamDuration):
+            #--------------------Start the acquisition-------------------------
+            # Duration hard limit:
+            if StopSignal == "Time":
+                # Set the timeout timer.
+                self.StreamDuration_timer = QTimer()
+                self.StreamDuration_timer.setSingleShot(True)
+                self.StreamDuration_timer.timeout.connect(self.StopStreamingThread)
+                self.isStreaming = True
                 
-        radius = 10
-        width = self.width
-        center = self.rect().center()
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.translate(center)
-        painter.setBrush(QColor(0,0,0))
-
-        pen = QPen(Qt.black)
-        pen.setWidth(2)
-        painter.setPen(pen)
-
-        painter.drawRoundedRect(QRect(-width, -radius, 2*width, 2*radius), radius, radius)
-        painter.setBrush(QBrush(bg_color))
-        sw_rect = QRect(-radius, -radius, width + radius, 2*radius)
-        if not self.isChecked():
-            sw_rect.moveLeft(-width)
-        painter.drawRoundedRect(sw_rect, radius, radius)
-        painter.drawText(sw_rect, Qt.AlignCenter, label)
+                self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
+                self.hcam.startAcquisition()
+                self.StreamDuration_timer.start(StreamDuration*1000) # Starts or restarts the timer with a timeout of duration msec milliseconds.                
+                
+                # Start pulling out frames from buffer
+                self.video_list = []
+                self.imageCount = 0 # The actual frame number that gets recorded.
+                while self.isStreaming == True: # Record for range() number of images.
+                    [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+                    for aframe in frames:
+                        self.video_list.append(aframe.np_array)
+                        self.imageCount += 1
+                        
+                        self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+                        
+            # Frame number hard limit
+            elif StopSignal == "Frames":
+                self.isStreaming = True
+                self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
+                self.hcam.startAcquisition()              
+                
+                # Start pulling out frames from buffer
+                self.video_list = []
+                self.imageCount = 0 # The actual frame number that gets recorded.
+                for _ in range(BufferNumber): # Record for range() number of images.
+                    [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+                    for aframe in frames:
+                        self.video_list.append(aframe.np_array)
+                        self.imageCount += 1  
+                        
+                        self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+                        
+                self.StopStreamingThread()
+                
+    def StopStreaming(self):
+        # Stop the acquisition
+        AcquisitionEndTime = time.time()
+        print("Frames acquired: " + str(self.imageCount))
+        print('Total time is: {} s.'.format(AcquisitionEndTime-self.hcam.AcquisitionStartTime))
+        print('Estimated fps: {} hz.'.format(int(self.imageCount/(AcquisitionEndTime-self.hcam.AcquisitionStartTime))))
+        self.hcam.stopAcquisition()        
+        self.isStreaming = False
+        self.StreamBusymovie.stop()
+        self.StreamStatusStackedWidget.setCurrentIndex(2)
+        
+        # Save the file.
+        with skimtiff.TiffWriter(self.Streamfilename, append = True, imagej = True)\
+        as tif:                
+            write_starttime = time.time()
+            for eachframe in range(self.imageCount): 
+                image = np.resize(self.video_list[eachframe], (self.dims[1], self.dims[0]))
+                tif.save(image, compress=0)
+                #---------Update file saving progress bar------------
+                if eachframe/self.imageCount*100 - int(eachframe/self.imageCount*100) <= 0.1:
+                    self.CamStreamSaving_progressbar.setValue(int(eachframe/self.imageCount*100))
+                
+        print("Done writing " + str(self.imageCount) + " frames, recorded for "\
+        + str(round(AcquisitionEndTime,2)) + " seconds, saving video takes {} seconds.".format(round(time.time()-write_starttime, 2)))
+        
+        
+        self.StartStreamButton.setEnabled(True)
+        self.CamStreamActionContainer.setEnabled(True)
+        self.StreamStatusStackedWidget.setCurrentIndex(0)
+        self.CamStreamIsFree.setText("Acquisition done. Frames acquired: {}.".format(self.imageCount))
+        
         
 if __name__ == "__main__":
     def run_app():

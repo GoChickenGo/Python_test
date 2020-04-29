@@ -790,16 +790,16 @@ class HamamatsuCamera(object):
                       "record_fixed_bytes_per_session",
                       "record_fixed_bytes_per_frame"
                       ]
-            print('----------------------Settings-----------------------')
-            for param in params:
-                if param == 'buffer_framebytes':
-                    try:
-                        print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
-                    except:
-                        print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
-                else:
-                    print(param, self.getPropertyValue(param)[0])
-            print('-----------------------------------------------------')
+            # print('----------------------Settings-----------------------')
+            # for param in params:
+            #     if param == 'buffer_framebytes':
+            #         try:
+            #             print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+            #         except:
+            #             print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
+            #     else:
+            #         print(param, self.getPropertyValue(param)[0])
+            # print('-----------------------------------------------------')
         else:
             self.setPropertyValue("subarray_mode", "ON")
             print('Set subarray_mode ON.')
@@ -831,16 +831,16 @@ class HamamatsuCamera(object):
                       "record_fixed_bytes_per_session",
                       "record_fixed_bytes_per_frame"
                       ]
-            print('----------------------Settings-----------------------')
-            for param in params:
-                if param == 'buffer_framebytes':
-                    try:
-                        print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
-                    except:
-                        print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
-                else:
-                    print(param, self.getPropertyValue(param)[0])
-            print('-----------------------------------------------------')
+            # print('----------------------Settings-----------------------')
+            # for param in params:
+            #     if param == 'buffer_framebytes':
+            #         try:
+            #             print('A frame buffer that should be allocated: {} MB.'.format(rcam.getPropertyValue(param)[0]/1048576))
+            #         except:
+            #             print('A frame buffer that should be allocated: {} MB.'.format(hcam.getPropertyValue(param)[0]/1048576))
+            #     else:
+            #         print(param, self.getPropertyValue(param)[0])
+            # print('-----------------------------------------------------')
             
 
     def setACQMode(self, mode, number_frames = None):
@@ -982,7 +982,7 @@ class HamamatsuCameraMR(HamamatsuCamera):
 
     def startAcquisition(self):
         """
-        Allocate as many frames as will fit in 2GB of memory and start data acquisition.
+        Allocate as many frames as will fit in 4GB of memory and start data acquisition.
         """
         self.captureSetup()
 
@@ -997,7 +997,7 @@ class HamamatsuCameraMR(HamamatsuCamera):
         if (self.old_frame_bytes != self.frame_bytes) or \
                 (self.acquisition_mode is "fixed_length"):
                     
-            n_buffers = min(int((2.0 * 1024 * 1024 * 1024)/self.frame_bytes), 2000)
+            n_buffers = min(int((4.0 * 1024 * 1024 * 1024)/self.frame_bytes), 4000)
             print('Frame size: {} MB.'.format(self.frame_bytes/1024/1024))
             if self.acquisition_mode is "fixed_length":
                 self.number_image_buffers = self.number_frames
