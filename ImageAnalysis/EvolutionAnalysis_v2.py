@@ -15,9 +15,10 @@ except:
     from ImageAnalysis.findcontour import imageanalysistoolbox
 from skimage import data
 from skimage.filters import threshold_otsu, threshold_local
+from skimage.filters.rank import entropy
 from skimage.segmentation import clear_border
 from skimage.measure import label, perimeter, find_contours
-from skimage.morphology import closing, square, opening, reconstruction, skeletonize, convex_hull_image, dilation, thin, binary_erosion
+from skimage.morphology import closing, square, opening, reconstruction, skeletonize, convex_hull_image, dilation, thin, binary_erosion, disk
 from skimage.measure import regionprops
 from skimage.color import label2rgb
 from skimage.restoration import denoise_tv_chambolle
@@ -120,14 +121,16 @@ class ProcessImage():
         return RegionProposal_Mask, RegionProposal_ImgInMask
     
     
-    def Region_Proposal(image, RegionProposalMask, smallest_size, lowest_region_intensity, contour_thres, contour_dilationparameter, cell_region_opening_factor, cell_region_closing_factor):
+    def Region_Proposal(image, RegionProposalMask, smallest_size, biggest_size, lowest_region_intensity, Roundness_thres,
+                        contour_thres, contour_dilationparameter, cell_region_opening_factor, cell_region_closing_factor):
         """
         # =============================================================================
         # Based on tag fluorescence image, generate region proposal bounding box.
         # ** RegionProposalMask: the binary mask for region iterative analysis.
-        # ** smallest_size: cells size below this number are ignored.
+        # ** smallest_size/biggest_size: cells size out of this range are ignored.
         # ** lowest_region_intensity: cells with mean region intensity below this are ignored.
         # ** contour_thres: threshold for contour recognizition.
+        # ** Roundness_thres: Roundness above this are ignored.
         # ** contour_dilationparameter: the dilation degree applied when doing inward contour dilation for thicker menbrane area.
         # ** cell_region_opening_factor: degree of opening operation on individual cell mask.
         # ** cell_region_closing_factor: degree of closing operation on individual cell mask.
@@ -137,7 +140,7 @@ class ProcessImage():
         clear_border(cleared)
         # label image regions, prepare for regionprops
         label_image = label(cleared)       
-        dtype = [('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float)]
+        dtype = [('BoundingBox', 'U32'), ('Mean intensity', float), ('Mean intensity in contour', float), ('Contour soma ratio', float), ('Roundness', float)]
         CellSequenceInRegion = 0
         dirforcellprp = {}
         show_img = False
@@ -148,7 +151,7 @@ class ProcessImage():
         for region in regionprops(label_image,intensity_image = image): 
             
             # skip small images
-            if region.area > smallest_size and region.mean_intensity > lowest_region_intensity:
+            if region.area > smallest_size and region.mean_intensity > lowest_region_intensity and region.area < biggest_size:
 
                 # draw rectangle around segmented coins
                 minr, minc, maxr, maxc = region.bbox
@@ -173,41 +176,54 @@ class ProcessImage():
                 contour_mask_of_cell = imageanalysistoolbox.inwarddilationmask(contour_mask_thin_line.copy() ,filled_mask_convolve2d, contour_dilationparameter)
                 
                 #--------------------------------------------------------------
-                MeanIntensity_FilledArea = np.mean(RawRegionImg[np.where(filled_mask_bef == 1)]) - MeanIntensity_Background # Mean pixel value of filled raw cell area
-                                
-                MeanIntensity_Contour = np.mean(RawRegionImg[np.where(contour_mask_of_cell == 1)]) - MeanIntensity_Background
+                filled_mask_area = len(np.where(filled_mask_convolve2d == 1)[0])
+                contour_mask_perimeter = len(np.where(contour_mask_thin_line == 1)[0])
+                Roundness = 4*3.1415*filled_mask_area/contour_mask_perimeter**2
+#                print('Roundness{}'.format(4*3.1415*filled_mask_area/contour_mask_perimeter**2))
+                #--------------------------------------------------------------
+                # Roundness Threshold
+                if Roundness < Roundness_thres:
+                    MeanIntensity_FilledArea = np.mean(RawRegionImg[np.where(filled_mask_bef == 1)]) - MeanIntensity_Background # Mean pixel value of filled raw cell area
+                                    
+                    MeanIntensity_Contour = np.mean(RawRegionImg[np.where(contour_mask_of_cell == 1)]) - MeanIntensity_Background
+                    
+                    soma_mask_of_cell = filled_mask_convolve2d - contour_mask_of_cell
+                    MeanIntensity_Soma = np.mean(RawRegionImg[np.where(soma_mask_of_cell == 1)]) - MeanIntensity_Background#Mean pixel value of soma area                
+                    contour_soma_ratio = MeanIntensity_Contour/MeanIntensity_Soma
+                    
+                    Cell_Area_Img = filled_mask_convolve2d * RawRegionImg
+                    # Calculate the entrophy of the image.
+    #                entr_img = entropy(Cell_Area_Img/np.amax(Cell_Area_Img), disk(5))
+    #                print(np.mean(entr_img))
+                    
+                    if str(MeanIntensity_FilledArea) == 'nan':
+                        MeanIntensity_FilledArea = 0
+                    if str(MeanIntensity_Contour) == 'nan':
+                        MeanIntensity_Contour = 0
+                    if str(contour_soma_ratio) == 'nan':
+                        contour_soma_ratio = 0
+                    
+                    
+                    dirforcellprp[CellSequenceInRegion] = (boundingbox_info, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio, Roundness)    
                 
-                soma_mask_of_cell = filled_mask_bef - contour_mask_of_cell
-                MeanIntensity_Soma = np.mean(RawRegionImg[np.where(soma_mask_of_cell == 1)]) - MeanIntensity_Background#Mean pixel value of soma area                
-                contour_soma_ratio = MeanIntensity_Contour/MeanIntensity_Soma
+    #                 plt.figure()
+    #                 plt.imshow(RawRegionImg)
+    #                 plt.show()
+    # #    
+    #                 plt.figure()
+    #                 plt.imshow(contour_mask_of_cell)
+    #                 plt.show()
                 
-                if str(MeanIntensity_FilledArea) == 'nan':
-                    MeanIntensity_FilledArea = 0
-                if str(MeanIntensity_Contour) == 'nan':
-                    MeanIntensity_Contour = 0
-                if str(contour_soma_ratio) == 'nan':
-                    contour_soma_ratio = 0
-                
-                dirforcellprp[CellSequenceInRegion] = (boundingbox_info, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)    
-                
-#                plt.figure()
-#                plt.imshow(RawRegionImg)
-#                plt.show()
+                    #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
+                    rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
+                    contour_mean_bef_rounded = str(round(MeanIntensity_Contour, 3))[0:5]
+                    
+                    if show_img == True:
+                        ax_showlabel.add_patch(rect)
+                        ax_showlabel.text((maxc + minc)/2, (maxr + minr)/2, 'Cell-{}, {}: {}'.format(CellSequenceInRegion, 'c_m', contour_mean_bef_rounded),
+                                          fontsize=8, color='yellow', style='italic')#,bbox={'facecolor':'red', 'alpha':0.3, 'pad':8})
     
-                # plt.figure()
-                # plt.imshow(contour_mask_of_cell)
-                # plt.show()
-            
-                #--------------------------------------------------Add red boundingbox to axis----------------------------------------------
-                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
-                contour_mean_bef_rounded = str(round(MeanIntensity_Contour, 3))[0:5]
-                
-                if show_img == True:
-                    ax_showlabel.add_patch(rect)
-                    ax_showlabel.text((maxc + minc)/2, (maxr + minr)/2, 'Cell-{}, {}: {}'.format(CellSequenceInRegion, 'c_m', contour_mean_bef_rounded),
-                                      fontsize=8, color='yellow', style='italic')#,bbox={'facecolor':'red', 'alpha':0.3, 'pad':8})
-
-                CellSequenceInRegion += 1
+                    CellSequenceInRegion += 1
         if show_img == True:
             ax_showlabel.set_axis_off()
             plt.show()
@@ -269,22 +285,24 @@ class ProcessImage():
                             
             MeanIntensity_Contour = np.mean(RawRegionImg[np.where(contour_mask_of_cell == 1)]) - MeanIntensity_Background
             
-            soma_mask_of_cell = filled_mask_bef - contour_mask_of_cell
+            soma_mask_of_cell = filled_mask_convolve2d - contour_mask_of_cell
             MeanIntensity_Soma = np.mean(RawRegionImg[np.where(soma_mask_of_cell == 1)]) - MeanIntensity_Background#Mean pixel value of soma area                
             contour_soma_ratio = MeanIntensity_Contour/MeanIntensity_Soma
 
+            Cell_Area_Img = filled_mask_convolve2d * RawRegionImg
+            
             if str(MeanIntensity_FilledArea) == 'nan':
                 MeanIntensity_FilledArea = 0
             if str(MeanIntensity_Contour) == 'nan':
                 MeanIntensity_Contour = 0
             if str(contour_soma_ratio) == 'nan':
                 contour_soma_ratio = 0
-                    
-            dirforcellprp[CellSequenceInRegion] = (Each_bounding_box, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio)
             
-#            plt.figure()
-#            plt.imshow(RawRegionImg)
-#            plt.show()
+            dirforcellprp[CellSequenceInRegion] = (Each_bounding_box, MeanIntensity_FilledArea, MeanIntensity_Contour, contour_soma_ratio, )
+            
+            # plt.figure()
+            # plt.imshow(RawRegionImg)
+            # plt.show()
 
             # plt.figure()
             # plt.imshow(contour_mask_of_cell)
@@ -647,7 +665,7 @@ class ProcessImage():
     # ==========================================================================================================================================================
     """
 
-    def TagFluorescenceAnalysis(tag_folder, tag_round):
+    def TagFluorescenceAnalysis(tag_folder, tag_round, Roundness_threshold):
         """
         # =============================================================================
         # Given the folder and round number of tag fluorescence, return a dictionary 
@@ -679,8 +697,8 @@ class ProcessImage():
                     RegionProposalMask, RegionProposalOriginalImage = ProcessImage.generate_mask(loaded_tag_image, openingfactor=2, 
                                                                                                                 closingfactor=3, binary_adaptive_block_size=335)#256(151) 500(335)
                     
-                    TagFluorescenceLookupBook = ProcessImage.Region_Proposal(loaded_tag_image, RegionProposalMask, smallest_size=800, lowest_region_intensity=0, contour_thres=0.001, 
-                                                                                                       contour_dilationparameter=11, cell_region_opening_factor=1, cell_region_closing_factor=2)
+                    TagFluorescenceLookupBook = ProcessImage.Region_Proposal(loaded_tag_image, RegionProposalMask, smallest_size=800, biggest_size=3500, Roundness_thres = Roundness_threshold,
+                                                                lowest_region_intensity=0.16, contour_thres=0.001, contour_dilationparameter=11, cell_region_opening_factor=1, cell_region_closing_factor=2)
                     
                     tagprotein_cell_properties_dict['{}_{}'.format(EachRound, EachCoord)] = TagFluorescenceLookupBook
                     
@@ -766,7 +784,7 @@ class ProcessImage():
                         
         return lib_cell_properties_dict
     
-    def OrganizeOverview(lib_cell_properties_dict, CutOffThres, EvaluatingPara_1, WeightPara_1, EvaluatingPara_2, WeightPara_2):
+    def OrganizeOverview(lib_cell_properties_dict, CutOffThresList, EvaluatingPara_1, WeightPara_1, EvaluatingPara_2, WeightPara_2):
         """
         # =============================================================================
         # Add 'ID' field which indicates position, round information to the structured array in the dictionary.
@@ -794,11 +812,17 @@ class ProcessImage():
         # Append the id field
         Overview_LookupBook = rfn.append_fields(Overview_LookupBook, 'ID', IDlist, usemask=False)  
         
+        # Trimming according to thresholds
         DeleteIndexList = []
         # Delete cells that are dimmer than threshold.
         for EachCell in range(len(Overview_LookupBook)):
-            if Overview_LookupBook[EachCell]['Mean intensity in contour'] < CutOffThres:
-                DeleteIndexList.append(EachCell)
+            if 'Mean intensity in contour' in CutOffThresList and 'Contour soma ratio' in CutOffThresList:
+                if Overview_LookupBook[EachCell]['Mean intensity in contour'] < CutOffThresList[CutOffThresList.index('Mean intensity in contour') + 1]:
+                    DeleteIndexList.append(EachCell)
+
+                elif Overview_LookupBook[EachCell]['Contour soma ratio'] < CutOffThresList[CutOffThresList.index('Contour soma ratio') + 1]:
+                    DeleteIndexList.append(EachCell)
+        
         Overview_LookupBook = np.delete(Overview_LookupBook, DeleteIndexList, 0)
         
         # Append the number field.
@@ -897,8 +921,8 @@ if __name__ == "__main__":
             
         
 # =============================================================================
-    tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-4-08 Archon citrine library 100FOVs\trial_3'
-    lib_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-4-08 Archon citrine library 100FOVs\trial_3'
+    tag_folder = r'D:\XinMeng\imageCollection\Fov3\New folder (4)'
+    lib_folder = r'D:\XinMeng\imageCollection\Fov3\New folder (4)'
   #   tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-3-6 Archon brightness screening\NovArch library'
 
     tag_round = 'Round1'
@@ -907,11 +931,11 @@ if __name__ == "__main__":
     EvaluatingPara_1 = 'Mean intensity divided by tag'
     EvaluatingPara_2 = 'Contour soma ratio'
     
-    MeanIntensityThreshold = 0.15
+    MeanIntensityThreshold = 0.16
     
     starttime = time.time()
     
-    tagprotein_cell_properties_dict = ProcessImage.TagFluorescenceAnalysis(tag_folder, tag_round)
+    tagprotein_cell_properties_dict = ProcessImage.TagFluorescenceAnalysis(tag_folder, tag_round, Roundness_threshold = 1.1)
     print('tag done.')
     
     lib_cell_properties_dict = ProcessImage.LibFluorescenceAnalysis(lib_folder, tag_round, lib_round, tagprotein_cell_properties_dict)
@@ -920,23 +944,23 @@ if __name__ == "__main__":
     # Devided by fusion protein brightness.
     lib_cell_properties_dict = ProcessImage.CorrectForFusionProtein(tagprotein_cell_properties_dict, lib_cell_properties_dict, tagprotein_laserpower=1, lib_laserpower=30)
     # Organize and add 'ranking' and 'boundingbox' fields to the structured array.
-    Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, MeanIntensityThreshold, EvaluatingPara_1, 1, EvaluatingPara_2, 0.5)
+    Overview_LookupBook = ProcessImage.OrganizeOverview(lib_cell_properties_dict, ['Mean intensity in contour', 0.16, 'Contour soma ratio', 0.8], EvaluatingPara_1, 1, EvaluatingPara_2, 0.5)
     #--------------------------------------------------------------------------
 #    Overview_LookupBook_sorted = ProcessImage.WeightedSorting(Overview_LookupBook, 'Mean intensity divided by tag', 'Mean intensity in contour', 'Contour soma ratio', 
 #                                                              weight_1 = 0.4, weight_2 = 0.4, weight_3 = 0.2)
     #--------------------------------------------------------------------------
     selectionRadius = 'circle'
-    selectionPercent = 50
+    selectionPercent = 100
     
     Overview_LookupBook_filtered = ProcessImage.DistanceSelecting(Overview_LookupBook, selectionPercent)
 
     totalselectnum = 5
     
     
-    fig = px.scatter(Overview_LookupBook, x=EvaluatingPara_1, y=EvaluatingPara_2, 
-               hover_name= 'ID', color= 'Normalized distance', 
-               hover_data= ['Sequence', 'Mean intensity'], width=1050, height=950)
-    fig.write_html('Screening scatters.html', auto_open=True)
+#    fig = px.scatter(Overview_LookupBook, x=EvaluatingPara_1, y=EvaluatingPara_2, 
+#               hover_name= 'ID', color= 'Normalized distance', 
+#               hover_data= ['Sequence', 'Mean intensity'], width=1050, height=950)
+#    fig.write_html('Screening scatters.html', auto_open=True)
     # Display scatters
 #    get_ipython().run_line_magic('matplotlib', 'qt')
 #    plt.scatter(Overview_LookupBook[EvaluatingPara_1], Overview_LookupBook[EvaluatingPara_2], s=np.pi*3, c='blue', alpha=0.5)
