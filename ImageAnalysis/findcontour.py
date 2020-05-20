@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import math
 from skimage import data
-from skimage.filters import threshold_otsu
+from skimage.filters import threshold_otsu, threshold_local
 from skimage.segmentation import clear_border
 from skimage.measure import label, perimeter, find_contours
 from skimage.morphology import opening, closing, square, dilation, reconstruction, binary_erosion
@@ -31,8 +31,11 @@ class imageanalysistoolbox():
         '''
         #---------------------------------------------------Get binary cell image baseed on expanded current region image-------------------------------------------------
         RawRegionImg = denoise_tv_chambolle(RawRegionImg, weight=0.01)
-        
-        thresh_regionbef = threshold_otsu(RawRegionImg)
+        binary_adaptive_block_size = region_area*0.3
+        if (binary_adaptive_block_size % 2) == 0:
+            binary_adaptive_block_size += 1
+#        thresh_regionbef = threshold_otsu(RawRegionImg)
+        thresh_regionbef = threshold_local(RawRegionImg, binary_adaptive_block_size, offset=0)
         expanded_binary_region_bef = np.where(RawRegionImg >= thresh_regionbef, 1, 0)
         
         binarymask_bef = opening(expanded_binary_region_bef, square(int(cell_region_opening_factor)))
@@ -47,7 +50,9 @@ class imageanalysistoolbox():
         
         # Calculate the background
         MeanIntensity_Background = np.mean(RawRegionImg[np.where(filled_mask_bef == 0)])
-
+        """ MeanIntensity_Background is not accurate!!!
+        """
+        MeanIntensity_Background = 0 
         #----------------------------------------------------Clean up parts that don't belong to cell of interest---------------------------------------
         SubCellClearUpSize = int(region_area*0.35) # Assume that trash parts won't take up 35% of the whole cell boundbox area
 #        print(region_area)

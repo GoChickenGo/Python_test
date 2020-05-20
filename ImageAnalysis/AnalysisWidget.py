@@ -56,7 +56,7 @@ class AnalysisWidgetUI(QWidget):
         self.setMinimumSize(1250,850)
         self.setWindowTitle("AnalysisWidget")
         self.layout = QGridLayout(self)
-        self.savedirectory = r"C:\Users\Mels Jagt\OneDrive\Documenten\BEP\First waveforms with Archon 18_03_2020\Archon 3"
+        self.savedirectory = r"C:/Users/Mels Jagt/OneDrive/Documenten/BEP/Curve Fitting Analysis/Helios data 28-04-2020/Helios trial6 dish3 500Hz test2"
         self.OC = 0.1 # Patch clamp constant
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
