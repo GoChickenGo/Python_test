@@ -56,7 +56,7 @@ class PMTWidgetUI(QWidget):
 #        os.chdir('./')# Set directory to current folder.
         self.setFont(QFont("Arial"))
         
-        self.setMinimumSize(1150,850)
+        self.setMinimumSize(1200,850)
         self.setWindowTitle("PMTWidget")
         self.layout = QGridLayout(self)
         #------------------------Initiating class-------------------
@@ -94,7 +94,11 @@ class PMTWidgetUI(QWidget):
         self.vb_2.addItem(self.pmtimgroi)        
         #self.roi = pg.RectROI([20, 20], [20, 20], pen=(0,9))
         #r1 = QRectF(0, 0, 895, 500)
-        self.roi = pg.PolyLineROI([[0,0], [80,0], [80,80], [0,80]], closed=True, pen=(0,9))#, maxBounds=r1
+        ROIpen = QPen()  # creates a default pen
+        ROIpen.setStyle(Qt.DashDotLine)
+        ROIpen.setWidth(0.5)
+        ROIpen.setBrush(QColor(0,161,255))
+        self.roi = pg.PolyLineROI([[0,0], [80,0], [80,80], [0,80]], closed=True, pen=ROIpen)#, maxBounds=r1
         #self.roi.addScaleHandle([1,0], [1, 0])
         self.roi.sigHoverEvent.connect(lambda: self.show_handle_num()) # update handle numbers
         
@@ -136,7 +140,7 @@ class PMTWidgetUI(QWidget):
         self.contour_samprate.setMinimum(0)
         self.contour_samprate.setMaximum(1000000)
         self.contour_samprate.setValue(50000)
-        self.contour_samprate.setSingleStep(10000)        
+        self.contour_samprate.setSingleStep(50000)        
         self.pmtContourLayout.addWidget(self.contour_samprate, 3, 1)        
         self.pmtContourLayout.addWidget(QLabel("Sampling rate:"), 3, 0)
         
