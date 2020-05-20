@@ -26,6 +26,34 @@ class LudlStage:
         self.baudrate = 9600
         self.endOfLine = '\r'
         
+    def Try_until_Success(func):
+        """ This is the decorator to try to execute the function until succeed.
+        """
+        def wrapper(*args, **kwargs):
+            
+            success = None
+            failnumber = 0
+            
+            while success is None:
+                if failnumber <8:
+                    try:
+                        returnValue = func(*args, **kwargs)
+                        success = True
+
+                    except:
+    
+                        failnumber += 1                    
+                        print('filter move failed, failnumber: {}'.format(failnumber))
+                        time.sleep(0.2)
+                else:
+                    print('Fail for 8 times, give up - -')
+                    success = False                    
+                    
+            return returnValue
+        
+        return wrapper
+    
+    @Try_until_Success
     def getPos(self):
         """
         Gets the current position of the stage. A positive reply is of the from:
@@ -36,40 +64,22 @@ class LudlStage:
         Returns the x and y position
         """
         command = 'Where X Y' + self.endOfLine
-        success = None
-        failnumber = 0
-#        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO, timeout = 1) as stage:
-#            stage.write(command.encode())
-#            position = stage.readline() #Reads an '\n' terminated line
-#            position = position.decode().split(' ') #Go from bytes to string and split
-#            xPosition = position[1]
-#            yPosition = position[2]
-#            return xPosition, yPosition
-#            stage.close()        
         
-        while success is None:
-            if failnumber <6:
-                try:
-                    with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO, timeout = 1) as stage:
-                        stage.write(command.encode())
-                        position = stage.readline() #Reads an '\n' terminated line
-                        position = position.decode().split(' ') #Go from bytes to string and split
-                        xPosition = position[1]
-                        yPosition = position[2]
-                        return xPosition, yPosition
-                        stage.flush()
-                        stage.close()
-                    success = True
-                except:
-#                    with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO, timeout = 1) as stage:
-#                        stage.close()
-                    failnumber += 1                    
-                    print('stage getPos fail, failnumber: {}'.format(failnumber))
-                    time.sleep(0.5)
+        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO, timeout = 1) as stage:
+            stage.write(command.encode())
+            position = stage.readline() #Reads an '\n' terminated line
+            position = position.decode().split(' ') #Go from bytes to string and split
+            
+            if len(position) > 2:
+                xPosition = position[1]
+                yPosition = position[2]
+                stage.close()     
+
+                return xPosition, yPosition
             else:
-                success = False
-            
-            
+                return False, False
+    
+    @Try_until_Success
     def moveAbs(self, x, y):
         """
         Moves the motor to an absolute position defined by X and Y.
@@ -77,30 +87,15 @@ class LudlStage:
         The reply does not mean the movement is finished.
         """
         command = 'Move X = %d Y = %d' % (x, y) + self.endOfLine
+
+        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
+            stage.write(command.encode())
+            stage.flush()
+            stage.close()
+            
+            return True
         
-        success = None
-        failnumber = 0
-        
-#        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
-#            stage.write(command.encode())
-#            stage.close()
-        
-        while success is None:
-            if failnumber <6:
-                try:
-                    with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
-                        stage.write(command.encode())
-                        stage.flush()
-                        stage.close()
-                    success = True
-                except:
-                    failnumber += 1                    
-                    print('stage moveAbs fail, failnumber: {}'.format(failnumber))
-                    time.sleep(0.5)
-            else:
-                success = False
-                
-                
+    @Try_until_Success
     def moveVec(self, x, y):
         """
         Moves the motor to an absolute position but as opposed to moveAbs it 
@@ -109,7 +104,8 @@ class LudlStage:
         command = "Vmove X = %d Y = %d" % (x, y) + self.endOfLine
         with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
             stage.write(command.encode())
-            
+    
+    @Try_until_Success
     def moveRel(self, xRel = None, yRel= None):
         """
         Moves the motor to a relative position.
@@ -121,31 +117,15 @@ class LudlStage:
             command = "Movrel X = %d" % xRel + self.endOfLine
         else:
             command = "Movrel X = %d Y = %d" % (xRel, yRel) + self.endOfLine
+        print(1)
+        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
+            stage.write(command.encode())
+            stage.flush()
+            stage.close()
+                
+            return True
         
-        success = None
-        failnumber = 0
-        
-#        with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
-#                stage.write(command.encode())
-#                stage.close()
-        
-        while success is None:
-            if failnumber <6:
-                try:
-                    with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
-                            stage.write(command.encode())
-                            stage.flush()
-                            stage.close()
-                    success = True
-                except:
-#                    with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO, timeout = 1) as stage:
-#                        stage.close()
-                    failnumber += 1                    
-                    print('stage moveRel fail, failnumber: {}'.format(failnumber))
-                    time.sleep(0.5)
-            else:
-                success = False
-                            
+    @Try_until_Success
     def home(self):
         """
         Moves to motors toward the end limit switch. This is reached by running
@@ -155,7 +135,8 @@ class LudlStage:
         command = "Home" + self.endOfLine
         with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
             stage.write(command.encode())
-                
+    
+    @Try_until_Success
     def setZero(self):
         """
         Sets the current position as zero position.
@@ -164,6 +145,7 @@ class LudlStage:
         with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
             stage.write(command.encode())
     
+    @Try_until_Success
     def joystick(self, on = True):
         """
         Enable or disable the joystick.
@@ -175,7 +157,8 @@ class LudlStage:
         command = "Joystick X%s Y%s" % (switch, switch) + self.endOfLine
         with serial.Serial(self.address, self.baudrate, stopbits = serial.STOPBITS_TWO) as stage:
             stage.write(command.encode())
-                
+    
+    @Try_until_Success
     def motorsStopped(self):
         """
         Checks if the motors are still running. 
@@ -191,7 +174,8 @@ class LudlStage:
             if status == "N":
                 return True
             return False
-                
+    
+    @Try_until_Success
     def reset(self):
         """
         Resets the whole controller and restart from a power up condition. No
