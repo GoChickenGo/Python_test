@@ -76,7 +76,10 @@ DCAMBUF_ATTACHKIND_TIMESTAMP = 1
 DCAMBUF_ATTACHKIND_FRAMESTAMP = 2
 
 # Specify dcam-api location
-dcam = ctypes.WinDLL(r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Python_test\HamamatsuCam\19_12\dcamapi.dll')
+try:
+    dcam = ctypes.WinDLL(r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Python_test\HamamatsuCam\19_12\dcamapi.dll')
+except:
+    pass
 
 
 # Hamamatsu structures.

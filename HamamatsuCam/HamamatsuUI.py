@@ -22,6 +22,7 @@ import numpy as np
 import ctypes
 import ctypes.util
 import skimage.external.tifffile as skimtiff
+from skimage.measure import block_reduce
 from PIL import Image
 try:
     from HamamatsuDCAM import *
@@ -50,6 +51,8 @@ class CameraUI(QMainWindow):
         self.isLiving = False
         self.isStreaming = False
         self.Live_item_autolevel = True
+        self.ShowROIImgSwitch = False
+        self.ROIselector_ispresented = False
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
@@ -130,6 +133,7 @@ class CameraUI(QMainWindow):
         
         #----------------------------------------------------------------------
         CameraImageFormatContainer = QGroupBox("Image format")
+        CameraImageFormatContainer.setStyleSheet("QGroupBox { background-color:#F5F5F5;}")
         CameraImageFormatLayout = QGridLayout()
         
         self.BinningButtongroup = QButtonGroup(self)
@@ -223,10 +227,20 @@ class CameraUI(QMainWindow):
         self.ShowROISelectorButton.setText("Show ROI Selector")
         self.ShowROISelectorButton.clicked.connect(self.ShowROISelector)
         self.ShowROISelectorButton.setCheckable(True)
-        CameraSettingTab_2.layout.addWidget(self.ShowROISelectorButton, 2, 1, 1, 3)
+        CameraSettingTab_2.layout.addWidget(self.ShowROISelectorButton, 2, 1, 1, 2)
+        
+        self.ShowROIImgButton = QPushButton()
+        self.ShowROIImgButton.setText("Check ROI (R)")
+        self.ShowROIImgButton.setToolTip("Short key: R ")
+        self.ShowROIImgButton.clicked.connect(self.SetShowROIImgSwitch)
+        self.ShowROIImgButton.setShortcut('r')
+        self.ShowROIImgButton.setCheckable(True)
+        self.ShowROIImgButton.setEnabled(False)
+        CameraSettingTab_2.layout.addWidget(self.ShowROIImgButton, 2, 3, 1, 1)
         
         #----------------------------------------------------------------------
         CameraROIPosContainer = QGroupBox("ROI position")
+        CameraROIPosContainer.setStyleSheet("QGroupBox { background-color:#F5F5F5;}")
         CameraROIPosLayout = QGridLayout()
         
         OffsetLabel = QLabel("Offset")
@@ -338,6 +352,8 @@ class CameraUI(QMainWindow):
         CameraSettingTab.addTab(CameraSettingTab_1,"Camera") 
         CameraSettingTab.addTab(CameraSettingTab_2,"ROI")
         CameraSettingTab.addTab(CameraSettingTab_3,"Timing")
+        
+        CameraSettingTab.setStyleSheet('QTabBar { width: 200px; font-size: 8pt; font: bold;}')
         CameraSettingLayout.addWidget(CameraSettingTab, 1, 0, 1, 1)
         
         CameraSettingContainer.setLayout(CameraSettingLayout)
@@ -377,25 +393,33 @@ class CameraUI(QMainWindow):
                                                          padding: 0px 5px 0px 5px;}")
         CamSpectLayout = QGridLayout()
         
-        self.CamFPSLabel = QLabel("Frame rate:     ")
+        self.CamFPSLabel = QLabel("Internal frame rate:     ")
         self.CamFPSLabel.setStyleSheet("QLabel { background-color : azure; color : teal; }")
 #        self.CamFPSLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         CamSpectLayout.addWidget(self.CamFPSLabel, 0, 0, 1, 1)
         
+        self.CamExposureTimeLabel = QLabel("Exposure time:     ")
+        self.CamExposureTimeLabel.setStyleSheet("QLabel { background-color : azure; color : teal; }")
+#        self.CamFPSLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        CamSpectLayout.addWidget(self.CamExposureTimeLabel, 1, 0, 1, 1)
+        
         self.CamReadoutTimeLabel = QLabel("Readout speed:     ")
         self.CamReadoutTimeLabel.setStyleSheet("QLabel { background-color : azure; color : teal; }")
 #        self.CamFPSLabel.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-        CamSpectLayout.addWidget(self.CamReadoutTimeLabel, 1, 0, 1, 1)
+        CamSpectLayout.addWidget(self.CamReadoutTimeLabel, 2, 0, 1, 1)
         
         CamSpecContainer.setFixedHeight(130)
         
         CamSpecContainer.setLayout(CamSpectLayout)
         CameraAcquisitionLayout.addWidget(CamSpecContainer, 0, 0)
         
+        
         #----------------------------------------------------------------------
+        self.AcquisitionROIstackedWidget =  QStackedWidget()
+        
+        #---------------------------AcquisitionTabs----------------------------
         CameraAcquisitionTab = QTabWidget()
         CameraAcquisitionTab.layout = QGridLayout()
-        
         """
         ------------------------------Live tab---------------------------------
         """
@@ -403,29 +427,47 @@ class CameraUI(QMainWindow):
         CameraAcquisitionTab_1.layout = QGridLayout()
         
         CamLiveActionContainer = QGroupBox()
-        CamLiveActionContainer.setFixedHeight(50)
+        CamLiveActionContainer.setFixedHeight(110)
+        CamLiveActionContainer.setStyleSheet("QGroupBox { background-color:#F5F5F5;}")
         CamLiveActionLayout = QGridLayout()
         
-        CamLiveActionLayout.addWidget(QLabel("Status:"), 0, 0)
-        self.LiveButton = StylishQT.MySwitch('LIVING', 'spring green', 'STOPPED', 'indian red', width = 50)
+        self.LiveSwitchLabel = QLabel("Live switch:")
+        self.LiveSwitchLabel.setStyleSheet("QLabel { color : navy; font-size: 10pt; }")
+        self.LiveSwitchLabel.setFixedHeight(45)
+        self.LiveSwitchLabel.setAlignment(Qt.AlignCenter)
+        CamLiveActionLayout.addWidget(self.LiveSwitchLabel, 0, 0)
+        self.LiveButton = StylishQT.MySwitch('LIVING', 'spring green', 'STOPPED', 'indian red', width = 60)
         self.LiveButton.clicked.connect(self.LiveSwitchEvent)
-        CamLiveActionLayout.addWidget(self.LiveButton, 0, 1, 1, 2)   
+        CamLiveActionLayout.addWidget(self.LiveButton, 0, 1, 1, 2)
         
-        SaveLiveImngButton = StylishQT.FancyPushButton(20, 22)
+        SnapImgButton = StylishQT.FancyPushButton(23, 23, color1=(51,153,255), color2=(153,204,153))
+        SnapImgButton.setText("Snap")
+        SnapImgButton.clicked.connect(self.SnapImg)
+        CamLiveActionLayout.addWidget(SnapImgButton, 1, 1, 1, 1)         
+        
+        SaveLiveImgButton = StylishQT.FancyPushButton(23, 23)
 #        SaveLiveImngButton = QPushButton()
-        SaveLiveImngButton.setText("Save image")
-        SaveLiveImngButton.clicked.connect(lambda: self.SaveLiveImg())
-        CamLiveActionLayout.addWidget(SaveLiveImngButton, 0, 3, 1, 1) 
+        SaveLiveImgButton.setText("Save")
+        SaveLiveImgButton.clicked.connect(lambda: self.SaveLiveImg())
+        CamLiveActionLayout.addWidget(SaveLiveImgButton, 1, 2, 1, 1)
         
         CamLiveActionContainer.setLayout(CamLiveActionLayout)
-        CameraAcquisitionTab_1.layout.addWidget(CamLiveActionContainer, 0, 0)
+        CameraAcquisitionTab_1.layout.addWidget(CamLiveActionContainer, 0, 0, 1, 4)
+        
+        self.LiveImgViewResetButton = QPushButton()
+        self.LiveImgViewResetButton.setText("Reset ImageView")
+        self.LiveImgViewResetButton.clicked.connect(self.ResetLiveImgView)
+        CameraAcquisitionTab_1.layout.addWidget(self.LiveImgViewResetButton, 1, 0, 1, 2)
         
         self.LiveAutoLevelSwitchButton = QPushButton()
-        self.LiveAutoLevelSwitchButton.setText("Auto Level")
+        self.LiveAutoLevelSwitchButton.setText("Auto Level(A)")
+        self.LiveAutoLevelSwitchButton.setShortcut('a')
         self.LiveAutoLevelSwitchButton.clicked.connect(self.AutoLevelSwitchEvent)
         self.LiveAutoLevelSwitchButton.setCheckable(True)
         self.LiveAutoLevelSwitchButton.setChecked(True)
-        CameraAcquisitionTab_1.layout.addWidget(self.LiveAutoLevelSwitchButton, 1,0)        
+        CameraAcquisitionTab_1.layout.addWidget(self.LiveAutoLevelSwitchButton, 1, 2, 1, 2)
+        
+
         
         CameraAcquisitionTab_1.setLayout(CameraAcquisitionTab_1.layout)
         
@@ -491,6 +533,7 @@ class CameraUI(QMainWindow):
         CameraAcquisitionTab_2.layout.addWidget(ApplyStreamSettingButton, 5, 2)     
         
         self.StartStreamButton = QPushButton()
+        self.StartStreamButton.setToolTip("Stream")
         self.StartStreamButton.setIcon(QIcon('./Icons/StartStreaming.png'))        
         self.StartStreamButton.setCheckable(True)
         self.StartStreamButton.clicked.connect(self.StreamingSwitchEvent)
@@ -499,15 +542,6 @@ class CameraUI(QMainWindow):
         """
         ------------------------Acquisition status-----------------------------
         """
-#        CamStreamProgressContainer = QGroupBox()
-#        CamStreamProgressContainer.layout = QGridLayout()
-#        CamStreamProgressContainer.setStyleSheet("QGroupBox {\
-#                                                    border: 1px solid silver;\
-#                                                    border-width: 1px; \
-#                                                    border-radius: 2px;\
-#                                                    margin-top: 0px;\
-#                                                    color:Navy}")
-#        CamStreamProgressContainer.setFixedHeight(50)
 
         self.CamStreamIsFree = QLabel("No Stream Activity")
         self.CamStreamIsFree.setStyleSheet("QLabel { background-color : azure; color : teal; font: bold;}")
@@ -566,7 +600,35 @@ class CameraUI(QMainWindow):
         
         CameraAcquisitionTab.addTab(CameraAcquisitionTab_1,"Live")
         CameraAcquisitionTab.addTab(CameraAcquisitionTab_2,"Stream")
-        CameraAcquisitionLayout.addWidget(CameraAcquisitionTab, 1, 0)
+        CameraAcquisitionTab.setStyleSheet('QTabBar { width: 200px; font-size: 8pt; font: bold; color: #003366}')
+        self.AcquisitionROIstackedWidget.addWidget(CameraAcquisitionTab)
+        
+        """
+        #----------------------------Check ROI---------------------------------
+        """
+        ShowROIWidgetContainer = QGroupBox()
+#        LiveWidgetContainer.setMaximumHeight(920)
+#        LiveWidgetContainer.setMaximumWidth(950)
+        ShowROIWidgetContainerLayout = QGridLayout()
+        
+        self.ShowROIWidget = pg.ImageView()
+        self.ShowROIitem = self.ShowROIWidget.getImageItem() #setLevels
+        self.ShowROIview = self.ShowROIWidget.getView()
+        self.ShowROIitem.setAutoDownsample("subsample")
+        
+        self.ShowROIWidget.ui.roiBtn.hide()
+        self.ShowROIWidget.ui.menuBtn.hide() 
+        self.ShowROIWidget.ui.normGroup.hide()
+        self.ShowROIWidget.ui.roiPlot.hide()
+        self.ShowROIWidget.ui.histogram.hide()
+
+        ShowROIWidgetContainerLayout.addWidget(self.ShowROIWidget, 1, 0)
+        ShowROIWidgetContainer.setLayout(ShowROIWidgetContainerLayout)
+        
+        self.AcquisitionROIstackedWidget.addWidget(ShowROIWidgetContainer)
+        #----------------------------------------------------------------------
+        self.AcquisitionROIstackedWidget.setCurrentIndex(0)
+        CameraAcquisitionLayout.addWidget(self.AcquisitionROIstackedWidget, 1, 0)
         
         CameraAcquisitionContainer.setLayout(CameraAcquisitionLayout)
         MainWinCentralWidget.layout.addWidget(CameraAcquisitionContainer, 1, 0)
@@ -579,9 +641,9 @@ class CameraUI(QMainWindow):
         # =============================================================================        
         """
         LiveWidgetContainer = QGroupBox()
-        LiveWidgetContainer.setMaximumHeight(920)
-        LiveWidgetContainer.setMaximumWidth(950)
-        LiveWidgetLayout = QGridLayout()
+        # LiveWidgetContainer.setMaximumHeight(920)
+        # LiveWidgetContainer.setMaximumWidth(950)
+        self.LiveWidgetLayout = QGridLayout()
         
         self.LiveWidget = pg.ImageView()
         self.Live_item = self.LiveWidget.getImageItem() #setLevels
@@ -593,9 +655,9 @@ class CameraUI(QMainWindow):
         self.LiveWidget.ui.normGroup.hide()
         self.LiveWidget.ui.roiPlot.hide()
         
-        LiveWidgetLayout.addWidget(self.LiveWidget, 1, 0)
+        self.LiveWidgetLayout.addWidget(self.LiveWidget, 1, 0)
         
-        LiveWidgetContainer.setLayout(LiveWidgetLayout)
+        LiveWidgetContainer.setLayout(self.LiveWidgetLayout)
         MainWinCentralWidget.layout.addWidget(LiveWidgetContainer, 0, 1, 2, 2)
         
         MainWinCentralWidget.setLayout(MainWinCentralWidget.layout)
@@ -645,6 +707,7 @@ class CameraUI(QMainWindow):
             self.hcam.setPropertyValue("binning", "1x1")
             # Get current exposure time and set to the spinbox
             self.CamExposureTime = self.hcam.getPropertyValue("exposure_time")[0]
+            self.CamExposureTimeText = str(self.CamExposureTime).replace(".", "p")
             self.CamExposureBox.setValue(round(self.CamExposureTime, 6))
             
             self.GetKeyCameraProperties()
@@ -656,10 +719,8 @@ class CameraUI(QMainWindow):
                 self.hcam.setPropertyValue("subarray_mode", "ON")
                 self.SubArrayModeSwitchButton.setChecked(True)                
 
-            # Get the frame rate and update in the tag        
-            self.CamFPSLabel.setText("Frame rate: {}".format(round(self.internal_frame_rate, 6)))
-            # Get the readout time and update in the tag       
-            self.CamReadoutTimeLabel.setText("Readout speed: {}".format(round(self.timing_readout_time, 6)))
+            self.UpdateStatusLabel()
+
             # Get the trigger active button updated
             if self.trigger_source == "INTERNAL":
                 self.TriggerButton_1.setChecked(True)
@@ -770,7 +831,10 @@ class CameraUI(QMainWindow):
         # Get the Readout time and update in the tag
         self.timing_readout_time = self.hcam.getPropertyValue("timing_readout_time")[0]        
         self.CamReadoutTimeLabel.setText("Readout speed: {}".format(round(1/self.timing_readout_time, 2)))
-    
+        # Get the exposure time
+        self.CamExposureTime = self.hcam.getPropertyValue("exposure_time")[0]
+        self.CamExposureTimeLabel.setText("Exposure time: {}".format(round(self.CamExposureTime, 5)))
+        
     def GeneralsetPropertyValue(self, property_name, property_value):
         self.hcam.setPropertyValue(property_name, property_value)
         
@@ -859,23 +923,78 @@ class CameraUI(QMainWindow):
         """            
     def ShowROISelector(self):
         if self.ShowROISelectorButton.isChecked():
+            self.ShowROIImgButton.setEnabled(True)
+            self.ROIselector_ispresented = True
+            
+            # Wait for ImageView to update a full-sized image
+            time.sleep(0.1)
+        
+            ROIpen = QPen()  # creates a default pen
+            ROIpen.setStyle(Qt.DashDotLine)
+            ROIpen.setWidth(0.5)
+            ROIpen.setBrush(QColor(0,191,255))
+            
             try:                            # Initialize the position and size of the ROI widget.
-                self.ROIWidget = pg.RectROI([self.hcam.getPropertyValue("subarray_hsize")[0]/4,self.hcam.getPropertyValue("subarray_vsize")[0]/4],
-                                            [self.hcam.getPropertyValue("subarray_hsize")[0]/2,self.hcam.getPropertyValue("subarray_vsize")[0]/2],
-                                            pen=(0,9))
+                if self.hcam.getPropertyValue("subarray_hsize")[0] == 2048 and self.hcam.getPropertyValue("subarray_vsize")[0] == 2048:
+                    
+                    if self.ROI_vpos_spinbox.value() == 0 and self.ROI_vsize_spinbox.value() == 2048: 
+                        # If it's the first time opening ROI selector, respawn it at a imageview center.
+                        self.ROIitem = pg.RectROI([924,924],
+                                                  [200,200],
+                                                  pen=ROIpen)
+                        ## Create text object, use HTML tags to specify color/size
+                        self.ROIitemText = pg.TextItem \
+                        (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
+                            font-size: 10pt;">0</span></div>', anchor=(1, 1))
+                        self.ROIitemText.setPos(924, 924)
+                        
+                    else: 
+                        # If in the ROI position spinboxes there are numbers left from last ROI selection
+                        self.ROIitem = pg.RectROI([self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value()],
+                                                  [self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()],
+                                                  pen=ROIpen)
+                        ## Create text object, use HTML tags to specify color/size
+                        self.ROIitemText = pg.TextItem \
+                        (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
+                            font-size: 10pt;">0</span></div>', anchor=(1, 1))
+                        self.ROIitemText.setPos(self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value())                   
+                        
+                        
+                else:                       # If the camera is already in subarray mode        
+                    self.ROIitem = pg.RectROI([self.hcam.getPropertyValue("subarray_hpos")[0],self.hcam.getPropertyValue("subarray_vpos")[0]],
+                                                [self.hcam.getPropertyValue("subarray_hsize")[0],self.hcam.getPropertyValue("subarray_vsize")[0]],
+                                                pen=ROIpen)
+                    ## Create text object, use HTML tags to specify color/size
+                    self.ROIitemText = pg.TextItem \
+                    (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
+                        font-size: 10pt;">0</span></div>', anchor=(1, 1))
+                    self.ROIitemText.setPos(self.hcam.getPropertyValue("subarray_hpos")[0],self.hcam.getPropertyValue("subarray_vpos")[0])
             except:
-                self.ROIWidget = pg.RectROI([0,0], [200,200], pen=(0,9))
+                self.ROIitem = pg.RectROI([0,0], [200,200], pen=ROIpen)
+                ## Create text object, use HTML tags to specify color/size
+                self.ROIitemText = pg.TextItem \
+                (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
+                    font-size: 10pt;">0</span></div>', anchor=(0, 0))
                 
-            self.Live_view.addItem(self.ROIWidget)# add ROIs to main image    
-            self.ROIWidget.maxBounds= QRectF(0,0,2048,2048) 
+            self.Live_view.addItem(self.ROIitem)# add ROIs to main image    
+            self.ROIitem.maxBounds= QRectF(0,0,2048,2048) 
             #setting the max ROI bounds to be within the camera resolution
             
-            self.ROIWidget.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates) 
+            self.ROIitem.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates)
             #This function ensures the spinboxes show the actual roi coordinates
+            
+#            #Note that clicking is disabled by default to prevent stealing clicks from objects behind the ROI. 
+#            self.ROIitem.setAcceptedMouseButtons(Qt.LeftButton)
+#            self.ROIitem.sigClicked.connect(self.ShowROIImage)
+            
+            self.Live_view.addItem(self.ROIitemText)            
         else:
-            self.Live_view.removeItem(self.ROIWidget)
-    
-    #------------------------------ROI part from Douwe-------------------------
+            self.ShowROIImgButton.setEnabled(False)
+            self.Live_view.removeItem(self.ROIitem)
+            self.Live_view.removeItem(self.ROIitemText)
+            self.ROIselector_ispresented = False
+            
+    #-----------------------Center ROI part from Douwe-------------------------
     def set_roi_flag(self):
         if self.center_roiButton.isChecked():
             self.ROI_vpos_spinbox.setReadOnly(True)
@@ -887,56 +1006,75 @@ class CameraUI(QMainWindow):
             settings for example.)
             """
             # self.SetROI()
-            self.ROIWidget.sigRegionChanged.connect(lambda: self.center_roi()) 
+            self.ROIitem.sigRegionChanged.connect(lambda: self.center_roi()) 
             #setting the ROI to the center every move
             """
             If the ROI centering performs poorly it is also possible to use the 
-            sigRegionChangeFinished() function. I like this better for now.
+            sigRegionChanged() function. I like this better for now.
             """
         
         else:
             self.ROI_vpos_spinbox.setReadOnly(False)
-            self.ROIWidget.sigRegionChanged.disconnect() 
+            self.ROIitem.sigRegionChanged.disconnect() 
             '''
             I do not know how to disconnect one specific function, so I 
             disconnect both and then reconnect the update_ROI_spinbox_coordinates 
             function.
             '''
-            self.ROIWidget.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates)
+            self.ROIitem.sigRegionChanged.connect(self.update_ROI_spinbox_coordinates)
 
     def update_ROI_spinbox_coordinates(self):
-        self.ROI_hpos = int(self.ROIWidget.pos()[0])
-        self.ROI_vpos = int(self.ROIWidget.pos()[1])
-        self.ROI_vsize = int(self.ROIWidget.size()[1])
-        self.ROI_hsize = int(self.ROIWidget.size()[0])
+        self.ROI_hpos = int(self.ROIitem.pos()[0])
+        self.ROI_vpos = int(self.ROIitem.pos()[1])
+        self.ROI_vsize = int(self.ROIitem.size()[1])
+        self.ROI_hsize = int(self.ROIitem.size()[0])
         
         self.ROI_hpos_spinbox.setValue(self.ROI_hpos)
         self.ROI_vpos_spinbox.setValue(self.ROI_vpos)
         self.ROI_hsize_spinbox.setValue(self.ROI_hsize)
         self.ROI_vsize_spinbox.setValue(self.ROI_vsize)
-      
+        
+        self.update_ROI_estimateMaxFps()
+        
+    def update_ROI_estimateMaxFps(self):
+        self.ROIupperRowDis = abs(1024 - self.ROI_vpos)
+        self.ROIlowerRowDis = abs(1024 - self.ROI_vpos - self.ROI_vsize)
+        self.ROIEstimatedMaxFPS = 1 / (max(self.ROIupperRowDis, self.ROIlowerRowDis) * 0.00000976)
+        
+        try:
+            self.Live_view.removeItem(self.ROIitemText)
+        except:
+            pass
+        
+        ## Create text object, use HTML tags to specify color/size
+        self.ROIitemText = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
+            font-size: 10pt;">{}</span></div>'.format(round(self.ROIEstimatedMaxFPS, 2)), anchor=(1, 1))
+        self.ROIitemText.setPos(self.ROI_hpos,self.ROI_vpos)
+        self.Live_view.addItem(self.ROIitemText)
+        
     def spin_value_changed(self):
         
         if self.ROI_hsize_spinbox.value() != self.ROI_hsize or self.ROI_vsize_spinbox.value() != self.ROI_vsize:
 
-            self.ROIWidget.setSize([self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()])
+            self.ROIitem.setSize([self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()])
         
         
         if self.center_roiButton.isChecked():
             if self.ROI_hpos_spinbox.value() != self.ROI_hpos:
-                self.ROIWidget.setPos(self.ROI_hpos_spinbox.value())
+                self.ROIitem.setPos(self.ROI_hpos_spinbox.value())
         else:
             if self.ROI_hpos_spinbox.value() != self.ROI_hpos or self.ROI_vpos_spinbox.value() != self.ROI_vpos:
-                self.ROIWidget.setPos(self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value())
+                self.ROIitem.setPos(self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value())
                 
         self.UpdateStatusLabel()
+        self.update_ROI_estimateMaxFps()
         
     #----------------------------ROI centering functions-----------------------
     def center_roi(self):
         
         self.v_center = int(self.center_frame-0.5*self.ROI_vsize)
         if  self.ROI_vpos != self.v_center:
-           self.ROIWidget.setPos(self.ROI_hpos, self.v_center)
+           self.ROIitem.setPos(self.ROI_hpos, self.v_center)
            self.update_ROI_spinbox_coordinates()
     #--------------------------------------------------------------------------
     
@@ -945,7 +1083,9 @@ class CameraUI(QMainWindow):
         if self.isLiving == True:
             self.StopLIVE()
         # Remove the ROI
-        self.Live_view.removeItem(self.ROIWidget)
+        self.Live_view.removeItem(self.ROIitem)
+        self.Live_view.removeItem(self.ROIitemText)
+        self.ROIselector_ispresented = False
         
         self.ROI_hsize = self.ROI_hsize_spinbox.value()
         self.ROI_vsize = self.ROI_vsize_spinbox.value()
@@ -993,8 +1133,20 @@ class CameraUI(QMainWindow):
         # Auto scale and pan the view around the image such that the image fills the view.    
         # self.LiveWidget.autoRange()
         self.UpdateStatusLabel()
-        
+        self.ShowROISelectorButton.setChecked(False)
+        self.ShowROIImgButton.setEnabled(False)
         self.LiveSwitchEvent()
+        
+    def SetShowROIImgSwitch(self):
+        if self.ShowROIImgButton.isChecked():
+            self.AcquisitionROIstackedWidget.setCurrentIndex(1)
+            self.ShowROIImgSwitch = True
+#            .setImage(self.ROIitem.getArrayRegion(image, self.Live_item), autoLevels=False)
+        else:
+            self.AcquisitionROIstackedWidget.setCurrentIndex(0)
+            self.ShowROIImgSwitch = False
+            # self.Live_view.addItem(self.ROIitem)
+            
         """
         # =============================================================================
         #                               LIVE functions
@@ -1002,6 +1154,13 @@ class CameraUI(QMainWindow):
         """            
     def LiveSwitchEvent(self):
         if self.LiveButton.isChecked():
+            try:
+                # self.LiveWidget.scene.clear()
+                # self.Live_view.addItem(self.Live_item)
+                self.ResetLiveImgView()
+            except:
+               print('clear failed.')
+                
             StartLiveThread = threading.Thread(target = self.LIVE)
             StartLiveThread.start()
         else:
@@ -1024,7 +1183,14 @@ class CameraUI(QMainWindow):
         while self.isLiving == True: 
             [frames, dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
             self.Live_image = np.resize(frames[-1].np_array, (dims[1], dims[0]))
-            time.sleep(0.04) # 25 hz refreshing rate
+            
+            self.subarray_vsize = dims[1]
+            self.subarray_hsize = dims[0]
+            
+            if dims[1] >= 1800 and dims[0] >= 1800:
+                time.sleep(0.05) # 20 hz refreshing rate
+            else:
+                time.sleep(0.033)
             self.UpdateScreen(self.Live_image)
         
     def StopLIVE(self):
@@ -1036,21 +1202,89 @@ class CameraUI(QMainWindow):
         files_types = "Tif (*.tif);;Pickle (*.pickle);;YAML (*.yml)"
         options = QFileDialog.Options()
         filename, _ = QFileDialog.getSaveFileName(
-                    self, 'Save as... File', 'untitled.tif', filter=files_types,options=options)
+                    self, 'Save as... File', 'InterFps_{}.tif'.format(int(self.internal_frame_rate)), filter=files_types,options=options)
         if len(filename) > 3:
             Localimg = Image.fromarray(self.Live_image) #generate an image object
             Localimg.save(filename) #save as tif
         
     def UpdateScreen(self, image):
         if self.Live_item_autolevel == True:
-            self.Live_item.setImage(image, autoLevels=None)
+            # Down sample the image when it's larger than 1080 * 1080
+            if self.subarray_vsize == 2048 and self.subarray_hsize == 2048 and self.ROIselector_ispresented == False:
+                
+                self.Live_item.setImage(block_reduce(image, block_size=(2,2), func=np.mean, cval=np.mean(image)), autoLevels=None)
+            else:
+                self.Live_item.setImage(image, autoLevels=None)
+                
         elif self.Live_item_autolevel == False:
             """
             Set image scaling levels. Can be one of:
                 [blackLevel, whiteLevel]
                 [[minRed, maxRed], [minGreen, maxGreen], [minBlue, maxBlue]]
             """
-            self.Live_item.setImage(image, autoLevels=False)
+            
+            if self.subarray_vsize == 2048 and self.subarray_hsize == 2048 and self.ROIselector_ispresented == False:
+                
+                self.Live_item.setImage(block_reduce(image, block_size=(2,2), func=np.mean, cval=np.mean(image)), autoLevels=False)
+            else:
+                self.Live_item.setImage(image, autoLevels=False)
+        
+        # Update ROI checking screen
+        if self.ShowROIImgSwitch == True:
+            self.ShowROIitem.setImage(self.ROIitem.getArrayRegion(image, self.Live_item), autoLevels=None)
+#            self.ShowROIitem.setAutoDownsample("subsample")
+            
+    def SnapImg(self):
+        self.StartStream_Thread = threading.Thread(target = self.SNAP)
+        self.StartStream_Thread.start()
+            
+    def SNAP(self):
+        """
+        It's actually start acquisition with buffer being 1 image.
+        """
+        if self.isStreaming == False and self.isLiving == False:
+            self.hcam.setACQMode("fixed_length", number_frames = 1)
+            self.hcam.startAcquisition()              
+            # Start pulling out frames from buffer
+            self.video_list = []
+            self.imageCount = 0 # The actual frame number that gets recorded.
+            for _ in range(1): # Record for range() number of images.
+                [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+                for aframe in frames:
+                    self.video_list.append(aframe.np_array)
+                    self.imageCount += 1
+                
+            self.SnapImage = np.resize(self.video_list[-1], (self.dims[1], self.dims[0]))
+            
+            self.hcam.stopAcquisition()
+            
+            self.UpdateScreen(self.SnapImage)
+            
+        elif self.isStreaming == False and self.isLiving == True:
+            
+            self.hcam.stopAcquisition()
+                
+            self.SnapImage = self.Live_image
+                  
+            self.UpdateScreen(self.SnapImage)
+            
+    def ResetLiveImgView(self):
+        """Closes the widget nicely, making sure to clear the graphics scene and release memory."""
+        self.LiveWidget.close()
+        
+        # Replot the imageview
+        self.LiveWidget = pg.ImageView()
+        self.Live_item = self.LiveWidget.getImageItem() #setLevels
+        self.Live_view = self.LiveWidget.getView()
+        self.Live_item.setAutoDownsample(True)
+        
+        self.LiveWidget.ui.roiBtn.hide()
+        self.LiveWidget.ui.menuBtn.hide() 
+        self.LiveWidget.ui.normGroup.hide()
+        self.LiveWidget.ui.roiPlot.hide()
+        
+        self.LiveWidgetLayout.addWidget(self.LiveWidget, 1, 0)
+        
             
     def closeEvent(self, event):
         try:
@@ -1070,7 +1304,7 @@ class CameraUI(QMainWindow):
         files_types = "Tif (*.tif);;Pickle (*.pickle);;YAML (*.yml)"
         options = QFileDialog.Options()
         self.Streamfilename, _ = QFileDialog.getSaveFileName(
-                    self, 'Save as... File', 'untitled.tif', filter=files_types,options=options)
+                    self, 'Save as... File', 'InternalFps_{}.tif'.format(int(self.internal_frame_rate)), filter=files_types,options=options)
         
         if len(self.Streamfilename) > 35:
             self.Streamdirectorytextbox.setText('...' + self.Streamfilename[len(self.Streamfilename)-35:len(self.Streamfilename)])
@@ -1082,6 +1316,8 @@ class CameraUI(QMainWindow):
         self.StreamBufferTotalFrames_spinbox.setValue(self.BufferNumber)
         
     def SetStreamSpecs(self):
+        self.UpdateStatusLabel()
+        
         if self.CamStreamActionContainer.isEnabled():
             self.CamStreamActionContainer.setEnabled(False)
             self.Streamdirectorytextbox.setEnabled(False)
@@ -1124,7 +1360,7 @@ class CameraUI(QMainWindow):
             self.StartStreamButton.setEnabled(False)
             self.CamStreamActionContainer.setEnabled(False)
             
-            self.StopStream_Thread = threading.Thread(target = self.StopStreaming)
+            self.StopStream_Thread = threading.Thread(target = self.StopStreaming, args=(True,))
             self.StopStream_Thread.start()            
             
     def StartStreaming(self, StopSignal, BufferNumber, StreamDuration):
@@ -1132,14 +1368,15 @@ class CameraUI(QMainWindow):
             # Duration hard limit:
             if StopSignal == "Time":
                 # Set the timeout timer.
-                self.StreamDuration_timer = QTimer()
-                self.StreamDuration_timer.setSingleShot(True)
-                self.StreamDuration_timer.timeout.connect(self.StopStreamingThread)
+#                self.StreamDuration_timer = QTimer()
+#                self.StreamDuration_timer.setSingleShot(True)
+#                self.StreamDuration_timer.timeout.connect(self.StopStreamingThread)
                 self.isStreaming = True
                 
                 self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
                 self.hcam.startAcquisition()
-                self.StreamDuration_timer.start(StreamDuration*1000) # Starts or restarts the timer with a timeout of duration msec milliseconds.                
+                QTimer.singleShot(StreamDuration*1000, self.StopStreamingThread)
+#                self.StreamDuration_timer.start(StreamDuration*1000) # Starts or restarts the timer with a timeout of duration msec milliseconds.                
                 
                 # Start pulling out frames from buffer
                 self.video_list = []
@@ -1171,7 +1408,7 @@ class CameraUI(QMainWindow):
                         
                 self.StopStreamingThread()
                 
-    def StopStreaming(self):
+    def StopStreaming(self, saveFile):
         # Stop the acquisition
         AcquisitionEndTime = time.time()
         print("Frames acquired: " + str(self.imageCount))
@@ -1182,19 +1419,20 @@ class CameraUI(QMainWindow):
         self.StreamBusymovie.stop()
         self.StreamStatusStackedWidget.setCurrentIndex(2)
         
-        # Save the file.
-        with skimtiff.TiffWriter(self.Streamfilename, append = True, imagej = True)\
-        as tif:                
-            write_starttime = time.time()
-            for eachframe in range(self.imageCount): 
-                image = np.resize(self.video_list[eachframe], (self.dims[1], self.dims[0]))
-                tif.save(image, compress=0)
-                #---------Update file saving progress bar------------
-                if eachframe/self.imageCount*100 - int(eachframe/self.imageCount*100) <= 0.1:
-                    self.CamStreamSaving_progressbar.setValue(int(eachframe/self.imageCount*100))
-                
-        print("Done writing " + str(self.imageCount) + " frames, recorded for "\
-        + str(round(AcquisitionEndTime,2)) + " seconds, saving video takes {} seconds.".format(round(time.time()-write_starttime, 2)))
+        if saveFile == True:
+            # Save the file.
+            with skimtiff.TiffWriter(self.Streamfilename, append = True, imagej = True)\
+            as tif:                
+                write_starttime = time.time()
+                for eachframe in range(self.imageCount): 
+                    image = np.resize(self.video_list[eachframe], (self.dims[1], self.dims[0]))
+                    tif.save(image, compress=0)
+                    #---------Update file saving progress bar------------
+                    if eachframe/self.imageCount*100 - int(eachframe/self.imageCount*100) <= 0.1:
+                        self.CamStreamSaving_progressbar.setValue(int(eachframe/self.imageCount*100))
+                    
+            print("Done writing " + str(self.imageCount) + " frames, recorded for "\
+            + str(round(AcquisitionEndTime,2)) + " seconds, saving video takes {} seconds.".format(round(time.time()-write_starttime, 2)))
         
         
         self.StartStreamButton.setEnabled(True)
