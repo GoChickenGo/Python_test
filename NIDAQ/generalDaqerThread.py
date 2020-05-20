@@ -349,7 +349,7 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
         
             """
             # =============================================================================
-            #         Only Dev 2 is involved
+            #         Only Dev 2 is involved  in sending analog signals
             # =============================================================================
             """
         elif self.OnlyDev2AnalogInvolved == True:
@@ -712,11 +712,6 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
         self.readinchannels=readinchannels
         self.Daq_sample_rate = samplingrate
         
-        # some preparations for analog lines
-        self.Totalscansamplesnumber = len(self.analogsignals['Waveform'][0])
-        num_rows, num_cols = self.analogsignals['Waveform'].shape
-        print("row number of analog signals:  "+str(num_rows))
-        
         # Get the average number and y pixel number information from data
         self.averagenumber = 0
         self.ypixelnumber = 0
@@ -743,13 +738,15 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
         self.analogwritesamplesdev1 = []
         self.analogwritesamplesdev2 = []
         
-        for i in range(int(num_rows)):
-            if 'Dev1' in self.configdictionary[self.analogsignals['Sepcification'][i]]:
-                self.analogwritesamplesdev1_Sepcification.append(self.configdictionary[self.analogsignals['Sepcification'][i]])
-                self.analogwritesamplesdev1.append(self.analogsignals['Waveform'][i])
-            else:
-                self.analogwritesamplesdev2_Sepcification.append(self.configdictionary[self.analogsignals['Sepcification'][i]])
-                self.analogwritesamplesdev2.append(self.analogsignals['Waveform'][i])
+        if len(self.analogsignals['Waveform']) != 0:
+            num_rows, num_cols = self.analogsignals['Waveform'].shape
+            for i in range(int(num_rows)):
+                if 'Dev1' in self.configdictionary[self.analogsignals['Sepcification'][i]]:
+                    self.analogwritesamplesdev1_Sepcification.append(self.configdictionary[self.analogsignals['Sepcification'][i]])
+                    self.analogwritesamplesdev1.append(self.analogsignals['Waveform'][i])
+                else:
+                    self.analogwritesamplesdev2_Sepcification.append(self.configdictionary[self.analogsignals['Sepcification'][i]])
+                    self.analogwritesamplesdev2.append(self.analogsignals['Waveform'][i])
                 
         self.analogsignal_dev1_number = len(self.analogwritesamplesdev1_Sepcification)
         self.analogsignal_dev2_number = len(self.analogwritesamplesdev2_Sepcification)
@@ -861,7 +858,12 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                         #slave_Task_2_digitallines.do_channels.add_do_chan(self.configdictionary[digitalsignals['Sepcification'][i]], line_grouping=LineGrouping.CHAN_PER_LINE)#line_grouping??????????????One Channel For Each Line
                 slave_Task_2_digitallines.do_channels.add_do_chan("/Dev1/port0", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                 
-                self.Dataholder = np.zeros((len(self.readinchannels), self.Totalscansamplesnumber))
+                if self.if_theres_readin_channel == True:
+                    self.Dataholder = np.zeros((len(self.readinchannels), self.Totalscansamplesnumber))
+                else:
+                    self.Dataholder = np.zeros((1, self.Totalscansamplesnumber))
+                    master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['Vp']) # If no read-in channel is added, vp channel is added to keep code alive.
+
                 print(self.Dataholder.shape)
                 if 'PMT' in self.readinchannels:
                     master_Task_readin.ai_channels.add_ai_voltage_chan(self.configdictionary['PMT'])
@@ -963,24 +965,26 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                 
                 reader.read_many_sample(data = self.Dataholder, number_of_samples_per_channel =  self.Totalscansamplesnumber, timeout=60.0)            
                 
-                slave_Task_1_analog_dev1.wait_until_done()
-                if self.analogsignal_dev2_number != 0:
-                    slave_Task_1_analog_dev2.wait_until_done()
-                if self.digitalsignalslinenumber != 0:
-                    slave_Task_2_digitallines.wait_until_done()                
-                master_Task_readin.wait_until_done()
                 
-                slave_Task_1_analog_dev1.stop()
-                if self.analogsignal_dev2_number != 0:
-                    slave_Task_1_analog_dev2.stop()
-                if self.digitalsignalslinenumber != 0:
-                    slave_Task_2_digitallines.stop()
-                master_Task_readin.stop()
+                # wait_until_done will cause error here.
+                # slave_Task_1_analog_dev1.wait_until_done()
+                # if self.analogsignal_dev2_number != 0:
+                #     slave_Task_1_analog_dev2.wait_until_done()
+                # if self.digitalsignalslinenumber != 0:
+                #     slave_Task_2_digitallines.wait_until_done()                
+                # master_Task_readin.wait_until_done()
                 
-                if self.if_theres_readin_channel == True:
-                    self.collected_data.emit(self.Dataholder)
+                # slave_Task_1_analog_dev1.stop()
+                # if self.analogsignal_dev2_number != 0:
+                #     slave_Task_1_analog_dev2.stop()
+                # if self.digitalsignalslinenumber != 0:
+                #     slave_Task_2_digitallines.stop()
+                # master_Task_readin.stop()
+                
+
                 print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
-                
+                if self.if_theres_readin_channel == True:
+                    self.collected_data.emit(self.Dataholder)               
                 
             # set the keys of galvos back for next round
             for i in range(len(self.analogsignals['Sepcification'])):
@@ -991,7 +995,7 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                     
             """
             # =============================================================================
-            #         Only Dev 2 is involved
+            #         Only Dev 2 is involved in sending analog signals
             # =============================================================================
             """
         elif self.OnlyDev2AnalogInvolved == True:
@@ -1048,7 +1052,7 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                         slave_Task_1_analog_dev2.ao_channels.add_ao_voltage_chan(self.analogwritesamplesdev2_Sepcification[i])
                     
                     dev2Clock = self.configs.clock2Channel#/Dev2/PFI1
-                    slave_Task_1_analog_dev2.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
+                    slave_Task_1_analog_dev2.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=dev2Clock, sample_mode= AcquisitionType.FINITE, samps_per_chan=self.Totalscansamplesnumber)
                     slave_Task_1_analog_dev2.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
                     AnalogWriter_dev2 = nidaqmx.stream_writers.AnalogMultiChannelWriter(slave_Task_1_analog_dev2.out_stream, auto_start= False)
                     AnalogWriter_dev2.auto_start = False
@@ -1085,23 +1089,23 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                 reader.read_many_sample(data = self.Dataholder, number_of_samples_per_channel =  self.Totalscansamplesnumber, timeout=605.0)            
                 #self.data_PMT = []
                 
-                if self.analogsignal_dev2_number != 0:
-                    slave_Task_1_analog_dev2.wait_until_done()
-                if self.digitalsignalslinenumber != 0:
-                    slave_Task_2_digitallines.wait_until_done()                
-                master_Task_readin.wait_until_done()
+                # if self.analogsignal_dev2_number != 0:
+                #     slave_Task_1_analog_dev2.wait_until_done()
+                # if self.digitalsignalslinenumber != 0:
+                #     slave_Task_2_digitallines.wait_until_done()                
+                # master_Task_readin.wait_until_done()
                 
-                if self.analogsignal_dev2_number != 0:
-                    slave_Task_1_analog_dev2.stop()
-                if self.digitalsignalslinenumber != 0:
-                    slave_Task_2_digitallines.stop()
-                master_Task_readin.stop()
+                # if self.analogsignal_dev2_number != 0:
+                #     slave_Task_1_analog_dev2.stop()
+                # if self.digitalsignalslinenumber != 0:
+                #     slave_Task_2_digitallines.stop()
+                # master_Task_readin.stop()
                 
+
+                print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
                 if self.if_theres_readin_channel == True:
                     self.collected_data.emit(self.Dataholder)
-                self.finishSignal.emit()
-                print('^^^^^^^^^^^^^^^^^^Daq tasks finish^^^^^^^^^^^^^^^^^^')
-                
+                self.finishSignal.emit()                
                 
             # set the keys of galvos back for next round
             for i in range(len(self.analogsignals['Sepcification'])):
@@ -1109,6 +1113,72 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                     self.analogsignals['Sepcification'][i] = self.galvosx_originalkey
                 elif 'galvosy' in self.analogsignals['Sepcification'][i]:
                     self.analogsignals['Sepcification'][i] = self.galvosy_originalkey
+                    
+            """
+            # =============================================================================
+            #         Only digital signals
+            # =============================================================================
+            """                    
+        elif self.OnlyDigitalInvolved == True:
+            
+            self.cam_trigger_receiving_port = '/Dev1/PFI0'
+            # some preparations for digital lines
+            Totalscansamplesnumber = len(self.digitalsignals['Waveform'][0])
+            
+            digitalsignalslinenumber = len(self.digitalsignals['Waveform'])
+                    
+            # Stack the digital samples        
+            if digitalsignalslinenumber == 1:
+                holder2 = np.array([self.digitalsignals['Waveform'][0]])
+    
+            elif digitalsignalslinenumber == 0:
+                holder2 = []
+            else:
+                holder2 = self.digitalsignals['Waveform'][0]
+                for i in range(1, digitalsignalslinenumber):
+                    holder2 = np.vstack((holder2, self.digitalsignals['Waveform'][i]))
+            
+            # Set the dtype of digital signals
+            #
+            holder2 = np.array(holder2, dtype = 'uint32')        
+            for i in range(digitalsignalslinenumber):
+                convernum = int(self.configdictionary[self.digitalsignals['Sepcification'][i]][self.configdictionary[self.digitalsignals['Sepcification'][i]].index('line')+4:len(self.configdictionary[self.digitalsignals['Sepcification'][i]])])
+                print(convernum)
+                holder2[i] = holder2[i]*(2**(convernum))
+            # For example, to send commands to line 0 and line 3, you hava to write 1001 to digital port, convert to uint32 that is 9.
+            if digitalsignalslinenumber > 1:
+               holder2 = np.sum(holder2, axis = 0) # sum along the columns, for multiple lines        
+               holder2 = np.array([holder2]) # here convert the shape from (n,) to (1,n)
+            #print(holder2.shape)
+            #holder2 = holder2*16 
+    
+            #print(type(holder2[0][1]))
+            #print(holder2[0][1])
+    
+            # Assume that dev1 is always employed
+            with nidaqmx.Task() as slave_Task_2_digitallines:
+                # adding channels      
+                # Set tasks from different devices apart
+                #for i in range(len(digitalsignals['Sepcification'])):
+                    #slave_Task_2_digitallines.do_channels.add_do_chan(configdictionary[digitalsignals['Sepcification'][i]], line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)#line_grouping??????????????One Channel For Each Line
+                slave_Task_2_digitallines.do_channels.add_do_chan("/Dev1/port0", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
+                # Digital clock
+                slave_Task_2_digitallines.timing.cfg_samp_clk_timing(self.Daq_sample_rate, source=self.cam_trigger_receiving_port, sample_mode= AcquisitionType.FINITE, samps_per_chan=Totalscansamplesnumber)
+                slave_Task_2_digitallines.triggers.start_trigger.cfg_dig_edge_start_trig(self.cam_trigger_receiving_port)
+            	# Configure the writer and reader
+                DigitalWriter = nidaqmx.stream_writers.DigitalMultiChannelWriter(slave_Task_2_digitallines.out_stream, auto_start= False)
+                DigitalWriter.auto_start = False
+                      
+                # ---------------------------------------------------------------------------------------------------------------------
+                #-----------------------------------------------------Begin to execute in DAQ------------------------------------------
+                    
+                DigitalWriter.write_many_sample_port_uint32(holder2, timeout = 605.0)
+                
+                slave_Task_2_digitallines.start()
+    
+                slave_Task_2_digitallines.wait_until_done(timeout = 605.0)                
+    
+                slave_Task_2_digitallines.stop()       
                
     def save_as_binary(self, directory):
         #print(self.ai_dev_scaling_coeff_vp)

@@ -24,7 +24,8 @@ from PyQt5 import QtWidgets
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import pyqtSignal, QThread
 from PyQt5.QtWidgets import QWidget,QLineEdit, QLabel, QGridLayout, QPushButton, QVBoxLayout, QProgressBar, QHBoxLayout, QComboBox, QMessageBox, QPlainTextEdit, QGroupBox, QTabWidget, QCheckBox, QDoubleSpinBox, QSpinBox
-from NIDAQ.adfunctiongenerator import generate_AO_for640, generate_AO_for488, generate_DO_forcameratrigger, generate_DO_for640blanking, generate_AO_for532, generate_AO_forpatch, generate_DO_forblankingall, generate_DO_for532blanking, generate_DO_for488blanking, generate_DO_forPerfusion, generate_DO_for2Pshutter, generate_ramp
+from NIDAQ.adfunctiongenerator import generate_AO_for640, generate_AO_for488, generate_DO_forcameratrigger, generate_DO_for640blanking, generate_AO_for532, generate_AO_forpatch, generate_DO_forblankingall, \
+        generate_DO_for532blanking, generate_DO_for488blanking, generate_DO_forPerfusion, generate_DO_for2Pshutter, generate_ramp
 import pyqtgraph as pg
 from pyqtgraph import PlotDataItem, TextItem
 import os
@@ -64,7 +65,8 @@ class WaveformGenerator(QWidget):
         self.setWindowTitle("Buon appetito!")
 
         self.Galvo_samples = self.finalwave_640 = self.finalwave_488 = self.finalwave_532=self.finalwave_patch =self.handle_viewbox_coordinate_position_array_expanded_forDaq_waveform=None
-        self.finalwave_cameratrigger=self.final_galvotrigger=self.finalwave_blankingall=self.finalwave_640blanking=self.finalwave_532blanking=self.finalwave_488blanking=self.finalwave_Perfusion_8 = self.finalwave_Perfusion_7 = self.finalwave_Perfusion_6 = self.finalwave_Perfusion_2 = self.finalwave_2Pshutter =  None
+        self.finalwave_cameratrigger=self.final_galvotrigger=self.finalwave_blankingall=self.finalwave_640blanking=self.finalwave_532blanking=self.finalwave_488blanking=self.finalwave_Perfusion_8 \
+        = self.finalwave_Perfusion_7 = self.finalwave_Perfusion_6 = self.finalwave_Perfusion_2 = self.finalwave_2Pshutter =  None
         
         AnalogContainer = QGroupBox("Analog signals")
         self.AnalogLayout = QGridLayout() #self.AnalogLayout manager
@@ -122,9 +124,10 @@ class WaveformGenerator(QWidget):
         ReadContainer = QGroupBox("General settings")
         self.ReadLayout = QGridLayout() #self.AnalogLayout manager
 
-        self.textboxBB = QComboBox()
-        self.textboxBB.addItems(['galvos', '640AO', 'galvos_contour', '488AO', '532AO', 'patchAO','cameratrigger', 'blankingall', '640blanking','532blanking','488blanking', 'Perfusion_8', 'Perfusion_7', 'Perfusion_6', 'Perfusion_2'])
-        self.ReadLayout.addWidget(self.textboxBB, 0, 1)
+        self.ReferenceWaveformBox = QComboBox()
+        self.ReferenceWaveformBox.addItems(['galvos', '640AO', 'galvos_contour', '488AO', '532AO', 'patchAO','cameratrigger', 'blankingall', '640blanking',\
+                                            '532blanking','488blanking', 'Perfusion_8', 'Perfusion_7', 'Perfusion_6', 'Perfusion_2', '2Pshutter'])
+        self.ReadLayout.addWidget(self.ReferenceWaveformBox, 0, 1)
         self.ReadLayout.addWidget(QLabel("Reference waveform:"), 0, 0)
 
         self.button_all = QPushButton('Organize waveforms', self)
@@ -1281,7 +1284,7 @@ class WaveformGenerator(QWidget):
         #plt.plot(xlabelhere_galvo, samples_1)
         self.PlotDataItem_640AO = PlotDataItem(xlabelhere_640, self.finalwave_640, downsample = 10)
         self.PlotDataItem_640AO.setPen('r')
-        self.PlotDataItem_640AO.setDownsampling(ds=(int(self.SamplingRateTextbox.value())/10), method='mean')
+        self.PlotDataItem_640AO.setDownsampling(auto=True, method='subsample')
         self.pw.addItem(self.PlotDataItem_640AO)
         
         self.textitem_640AO = pg.TextItem(text='640 AO', color=('r'), anchor=(1, 1))
@@ -1325,7 +1328,7 @@ class WaveformGenerator(QWidget):
         #plt.plot(xlabelhere_galvo, samples_1)
         self.PlotDataItem_488AO = PlotDataItem(xlabelhere_488, self.finalwave_488)
         self.PlotDataItem_488AO.setPen('b')
-        self.PlotDataItem_488AO.setDownsampling(auto=True, method='mean')
+        self.PlotDataItem_488AO.setDownsampling(auto=True, method='subsample')
         self.pw.addItem(self.PlotDataItem_488AO)
         
         self.textitem_488AO = pg.TextItem(text='488 AO', color=('b'), anchor=(1, 1))
@@ -1370,7 +1373,7 @@ class WaveformGenerator(QWidget):
         xlabelhere_532 = np.arange(len(self.finalwave_532))/self.uiDaq_sample_rate
         self.PlotDataItem_532AO = PlotDataItem(xlabelhere_532, self.finalwave_532)
         self.PlotDataItem_532AO.setPen('g')
-        self.PlotDataItem_532AO.setDownsampling(auto=True, method='mean')
+        self.PlotDataItem_532AO.setDownsampling(auto=True, method='subsample')
         self.pw.addItem(self.PlotDataItem_532AO)
         
         self.textitem_532AO = pg.TextItem(text='532 AO', color=('g'), anchor=(1, 1))
@@ -1495,7 +1498,7 @@ class WaveformGenerator(QWidget):
         self.finalwave_cameratrigger_forgraphy = self.finalwave_cameratrigger.astype(int)
         self.PlotDataItem_cameratrigger = PlotDataItem(xlabelhere_cameratrigger, self.finalwave_cameratrigger_forgraphy)
         self.PlotDataItem_cameratrigger.setPen('c')
-        self.PlotDataItem_cameratrigger.setDownsampling(auto=True, method='mean')
+        self.PlotDataItem_cameratrigger.setDownsampling(auto=True, method='subsample')
         #self.pw.addItem(self.PlotDataItem_cameratrigger)
         
         try:
@@ -1973,7 +1976,8 @@ class WaveformGenerator(QWidget):
         
     def show_all(self):
 
-        self.switch_galvos=self.switch_galvos_contour=self.switch_640AO=self.switch_488AO=self.switch_532AO=self.switch_patchAO=self.switch_cameratrigger=self.switch_galvotrigger=self.switch_blankingall=self.switch_640blanking=self.switch_532blanking=self.switch_488blanking=self.switch_Perfusion_8=self.switch_Perfusion_7=self.switch_Perfusion_6=self.switch_Perfusion_2=self.switch_2Pshutter=0
+        self.switch_galvos=self.switch_galvos_contour=self.switch_640AO=self.switch_488AO=self.switch_532AO=self.switch_patchAO=self.switch_cameratrigger=self.switch_galvotrigger=self.switch_blankingall=self.switch_640blanking=\
+                            self.switch_532blanking=self.switch_488blanking=self.switch_Perfusion_8=self.switch_Perfusion_7=self.switch_Perfusion_6=self.switch_Perfusion_2=self.switch_2Pshutter=0
         color_dictionary = {'galvos':[255,255,255],
                             'galvos_contour':[255,255,255],
                             '640AO':[255,0,0],
@@ -2024,12 +2028,12 @@ class WaveformGenerator(QWidget):
         # Calculate the length of reference wave
         # tags in the dictionary above should be the same as that in reference combox, then the dictionary below can work
        
-        if self.textboxBB.currentText() in dictionary_analog.keys():
-            reference_wave = dictionary_analog[self.textboxBB.currentText()][1]
+        if self.ReferenceWaveformBox.currentText() in dictionary_analog.keys():
+            reference_wave = dictionary_analog[self.ReferenceWaveformBox.currentText()][1]
         else:
-            reference_wave = dictionary_digital[self.textboxBB.currentText()][1]
+            reference_wave = dictionary_digital[self.ReferenceWaveformBox.currentText()][1]
         
-        if self.textboxBB.currentText() == 'galvos' or self.textboxBB.currentText() == 'galvos_contour': # in case of using galvos as reference wave
+        if self.ReferenceWaveformBox.currentText() == 'galvos' or self.ReferenceWaveformBox.currentText() == 'galvos_contour': # in case of using galvos as reference wave
             self.reference_length = len(reference_wave[0, :])
         else:
             self.reference_length = len(reference_wave)
@@ -2109,6 +2113,7 @@ class WaveformGenerator(QWidget):
                     self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, self.analogcontainer_array['Waveform'][i])
                     #use the same color as before, taking advantages of employing same keys in dictionary
                     self.PlotDataItem_final.setPen('w')
+                    self.PlotDataItem_final.setDownsampling(auto=True, method='subsample')
                     self.pw.addItem(self.PlotDataItem_final)
                 
                     self.textitem_final = pg.TextItem(text=str(self.analogcontainer_array['Sepcification'][i]), color=('w'), anchor=(1, 1))
@@ -2117,10 +2122,13 @@ class WaveformGenerator(QWidget):
                 else:
                     self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, self.analogcontainer_array['Waveform'][i])
                     #use the same color as before, taking advantages of employing same keys in dictionary
-                    self.PlotDataItem_final.setPen(color_dictionary[self.analogcontainer_array['Sepcification'][i]][0],color_dictionary[self.analogcontainer_array['Sepcification'][i]][1],color_dictionary[self.analogcontainer_array['Sepcification'][i]][2])
+                    self.PlotDataItem_final.setPen(color_dictionary[self.analogcontainer_array['Sepcification'][i]][0],color_dictionary[self.analogcontainer_array['Sepcification'][i]][1],\
+                                                   color_dictionary[self.analogcontainer_array['Sepcification'][i]][2])
+                    self.PlotDataItem_final.setDownsampling(auto=True, method='subsample')
                     self.pw.addItem(self.PlotDataItem_final)
                     
-                    self.textitem_final = pg.TextItem(text=str(self.analogcontainer_array['Sepcification'][i]), color=(color_dictionary[self.analogcontainer_array['Sepcification'][i]][0],color_dictionary[self.analogcontainer_array['Sepcification'][i]][1],color_dictionary[self.analogcontainer_array['Sepcification'][i]][2]), anchor=(1, 1))
+                    self.textitem_final = pg.TextItem(text=str(self.analogcontainer_array['Sepcification'][i]), color=(color_dictionary[self.analogcontainer_array['Sepcification'][i]][0],\
+                                                                                                                       color_dictionary[self.analogcontainer_array['Sepcification'][i]][1],color_dictionary[self.analogcontainer_array['Sepcification'][i]][2]), anchor=(1, 1))
                     self.textitem_final.setPos(0, i+1)
                     self.pw.addItem(self.textitem_final)
                 i += 1
@@ -2128,9 +2136,11 @@ class WaveformGenerator(QWidget):
             digitalwaveforgraphy = self.digitalcontainer_array['Waveform'][i].astype(int)
             self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, digitalwaveforgraphy)
             self.PlotDataItem_final.setPen(color_dictionary[self.digitalcontainer_array['Sepcification'][i]][0],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][1],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][2])
+            self.PlotDataItem_final.setDownsampling(auto=True, method='subsample')
             self.pw.addItem(self.PlotDataItem_final)
             
-            self.textitem_final = pg.TextItem(text=str(self.digitalcontainer_array['Sepcification'][i]), color=(color_dictionary[self.digitalcontainer_array['Sepcification'][i]][0],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][1],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][2]), anchor=(1, 1))
+            self.textitem_final = pg.TextItem(text=str(self.digitalcontainer_array['Sepcification'][i]), color=(color_dictionary[self.digitalcontainer_array['Sepcification'][i]][0],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][1],\
+                                                                                                                color_dictionary[self.digitalcontainer_array['Sepcification'][i]][2]), anchor=(1, 1))
             self.textitem_final.setPos(0, -1*i)
             self.pw.addItem(self.textitem_final)
             i += 1
@@ -2287,7 +2297,7 @@ class WaveformGenerator(QWidget):
                         plt.imshow(self.PMT_image_reconstructed, cmap = plt.cm.gray)
                         plt.show()
                 except:
-                    np.save(os.path.join(self.savedirectory, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_PMT_'+self.saving_prefix+'_'+'contourscanning'), self.data_collected_0)
+                    np.save(os.path.join(self.savedirectory, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_PMT_'+self.saving_prefix+'_'+'flatten'), self.data_collected_0)
                 
         elif self.channel_number == 2: 
             if 'PMT' not in self.readinchan:

@@ -14,7 +14,7 @@ from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont, QPaint
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit)
+                             QFileDialog, QProgressBar, QTextEdit, QStackedLayout)
 
 import pyqtgraph as pg
 import time
@@ -22,12 +22,17 @@ import sys
 
 from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thread, execute_tread_singlesample_analog,
                                 execute_tread_singlesample_digital, execute_analog_and_readin_digital_optional_camtrig_thread, DaqProgressBar)
+import os
+# Append parent folder to system path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import StylishQT
 
 class AOTFWidgetUI(QWidget):
     
 #    waveforms_generated = pyqtSignal(object, object, list, int)
 #    SignalForContourScanning = pyqtSignal(int, int, int, np.ndarray, np.ndarray)
 #    MessageBack = pyqtSignal(str)
+    sig_lasers_status_changed = pyqtSignal(dict)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -43,8 +48,26 @@ class AOTFWidgetUI(QWidget):
         #-----------------------------------------------------------GUI for AOTF---------------------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------------------------------          
         #**************************************************************************************************************************************
+        
         AOTFcontrolContainer = QGroupBox("AOTF control")
+        AOTFcontrolContainer.setStyleSheet("QGroupBox {\
+                                font: bold;\
+                                border: 1px solid silver;\
+                                border-radius: 6px;\
+                                margin-top: 12px;\
+                                color:Navy; }\
+                                QGroupBox::title{subcontrol-origin: margin;\
+                                                 left: 7px;\
+                                                 padding: 5px 5px 5px 5px;}")
+        self.AOTFstackedLayout = QStackedLayout()
+        
+        # self.AOTFdisabledWidget = QWidget()
+        self.AOTFdisabledWidget = QLabel('AOTF not available due to running registration procedure')
+        self.AOTFdisabledWidget.setWordWrap(True)
+        
+        self.AOTFcontrolWidget = QWidget()
         self.AOTFcontrolLayout = QGridLayout()
+        self.AOTFcontrolWidget.setLayout(self.AOTFcontrolLayout)
         
         self.slider640 = QSlider(Qt.Horizontal)
         self.slider640.setMinimum(0)
@@ -56,9 +79,9 @@ class AOTFWidgetUI(QWidget):
         self.line640.setFixedWidth(60)
         self.slider640.sliderReleased.connect(lambda:self.updatelinevalue(640))
         self.slider640.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('640AO'))
-        self.line640.returnPressed.connect(lambda:self.updatesider(640))
+        self.line640.returnPressed.connect(lambda:self.updateslider(640))
         
-        self.switchbutton_640 = MySwitch('ON', 'red', 'OFF', 'maroon', width = 32)
+        self.switchbutton_640 = StylishQT.MySwitch('ON', 'red', 'OFF', 'maroon', width = 32)
         self.switchbutton_640.clicked.connect(lambda: self.execute_tread_single_sample_digital('640blanking'))
         self.AOTFcontrolLayout.addWidget(self.switchbutton_640, 0, 1)
                 
@@ -74,7 +97,7 @@ class AOTFWidgetUI(QWidget):
         self.slider532.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('532AO'))
         self.line532.returnPressed.connect(lambda:self.updatesider(532))
         
-        self.switchbutton_532 = MySwitch('ON', 'green', 'OFF', 'dark olive green', width = 32)
+        self.switchbutton_532 = StylishQT.MySwitch('ON', 'green', 'OFF', 'dark olive green', width = 32)
         self.switchbutton_532.clicked.connect(lambda: self.execute_tread_single_sample_digital('532blanking'))
         self.AOTFcontrolLayout.addWidget(self.switchbutton_532, 1, 1)
         
@@ -90,7 +113,7 @@ class AOTFWidgetUI(QWidget):
         self.slider488.sliderReleased.connect(lambda:self.execute_tread_single_sample_analog('488AO'))
         self.line488.returnPressed.connect(lambda:self.updatesider(488))
         
-        self.switchbutton_488 = MySwitch('ON', 'blue', 'OFF', 'teal', width = 32)
+        self.switchbutton_488 = StylishQT.MySwitch('ON', 'blue', 'OFF', 'teal', width = 32)
         self.switchbutton_488.clicked.connect(lambda: self.execute_tread_single_sample_digital('488blanking'))
         self.AOTFcontrolLayout.addWidget(self.switchbutton_488, 2, 1)
         
@@ -101,9 +124,18 @@ class AOTFWidgetUI(QWidget):
         self.AOTFcontrolLayout.addWidget(self.slider488, 2, 2)
         self.AOTFcontrolLayout.addWidget(self.line488, 2, 3)
         
-        AOTFcontrolContainer.setLayout(self.AOTFcontrolLayout)
-        AOTFcontrolContainer.setMaximumHeight(300)
+        self.AOTFstackedLayout.addWidget(self.AOTFcontrolWidget)
+        self.AOTFstackedLayout.addWidget(self.AOTFdisabledWidget)
+        self.AOTFstackedLayout.setCurrentIndex(0)
+        
+        AOTFcontrolContainer.setLayout(self.AOTFstackedLayout)
+        AOTFcontrolContainer.setMaximumHeight(170)
         self.layout.addWidget(AOTFcontrolContainer, 1, 0)
+        
+        self.lasers_status = {}
+        self.lasers_status['488'] = [False, 0]
+        self.lasers_status['532'] = [False, 0]
+        self.lasers_status['640'] = [False, 0]
         
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -126,46 +158,58 @@ class AOTFWidgetUI(QWidget):
             self.slider532.setValue(int(float(self.line532.text())*100))
         if wavelength == 488:
             self.slider488.setValue(int(float(self.line488.text())*100))
-            
+        
     def execute_tread_single_sample_analog(self, channel):
         if channel == '640AO':
+            self.lasers_status['640'][1] = self.slider640.value()
             execute_tread_singlesample_AOTF_analog = execute_tread_singlesample_analog()
             execute_tread_singlesample_AOTF_analog.set_waves(channel, self.slider640.value())
             execute_tread_singlesample_AOTF_analog.start()
         elif channel == '532AO':
+            self.lasers_status['532'][1] = self.slider532.value()
             execute_tread_singlesample_AOTF_analog = execute_tread_singlesample_analog()
             execute_tread_singlesample_AOTF_analog.set_waves(channel, self.slider532.value())
             execute_tread_singlesample_AOTF_analog.start()
         elif channel == '488AO':
+            self.lasers_status['488'][1] = self.slider640.value()
             execute_tread_singlesample_AOTF_analog = execute_tread_singlesample_analog()
             execute_tread_singlesample_AOTF_analog.set_waves(channel, self.slider488.value())
             execute_tread_singlesample_AOTF_analog.start()            
             
+        self.sig_lasers_status_changed.emit(self.lasers_status)
+            
     def execute_tread_single_sample_digital(self, channel):
+        
         if channel == '640blanking':
             if self.switchbutton_640.isChecked():
+                self.lasers_status['640'][0] = True
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
                 execute_tread_singlesample_AOTF_digital.start()
             else:
+                self.lasers_status['640'][0] = False
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
                 execute_tread_singlesample_AOTF_digital.start()
         elif channel == '532blanking':
             if self.switchbutton_532.isChecked():
+                self.lasers_status['532'][0] = True
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
                 execute_tread_singlesample_AOTF_digital.start()
             else:
+                self.lasers_status['532'][0] = False
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
                 execute_tread_singlesample_AOTF_digital.start()        
         elif channel == '488blanking':
             if self.switchbutton_488.isChecked():
+                self.lasers_status['488'][0] = True
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
                 execute_tread_singlesample_AOTF_digital.start()
             else:
+                self.lasers_status['488'][0] = False
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
                 execute_tread_singlesample_AOTF_digital.start()  
@@ -180,48 +224,49 @@ class AOTFWidgetUI(QWidget):
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
                 execute_tread_singlesample_AOTF_digital.start() 
                 
-class MySwitch(QtWidgets.QPushButton):
-    def __init__(self, label_1, color_1, label_2, color_2, width, parent = None):
-        super().__init__(parent)
-        self.setCheckable(True)
-        self.setMinimumWidth(66)
-        self.setMinimumHeight(22)
-        self.switch_label_1 = label_1
-        self.switch_label_2 = label_2
-        self.switch_color_1 = color_1
-        self.switch_color_2 = color_2
-        self.width = width
+        self.sig_lasers_status_changed.emit(self.lasers_status)
         
-    def paintEvent(self, event):
-        label = self.switch_label_1 if self.isChecked() else self.switch_label_2
-        
-        if self.isChecked():
-            bg_color = QColor(self.switch_color_1)
+    def set_registration_mode(self, flag_registration_mode):
+        if flag_registration_mode:
+            self.AOTFstackedLayout.setCurrentIndex(1)
         else:
-            bg_color = QColor(self.switch_color_2)
+            self.AOTFstackedLayout.setCurrentIndex(0)
+            
+    def control_for_registration(self, wavelength, value):
+        if wavelength == '640':
+            print(wavelength + ': ' + str(value))
+            self.slider640.setValue(value)
+            
+            if not value:
+                self.switchbutton_640.setChecked(False)
+            else:
+                self.switchbutton_640.setChecked(True)
+            
+            self.execute_tread_single_sample_analog('640AO')
+            self.execute_tread_single_sample_digital('640blanking')
+
+        elif wavelength == '532':
+            print(wavelength + ': ' + str(value))
+            self.slider532.setValue(value)
+            if not value:
+                self.switchbutton_640.setChecked(False)
+            else:
+                self.switchbutton_640.setChecked(True)
                 
-        radius = 10
-        width = self.width
-        center = self.rect().center()
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.translate(center)
-        painter.setBrush(QColor(0,0,0))
-
-        pen = QPen(Qt.black)
-        pen.setWidth(2)
-        painter.setPen(pen)
-
-        painter.drawRoundedRect(QRect(-width, -radius, 2*width, 2*radius), radius, radius)
-        painter.setBrush(QBrush(bg_color))
-        sw_rect = QRect(-radius, -radius, width + radius, 2*radius)
-        if not self.isChecked():
-            sw_rect.moveLeft(-width)
-        painter.drawRoundedRect(sw_rect, radius, radius)
-        painter.drawText(sw_rect, Qt.AlignCenter, label)
+            self.execute_tread_single_sample_analog('532A0')
+            self.execute_tread_single_sample_digital('640blanking')
+        else:
+            print(wavelength + ': ' + str(value))
+            self.slider488.setValue(value)
+            if not value:
+                self.switchbutton_640.setChecked(False)
+            else: 
+                self.switchbutton_640.setChecked(True)
+            
+            self.execute_tread_single_sample_analog('488A0')
+            self.execute_tread_single_sample_digital('640blanking')
         
-        
+            
 if __name__ == "__main__":
     
 #    import sys
