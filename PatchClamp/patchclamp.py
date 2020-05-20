@@ -125,7 +125,7 @@ class PatchclampSealTest:
         self.voltMin = self.constants.patchSealMinVol
         self.voltMax = self.constants.patchSealMaxVol
         self.dutycycle = self.constants.patchSealDuty
-        self.readNumber= 500 #Readnumber for the measurementThread (should be a multiple of the wavelength)
+        self.readNumber= 100 #Readnumber for the measurementThread (should be a multiple of the wavelength)
         
         wave = blockWave(self.sampleRate, self.frequency, self.voltMin, self.voltMax, self.dutycycle)
         self.measurementThread = ContinuousPatchThread(wave, self.sampleRate, self.readNumber)

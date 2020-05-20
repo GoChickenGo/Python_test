@@ -25,7 +25,7 @@ from scipy.optimize import curve_fit
 from PatchClamp.patchclamp import PatchclampSealTest, PatchclampSealTest_hold, PatchclampSealTest_currentclamp, PatchclampSealTest_zap
 from NIDAQ.constants import MeasurementConstants
 from Oldversions.generalDaqer import execute_constant_vpatch
-
+import threading
 #Setting graph settings
 """
 pg.setConfigOption('background', 'w')
@@ -83,20 +83,22 @@ class PatchclampSealTestUI(QWidget):
         self.holdTest.measurementThread_hold.measurement.connect(self.handleMeasurement) #Connecting to the measurement signal    
         
         self.currentclampTest = PatchclampSealTest_currentclamp()
-        self.currentclampTest.measurementThread_currentclamp.measurement.connect(self.handleMeasurement) #Connecting to the measurement signal            
-        
+        self.currentclampTest.measurementThread_currentclamp.measurement.connect(self.handleMeasurement) #Connecting to the measurement signal
+
         self.zapfunction = PatchclampSealTest_zap()
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
-        self.setMinimumSize(300,120)
+        self.setFixedSize(720,670)
         self.setWindowTitle("Patchclamp Seal Test")
         
         self.ICON_RED_LED = "./Icons/off.png"
         self.ICON_GREEN_LED = '/Icons/on.png'
+        self.is_sealtesting = False
         
         #------------------------------Gains-----------------------------------
         gainContainer = QGroupBox("Gains")
+        gainContainer.setFixedWidth(320)
         gainLayout = QGridLayout()
         
         gainLayout.addWidget(QLabel("Input Voltage"), 0, 0)
@@ -122,6 +124,7 @@ class PatchclampSealTestUI(QWidget):
         gainContainer.setLayout(gainLayout)
         #------------------------------Wavesettings-----------------------------------
         WavesettingsContainer = QGroupBox("Wave settings")
+        WavesettingsContainer.setFixedWidth(320)
         WavesettingsContainerLayout = QGridLayout()
         
         WavesettingsContainerLayout.addWidget(QLabel("Voltage step(mV)"), 0, 0)
@@ -143,6 +146,7 @@ class PatchclampSealTestUI(QWidget):
         WavesettingsContainer.setLayout(WavesettingsContainerLayout)
         #------------------------------Membrane potential-----------------------------------
         Vm_measureContainer = QGroupBox("Vm measurement")
+        Vm_measureContainer.setFixedWidth(320)
         Vm_measureContainerLayout = QGridLayout()
 
         Vm_measureContainerLayout.addWidget(QLabel("Clamping current(pA)"), 0, 0)
@@ -158,19 +162,22 @@ class PatchclampSealTestUI(QWidget):
         
         self.VmstartButton = QPushButton("Start")
         self.VmstartButton.setStyleSheet("QPushButton {color:white;background-color: SpringGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                         "QPushButton:pressed {color:black;background-color: SpringGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                         "QPushButton:pressed {color:black;background-color: SpringGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                         "QPushButton:hover:!pressed {color:gray;background-color: SpringGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.VmstartButton.clicked.connect(lambda: self.measure_currentclamp())
         Vm_measureContainerLayout.addWidget(self.VmstartButton, 0, 3)
         
         self.VmstopButton = QPushButton("Stop")
         self.VmstopButton.setStyleSheet("QPushButton {color:white;background-color: IndianRed; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:black;background-color: IndianRed; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                        "QPushButton:pressed {color:black;background-color: IndianRed; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: IndianRed; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.VmstopButton.clicked.connect(lambda: self.stopMeasurement_currentclamp())
         Vm_measureContainerLayout.addWidget(self.VmstopButton, 0, 4)
         
         Vm_measureContainer.setLayout(Vm_measureContainerLayout)
         #------------------------------zap-----------------------------------
         zapContainer = QGroupBox("ZAP")
+        zapContainer.setFixedWidth(320)
         zapContainerLayout = QGridLayout()
         
         self.ICON_zap = './Icons/zap.jpg'
@@ -180,7 +187,8 @@ class PatchclampSealTestUI(QWidget):
         
         self.zapButton = QPushButton("ZAP!")
         self.zapButton.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                      "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                      "QPushButton:hover:!pressed {color:blue;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.zapButton.setShortcut('z')
         zapContainerLayout.addWidget(self.zapButton, 0, 1)        
         self.zapButton.clicked.connect(self.zap)
@@ -208,41 +216,44 @@ class PatchclampSealTestUI(QWidget):
     
         self.startButton = QPushButton("Start")
         self.startButton.setStyleSheet("QPushButton {color:white;background-color: MediumSeaGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                       "QPushButton:pressed {color:black;background-color: MediumSeaGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                       "QPushButton:pressed {color:black;background-color: MediumSeaGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                       "QPushButton:hover:!pressed {color:gray;background-color: MediumSeaGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 
         self.startButton.clicked.connect(lambda: self.measure())
-        self.startButton.clicked.connect(self.setRedlight) 
+        # self.startButton.clicked.connect(self.setRedlight)
+        # self.startButton.clicked.connect(self.startUpdatingGUIThread)
         controlLayout.addWidget(self.startButton, 0, 0)
         
         self.stopButton = QPushButton("Stop")
         self.stopButton.setStyleSheet("QPushButton {color:white;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+                                      "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                      "QPushButton:hover:!pressed {color:gray;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
         self.stopButton.clicked.connect(lambda: self.stopMeasurement())
         controlLayout.addWidget(self.stopButton, 0, 1)
         
-        controlLayout.addWidget(QLabel("Holding Vm:"), 1, 0)
-        self.HoldingList = QComboBox()
-        self.HoldingList.addItems(['000 mV', '-30 mV', '-50 mV', '-40 mV', '-60 mV'])
-        controlLayout.addWidget(self.HoldingList, 2, 0)
+#        controlLayout.addWidget(QLabel("Holding Vm:"), 1, 0)
+#        self.HoldingList = QComboBox()
+#        self.HoldingList.addItems(['000 mV', '-30 mV', '-50 mV', '-40 mV', '-60 mV'])
+#        controlLayout.addWidget(self.HoldingList, 2, 0)
+#        
+#        self.iconlabel = QLabel(self)
+#        self.iconlabel.setPixmap(QPixmap(self.ICON_RED_LED))
+#        controlLayout.addWidget(self.iconlabel, 1, 1)        
+#        
+#        self.holdingbutton = QPushButton("Hold")
+#        self.holdingbutton.setCheckable(True)
+#        #self.holdingbutton.toggle()
+#        
+#        self.holdingbutton.clicked.connect(lambda: self.btnstate())
+#        #self.holdingbutton.clicked.connect(lambda: self.hold())
+#        #self.holdingbutton.clicked.connect(self.setGreenlight)
+#        controlLayout.addWidget(self.holdingbutton, 2, 1)
         
-        self.iconlabel = QLabel(self)
-        self.iconlabel.setPixmap(QPixmap(self.ICON_RED_LED))
-        controlLayout.addWidget(self.iconlabel, 1, 1)        
-        
-        self.holdingbutton = QPushButton("Hold")
-        self.holdingbutton.setCheckable(True)
-        #self.holdingbutton.toggle()
-        
-        self.holdingbutton.clicked.connect(lambda: self.btnstate())
-        #self.holdingbutton.clicked.connect(lambda: self.hold())
-        #self.holdingbutton.clicked.connect(self.setGreenlight)
-        controlLayout.addWidget(self.holdingbutton, 2, 1)
-        
-        self.stopandholdbutton = QPushButton("Stop and Hold")
-        self.stopandholdbutton.clicked.connect(lambda: self.stopMeasurement())
-        self.stopandholdbutton.clicked.connect(lambda: self.measure_hold())
-        self.stopandholdbutton.clicked.connect(self.setGreenlight)
-        controlLayout.addWidget(self.stopandholdbutton, 0, 2)
+#        self.stopandholdbutton = QPushButton("Stop and Hold")
+#        self.stopandholdbutton.clicked.connect(lambda: self.stopMeasurement())
+#        self.stopandholdbutton.clicked.connect(lambda: self.measure_hold())
+#        self.stopandholdbutton.clicked.connect(self.setGreenlight)
+#        controlLayout.addWidget(self.stopandholdbutton, 0, 2)
         '''
         self.stopholdingbutton = QPushButton("Stop holding")
         self.stopholdingbutton.clicked.connect(lambda: self.stophold())
@@ -250,25 +261,26 @@ class PatchclampSealTestUI(QWidget):
         controlLayout.addWidget(self.stopholdingbutton, 2, 2)        
         '''
         controlLayout.addWidget(gainContainer, 0, 3)
-        controlLayout.addWidget(WavesettingsContainer, 1, 3)
-        controlLayout.addWidget(Vm_measureContainer, 2, 3)
-        controlLayout.addWidget(zapContainer, 3, 3)        
+        controlLayout.addWidget(WavesettingsContainer, 1, 0, 1, 2)
+        controlLayout.addWidget(Vm_measureContainer, 1, 3)
+        controlLayout.addWidget(zapContainer, 2, 3)        
         controlContainer.setLayout(controlLayout)
         
         #-----------------------------Plots------------------------------------
         plotContainer = QGroupBox("Output")
-        self.plotLayout = QVBoxLayout() #We set the plotLayout as an attribute of the object (i.e. self.plotLayout instead of plotLayout)
+        plotContainer.setFixedWidth(700)
+        self.plotLayout = QGridLayout() #We set the plotLayout as an attribute of the object (i.e. self.plotLayout instead of plotLayout)
                                         #This is to prevent the garbage collector of the C++ wrapper from deleting the layout and thus triggering errors.
                                         #Derived from: https://stackoverflow.com/questions/17914960/pyqt-runtimeerror-wrapped-c-c-object-has-been-deleted
                                         # and http://enki-editor.org/2014/08/23/Pyqt_mem_mgmt.html
         
-        self.outVolPlotWidget = SlidingWindow(1000) #Should be bigger than the readvalue
-        self.outCurPlotWidget = SlidingWindow(1000) #Should be bigger than the readvalue
+        self.outVolPlotWidget = SlidingWindow(200) #Should be bigger than the readvalue
+        self.outCurPlotWidget = SlidingWindow(200) #Should be bigger than the readvalue
         
-        self.plotLayout.addWidget(QLabel('Voltage (mV):'))
-        self.plotLayout.addWidget(self.outVolPlotWidget)
-        self.plotLayout.addWidget(QLabel('Current (pA):'))
-        self.plotLayout.addWidget(self.outCurPlotWidget)
+        self.plotLayout.addWidget(QLabel('Voltage (mV):'), 0, 0)
+        self.plotLayout.addWidget(self.outVolPlotWidget, 1, 0)
+        self.plotLayout.addWidget(QLabel('Current (pA):'), 0, 1)
+        self.plotLayout.addWidget(self.outCurPlotWidget, 1, 1)
         
         valueContainer = QGroupBox("Resistance/Capacitance")
         self.valueLayout = QHBoxLayout()
@@ -280,7 +292,7 @@ class PatchclampSealTestUI(QWidget):
         self.valueLayout.addWidget(self.ratioLabel)
         
         valueContainer.setLayout(self.valueLayout)
-        self.plotLayout.addWidget(valueContainer)
+        self.plotLayout.addWidget(valueContainer, 2, 0, 1, 2)
         
         plotContainer.setLayout(self.plotLayout)
         #---------------------------Adding to master---------------------------
@@ -317,7 +329,9 @@ class PatchclampSealTestUI(QWidget):
         self.lowervoltage = self.LowerVoltagebox.value()/1000
         self.sealTest.setWave(self.inVolGain, self.diffvoltage, self.lowervoltage)
         self.sealTest.start()
-            
+        self.is_sealtesting = True
+        self.startUpdatingGUIThread()
+        
     def measure_hold(self):
         """Pop up window asking to check the gains.
         Returns 
@@ -327,6 +341,7 @@ class PatchclampSealTestUI(QWidget):
         """
         self.holdTest.setWave(self.inVolGain, float(self.HoldingList.currentText()[0:3]))
         self.holdTest.start()
+        self.is_sealtesting = True
         
     def measure_currentclamp(self):
         """Pop up window asking to check the gains.
@@ -343,7 +358,8 @@ class PatchclampSealTestUI(QWidget):
         self.currentclamp_value = self.clampingcurrentbox.value()
         self.currentclampTest.setWave(self.inVolGain, self.probeGain, self.currentclamp_value)
         self.currentclampTest.start()
-            
+        self.is_sealtesting = True
+        
     def hold(self):
         constant = float(self.HoldingList.currentText()[0:3])
         self.executer = execute_constant_vpatch(constant/1000*10)
@@ -368,18 +384,31 @@ class PatchclampSealTestUI(QWidget):
     def setGreenlight(self):
         self.iconlabel.setPixmap(QPixmap(self.ICON_GREEN_LED))        
         
+    def startUpdatingGUIThread(self):
+        time.sleep(0.3)
+        StartGUIThread = threading.Thread(target = self.startUpdatingGUI)
+        StartGUIThread.start()        
+
+#        else:
+#            .disconnect() 
     def handleMeasurement(self, voltOut, curOut):
         """Handle the measurement. Update the graph."""
+
         #Rescaling using gains
-        voltOut = voltOut/self.outVolGain
-        curOut = curOut/self.outCurGain/self.probeGain
+        self.voltOut = voltOut/self.outVolGain
+        self.curOut = curOut/self.outCurGain/self.probeGain
         
-        self.outVolPlotWidget.append_(voltOut*1000)
-        self.outCurPlotWidget.append_(curOut*1*10**12)
-        self.updateGraphs()
-        
-        self.updateLabels(curOut, voltOut)
-        
+    def startUpdatingGUI(self):
+        while self.is_sealtesting == True:   
+            try:
+                self.outVolPlotWidget.append_(self.voltOut)
+                self.outCurPlotWidget.append_(self.curOut)
+                self.updateGraphs()
+                self.updateLabels(self.curOut, self.voltOut)
+                time.sleep(0.05)
+            except:
+                pass
+            
     def updateGraphs(self):
         """Update graphs."""
         self.outCurPlotWidget.updateWindow()
@@ -450,6 +479,7 @@ class PatchclampSealTestUI(QWidget):
     def stopMeasurement(self):
         """Stop the seal test."""        
         self.sealTest.aboutToQuitHandler()
+        self.is_sealtesting = False
         #constant = float(self.HoldingList.currentText()[0:3])
         #self.executer = execute_constant_vpatch(constant/1000*10)
         #print("Holding vm at "+str(constant)+' mV')
@@ -462,6 +492,7 @@ class PatchclampSealTestUI(QWidget):
     def stop_hold_Measurement(self):
         """Stop the seal test."""
         self.holdTest.aboutToQuitHandler()
+        self.is_sealtesting = False
         
     def close_hold_Event(self, event):
         """On closing the application we have to make sure that the measuremnt
@@ -471,7 +502,8 @@ class PatchclampSealTestUI(QWidget):
     def stopMeasurement_currentclamp(self):
         """Stop the seal test."""
         self.currentclampTest.aboutToQuitHandler()
-    
+        self.is_sealtesting = False
+        
     #Change gain
     def changeVolInGain(self, gain):
         if gain == '1':
