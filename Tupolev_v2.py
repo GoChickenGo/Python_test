@@ -45,7 +45,7 @@ import PI_ObjectiveMotor.ObjMotorWidget
 
 import pyqtgraph.console
 import HamamatsuCam.HamamatsuUI
-import DMDManager.ui_dmd_management
+import DMDManager.ui_dmd_widget
 
 
 #Setting graph settings
@@ -105,7 +105,7 @@ class Mainbody(QWidget):
         self.PatchClamp_WidgetInstance = PatchClamp.ui_patchclamp_sealtest.PatchclampSealTestUI()
         #self.tab4 = ui_camera_lab_5.CameraUI()
         self.Analysis_WidgetInstance = ImageAnalysis.AnalysisWidget.AnalysisWidgetUI()
-        self.DMD_WidgetInstance = DMDManager.ui_dmd_management.DMD_management_UI()
+        self.DMD_WidgetInstance = DMDManager.ui_dmd_widget.UI_DMD_Widget()
         
         #--------------Add tab widgets-------------------
         self.tabs.addTab(self.Galvo_WidgetInstance,"PMT imaging")
@@ -118,13 +118,6 @@ class Mainbody(QWidget):
         
         self.savedirectory = os.path.join(os.path.expanduser("~"), "Desktop") #'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'
         
-        # =============================================================================
-        #         Establishing communication betweeb widgets.
-        # =============================================================================
-        self.Galvo_WidgetInstance.SignalForContourScanning.connect(self.PassVariable_GalvoWidget2Waveformer)
-        self.Galvo_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
-        self.Analysis_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
-        
         """
         # =============================================================================
         #         GUI for left panel.
@@ -134,6 +127,16 @@ class Mainbody(QWidget):
         #         GUI for set directory
         # =============================================================================
         setdirectoryContainer = QGroupBox("Set directory")
+        setdirectoryContainer.setStyleSheet("QGroupBox {\
+                                        font: bold;\
+                                        border: 1px solid silver;\
+                                        border-radius: 6px;\
+                                        margin-top: 10px;\
+                                        color:Navy}\
+                                        font-size: 14px;\
+                                        QGroupBox::title{subcontrol-origin: margin;\
+                                                         left: 7px;\
+                                                         padding: 5px 5px 5px 5px;}")
         self.setdirectorycontrolLayout = QGridLayout()        
         
         self.saving_prefix = ''
@@ -171,20 +174,20 @@ class Mainbody(QWidget):
         # =============================================================================
         #         GUI for AOTF
         # =============================================================================             
-        AOTFWidgetInstance = NIDAQ.AOTFWidget.AOTFWidgetUI()
-        self.layout.addWidget(AOTFWidgetInstance, 1, 0)
+        self.AOTFWidgetInstance = NIDAQ.AOTFWidget.AOTFWidgetUI()
+        self.layout.addWidget(self.AOTFWidgetInstance, 1, 0)
 
         # =============================================================================
         #         GUI for fliter silder
         # =============================================================================        
         FilterSliderWidgetInstance = ThorlabsFilterSlider.FilterSliderWidget.FilterSliderWidgetUI()
-        self.layout.addWidget(FilterSliderWidgetInstance, 3, 0)    
+        self.layout.addWidget(FilterSliderWidgetInstance, 4, 0)    
 
         # =============================================================================
         #         GUI for objective motor
         # =============================================================================        
         ObjMotorInstance = PI_ObjectiveMotor.ObjMotorWidget.ObjMotorWidgetUI()
-        self.layout.addWidget(ObjMotorInstance, 4, 0)         
+        self.layout.addWidget(ObjMotorInstance, 3, 0)         
 
         # =============================================================================
         #         GUI for camera button       
@@ -197,13 +200,26 @@ class Mainbody(QWidget):
         self.console_text_edit = QTextEdit()
         self.console_text_edit.setFontItalic(True)
         self.console_text_edit.setPlaceholderText('Notice board from console.')
-        self.console_text_edit.setMaximumHeight(200)
+        self.console_text_edit.setFixedHeight(200)
         self.layout.addWidget(self.console_text_edit, 6, 0)
         
         #**************************************************************************************************************************************        
         #self.setLayout(pmtmaster)
-        self.layout.addWidget(self.tabs, 0, 1, 8, 4)
+        self.layout.addWidget(self.tabs, 0, 1, 10, 4)
         self.setLayout(self.layout)
+        
+        # =============================================================================
+        #         Establishing communication between widgets.
+        # =============================================================================
+        self.Galvo_WidgetInstance.SignalForContourScanning.connect(self.PassVariable_GalvoWidget2Waveformer)
+        self.Galvo_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
+        self.Analysis_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
+        
+        self.DMD_WidgetInstance.sig_start_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(True))
+        self.DMD_WidgetInstance.sig_finished_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(False))
+        self.DMD_WidgetInstance.sig_control_laser.connect(self.AOTFWidgetInstance.control_AOTF)
+        self.AOTFWidgetInstance.sig_lasers_status_changed.connect(self.DMD_WidgetInstance.lasers_status_changed)
+        
         '''
         ***************************************************************************************************************************************
         ************************************************************END of GUI*****************************************************************

@@ -15,8 +15,7 @@ import os
 from datetime import datetime
 from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thread, execute_tread_singlesample_analog,
                                 execute_tread_singlesample_digital, execute_analog_and_readin_digital_optional_camtrig_thread, DaqProgressBar)
-from ImageAnalysis.trymageAnalysis_v3 import ImageAnalysis
-import numpy.lib.recfunctions as rfn
+
 from PI_ObjectiveMotor.focuser import PIMotor
 from ThorlabsFilterSlider.filterpyserial import ELL9Filter
 from InsightX3.TwoPhotonLaser_backend import InsightX3
@@ -417,14 +416,13 @@ class ScanningExecutionThread(QThread):
                                 self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3]) #[0] = sampling rate, [1] = analogcontainer_array, [2] = digitalcontainer_array, [3] = readinchan
                                 self.adcollector.collected_data.connect(self.ProcessData)
                                 self.adcollector.run()
+                                time.sleep(0.2)
                                 #self.ai_dev_scaling_coeff = self.adcollector.get_ai_dev_scaling_coeff()
                             elif self.clock_source == 'Cam as clock source' :
                                 self.adcollector = execute_analog_and_readin_digital_optional_camtrig_thread()
                                 self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3])
                                 self.adcollector.collected_data.connect(self.ProcessData)
                                 self.adcollector.run()
-                                
-                            
                         time.sleep(0.6) # Wait for receiving data to be done.
                     time.sleep(0.3)
                     print('*************************************************************************************************************************')
@@ -440,8 +438,14 @@ class ScanningExecutionThread(QThread):
             self.watchdog_flag = False
             time.sleep(0.5)
             
-            self.Laserinstance.Close_TunableBeamShutter()
+            while True:
+                try:
+                    self.Laserinstance.Close_TunableBeamShutter()
+                    break
+                except:
+                    time.sleep(1)
             time.sleep(0.5)
+            
             self.Laserinstance.SaveVariables()
             while True:
                 try:                        
@@ -621,39 +625,39 @@ class ScanningExecutionThread(QThread):
                 time.sleep(querygap)
             
     
-class ShowTopCellsThread(QThread):
-    
-    PMTimageDictMeasurement = pyqtSignal(object) #The signal for the measurement, we can connect to this signal
-    
-    def __init__(self, GeneralSettingDict, RankedAllCellProperties, FinalMergedCoords, IndexLookUpCellPropertiesDict, PMTimage, MatdisplayFigureTopGuys, *args, **kwargs):        
-        super().__init__(*args, **kwargs)
-        self.GeneralSettingDict = GeneralSettingDict
-        self.RankedAllCellProperties = RankedAllCellProperties
-        self.CurrentPos = FinalMergedCoords
-        self.IndexLookUpCellPropertiesDict = IndexLookUpCellPropertiesDict
-        self.ShowTopCellImg = PMTimage
-        self.MatdisplayFigureTopGuys = MatdisplayFigureTopGuys
-        
-        self.IndexLookUpCellPropertiesDictRow = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][0]
-        self.IndexLookUpCellPropertiesDictCol = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][1]
-        
-        self.ludlStage = LudlStage("COM6")
-    def run(self):
-        self.TopCellAx = self.MatdisplayFigureTopGuys.add_subplot(111)
-
-        print ('-----------------------------------')
-        
-        #stage movement
-        self.ludlStage.moveAbs(self.CurrentPos[0],self.CurrentPos[1])
-        time.sleep(1)
-                        
-        S = ImageAnalysis(self.ShowTopCellImg, self.ShowTopCellImg) #The same as ImageAnalysis(Data_dict_0[Pic_name], Data_dict_1[Pic_name]), call the same image with same dictionary index.
-        v1, v2, mask_1, mask_2, thres = S.applyMask(self.GeneralSettingDict['openingfactor'], 
-                                                    self.GeneralSettingDict['closingfactor'], 
-                                                    self.GeneralSettingDict['binary_adaptive_block_size'])
-        S.showlabel_with_rank_givenAx(self.GeneralSettingDict['smallestsize'], mask_1, v1, self.IndexLookUpCellPropertiesDictRow, self.IndexLookUpCellPropertiesDictCol, self.RankedAllCellProperties, 'Mean intensity in contour', self.GeneralSettingDict['selectnum'], self.TopCellAx)
-
-        print ('-----------------------------------')
+#class ShowTopCellsThread(QThread):
+#    
+#    PMTimageDictMeasurement = pyqtSignal(object) #The signal for the measurement, we can connect to this signal
+#    
+#    def __init__(self, GeneralSettingDict, RankedAllCellProperties, FinalMergedCoords, IndexLookUpCellPropertiesDict, PMTimage, MatdisplayFigureTopGuys, *args, **kwargs):        
+#        super().__init__(*args, **kwargs)
+#        self.GeneralSettingDict = GeneralSettingDict
+#        self.RankedAllCellProperties = RankedAllCellProperties
+#        self.CurrentPos = FinalMergedCoords
+#        self.IndexLookUpCellPropertiesDict = IndexLookUpCellPropertiesDict
+#        self.ShowTopCellImg = PMTimage
+#        self.MatdisplayFigureTopGuys = MatdisplayFigureTopGuys
+#        
+#        self.IndexLookUpCellPropertiesDictRow = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][0]
+#        self.IndexLookUpCellPropertiesDictCol = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][1]
+#        
+#        self.ludlStage = LudlStage("COM6")
+#    def run(self):
+#        self.TopCellAx = self.MatdisplayFigureTopGuys.add_subplot(111)
+#
+#        print ('-----------------------------------')
+#        
+#        #stage movement
+#        self.ludlStage.moveAbs(self.CurrentPos[0],self.CurrentPos[1])
+#        time.sleep(1)
+#                        
+#        S = ImageAnalysis(self.ShowTopCellImg, self.ShowTopCellImg) #The same as ImageAnalysis(Data_dict_0[Pic_name], Data_dict_1[Pic_name]), call the same image with same dictionary index.
+#        v1, v2, mask_1, mask_2, thres = S.applyMask(self.GeneralSettingDict['openingfactor'], 
+#                                                    self.GeneralSettingDict['closingfactor'], 
+#                                                    self.GeneralSettingDict['binary_adaptive_block_size'])
+#        S.showlabel_with_rank_givenAx(self.GeneralSettingDict['smallestsize'], mask_1, v1, self.IndexLookUpCellPropertiesDictRow, self.IndexLookUpCellPropertiesDictCol, self.RankedAllCellProperties, 'Mean intensity in contour', self.GeneralSettingDict['selectnum'], self.TopCellAx)
+#
+#        print ('-----------------------------------')
 
         
 

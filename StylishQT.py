@@ -14,14 +14,18 @@ from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, Q
 
 class FancyPushButton(QtWidgets.QPushButton):
     clicked = pyqtSignal()
-    def __init__(self, width, height, parent=None):
+    def __init__(self, width, height, parent=None, *args, **kwargs):
         super().__init__(parent)
 
         self.setMinimumSize(width, height)
-
-        self.color1 = QColor(240, 53, 218)
-        self.color2 = QColor(61, 217, 245)
-
+        
+        if len(kwargs) == 0:
+            self.color1 = QColor(240, 53, 218)
+            self.color2 = QColor(61, 217, 245)
+        else:
+            self.color1 = QColor(kwargs.get('color1', None)[0], kwargs.get('color1', None)[1], kwargs.get('color1', None)[2])
+            self.color2 = QColor(kwargs.get('color2', None)[0], kwargs.get('color2', None)[1], kwargs.get('color2', None)[2])
+        
         self._animation = QVariantAnimation(
             self,
             valueChanged=self._animate,
@@ -104,6 +108,7 @@ class MySwitch(QtWidgets.QPushButton):
         painter.drawRoundedRect(sw_rect, radius, radius)
         painter.drawText(sw_rect, Qt.AlignCenter, label)
         
+        
 if __name__ == "__main__":
     import sys
 
@@ -113,8 +118,8 @@ if __name__ == "__main__":
     lay = QtWidgets.QVBoxLayout(w)
 
     for i in range(5):
-        button = FancyPushButton(60,60)
-        button.setText("Login")
+        button = FancyPushButton(60,60, color1=(10,100,50), color2=(204,204,255))
+        button.setText("Kinase")
         lay.addWidget(button)
     lay.addStretch()
     w.resize(640, 480)
