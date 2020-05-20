@@ -43,6 +43,34 @@ class InsightX3:
         self.CRending = '\r'
         self.LFending = '\n'
         
+    def Try_until_Success(func):
+        """ This is the decorator to try to execute the function until succeed.
+        """
+        def wrapper(*args, **kwargs):
+            
+            success = None
+            failnumber = 0
+            
+            while success is None:
+                if failnumber <8:
+                    try:
+                        returnValue = func(*args, **kwargs)
+                        success = True
+
+                    except:
+    
+                        failnumber += 1                    
+                        print('filter move failed, failnumber: {}'.format(failnumber))
+                        time.sleep(0.2)
+                else:
+                    print('Fail for 8 times, give up - -')
+                    success = False                    
+                    
+            return returnValue
+        
+        return wrapper
+    
+    @Try_until_Success
     def QueryLaserID(self):
         """
         Returns a system identification string that contains four fields separated by commas
@@ -55,7 +83,8 @@ class InsightX3:
             LaserID = LaserID_byte.decode("utf-8", errors='replace')
             
             print(LaserID)
-            
+    
+    @Try_until_Success
     def QueryStatus(self):
         """
         Returns an integer value that corresponds to a 32-bit binary number. 
@@ -117,7 +146,8 @@ class InsightX3:
             
         print(Status_list)
         return Status_list
-            
+    
+    @Try_until_Success
     def QueryWarmupTime(self):
         """
         Returns the status of system warm-up as a percent of the predicted total time. The system responds with a value similar to 050<LF>. 
@@ -132,7 +162,8 @@ class InsightX3:
             
             print('Warming up: {}%'.format(warmupstatus[0:len(warmupstatus)-1]))
             return warmupstatus
-        
+    
+    @Try_until_Success
     def QueryPower(self):
         """
         Returns the laser output power (in Watts).
@@ -146,7 +177,8 @@ class InsightX3:
 #            print('LaserPower is {} w.'.format(LaserPower))
 #            print(LaserPower)
             return LaserPower
-            
+        
+    @Try_until_Success
     def QueryWavelength(self):
         """
         The query returns the most recent value of the WAVelength command. 
@@ -161,7 +193,8 @@ class InsightX3:
             print('LaserWavelength is {} nm.'.format(LaserWavelength[0:len(LaserWavelength)-1]))
 
             return LaserWavelength
-            
+    
+    @Try_until_Success
     def SetWavelength(self, Wavelength):
         """
         Sets the wavelength to between 680 and 1300 nm. Values out of this range are ignored.
@@ -173,7 +206,8 @@ class InsightX3:
         with serial.Serial(self.address, self.baudrate) as Insight:
             Insight.write(command.encode("ascii"))
             print('LaserWavelength going to {} nm...'.format(Wavelength))
-            
+    
+    @Try_until_Success
     def SetWatchdogTimer(self, timeout):
         """
         Sets the number of seconds for the software watchdog timer. A value of 0 disables the software watchdog timer. 
@@ -186,6 +220,7 @@ class InsightX3:
             Insight.write(command.encode("ascii"))
             print('TIMer:WATChdog set to {} s.'.format(timeout))
     
+    @Try_until_Success
     def SetOperatingMode(self, mode):
         """
         MODE RUN sets the laser to standard operating mode.
@@ -200,7 +235,8 @@ class InsightX3:
         with serial.Serial(self.address, self.baudrate) as Insight:
             Insight.write(command.encode("ascii"))        
             print('Setting: {}'.format(mode))
-            
+    
+    @Try_until_Success
     def Turn_On_PumpLaser(self):
         """
         Turns on the pump laser.
@@ -217,7 +253,8 @@ class InsightX3:
 #            ONresponse = (Insight.readline()).decode("utf-8")
             
 #            print('The response to ON is: {}'.format(ONresponse))
-            
+    
+    @Try_until_Success
     def Turn_Off_PumpLaser(self):
         """
         Turns off the pump diode laser, but the oven temperatures are maintained for a quick warm-up time. 
@@ -229,7 +266,8 @@ class InsightX3:
             Insight.write(command.encode("ascii"))        
             
             print('Pump diode laser turned down.')
-            
+    
+    @Try_until_Success
     def Open_TunableBeamShutter(self):
         """
         Opens the tunable beam shutter.
@@ -239,7 +277,8 @@ class InsightX3:
         
         with serial.Serial(self.address, self.baudrate) as Insight:
             Insight.write(command.encode("ascii"))    
-            
+    
+    @Try_until_Success
     def Close_TunableBeamShutter(self):
         """
         Closes the tunable beam shutter.
@@ -248,7 +287,8 @@ class InsightX3:
         
         with serial.Serial(self.address, self.baudrate) as Insight:
             Insight.write(command.encode("ascii")) 
-            
+    
+    @Try_until_Success
     def SaveVariables(self):
         """
         Saves the variables and continues laser operation, unlike the SHUTDOWN command, which saves these variables and turns off the system.

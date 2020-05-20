@@ -23,6 +23,7 @@ import sys
 import threading, queue
 from InsightX3.TwoPhotonLaser import TwoPhotonExecutor
 from InsightX3.TwoPhotonLaser_backend import InsightX3
+import StylishQT
 
 class InsightWidgetUI(QWidget):
     """
@@ -53,7 +54,7 @@ class InsightWidgetUI(QWidget):
         self.BasicLaserEventLayout.addWidget(PumpLabel, 1, 0)
 #        PumpLabel.setAlignment(Qt.AlignRight)
         
-        self.LaserSwitch = MySwitch('ON', 'green', 'OFF', 'red', width = 32)
+        self.LaserSwitch = StylishQT.MySwitch('ON', 'green', 'OFF', 'red', width = 32)
         self.LaserSwitch.clicked.connect(self.LaserSwitchEvent)
         self.BasicLaserEventLayout.addWidget(self.LaserSwitch, 1, 1)
         
@@ -61,11 +62,11 @@ class InsightWidgetUI(QWidget):
         self.BasicLaserEventLayout.addWidget(ShutterLabel, 0, 0)
 #        ShutterLabel.setAlignment(Qt.AlignRight)
         
-        self.ShutterSwitchButton = MySwitch('ON', 'green', 'OFF', 'red', width = 32)
+        self.ShutterSwitchButton = StylishQT.MySwitch('ON', 'green', 'OFF', 'red', width = 32)
         self.ShutterSwitchButton.clicked.connect(self.ShutterSwitchEvent)
         self.BasicLaserEventLayout.addWidget(self.ShutterSwitchButton, 0, 1)
         
-        self.ModeSwitchButton = MySwitch('ALIGN MODE', 'yellow', 'RUNNING MODE', 'cyan', width = 76)
+        self.ModeSwitchButton = StylishQT.MySwitch('ALIGN MODE', 'yellow', 'RUNNING MODE', 'cyan', width = 76)
         self.ModeSwitchButton.clicked.connect(self.ModeSwitchEvent)
         self.BasicLaserEventLayout.addWidget(self.ModeSwitchButton, 2, 0, 1, 2)
         
@@ -81,7 +82,7 @@ class InsightWidgetUI(QWidget):
         self.SWavelengthTextbox.valueChanged.connect(self.setwavelegth)
         
         self.WatchdogTimerTextbox = QSpinBox(self)
-        self.WatchdogTimerTextbox.setMinimum(2)
+        self.WatchdogTimerTextbox.setMinimum(0)
         self.WatchdogTimerTextbox.setMaximum(100000)
         self.WatchdogTimerTextbox.setSingleStep(1)
         self.WatchdogTimerTextbox.setKeyboardTracking(False)
@@ -363,47 +364,6 @@ class InsightWidgetUI(QWidget):
         QuitCancelButton.clicked.connect(lambda:event.ignore())
 
         closeEventmsg.exec()
-        
-class MySwitch(QtWidgets.QPushButton):
-    def __init__(self, label_1, color_1, label_2, color_2, width, parent = None):
-        super().__init__(parent)
-        self.setCheckable(True)
-        self.setMinimumWidth(66)
-        self.setMinimumHeight(22)
-        self.switch_label_1 = label_1
-        self.switch_label_2 = label_2
-        self.switch_color_1 = color_1
-        self.switch_color_2 = color_2
-        self.width = width
-        
-    def paintEvent(self, event):
-        label = self.switch_label_1 if self.isChecked() else self.switch_label_2
-        
-        if self.isChecked():
-            bg_color = QColor(self.switch_color_1)
-        else:
-            bg_color = QColor(self.switch_color_2)
-                
-        radius = 10
-        width = self.width
-        center = self.rect().center()
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.translate(center)
-        painter.setBrush(QColor(0,0,0))
-
-        pen = QPen(Qt.black)
-        pen.setWidth(2)
-        painter.setPen(pen)
-
-        painter.drawRoundedRect(QRect(-width, -radius, 2*width, 2*radius), radius, radius)
-        painter.setBrush(QBrush(bg_color))
-        sw_rect = QRect(-radius, -radius, width + radius, 2*radius)
-        if not self.isChecked():
-            sw_rect.moveLeft(-width)
-        painter.drawRoundedRect(sw_rect, radius, radius)
-        painter.drawText(sw_rect, Qt.AlignCenter, label)
         
         
 if __name__ == "__main__":
