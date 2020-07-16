@@ -44,6 +44,8 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from NIDAQ.constants import HardwareConstants
+import StylishQT
+
 
 class PMTWidgetUI(QWidget):
     
@@ -116,6 +118,7 @@ class PMTWidgetUI(QWidget):
         pmtroiContainer.setLayout(self.pmtimageroiLayout)
         #----------------------------Contour-----------------------------------        
         pmtContourContainer = QGroupBox("Contour selection")
+        pmtContourContainer.setFixedWidth(280)
         self.pmtContourLayout = QGridLayout()
         #contour_Description = QLabel("Handle number updates when parking mouse cursor upon ROI. Points in contour are divided evenly between handles.")
         #contour_Description.setStyleSheet('color: blue')        
@@ -144,60 +147,49 @@ class PMTWidgetUI(QWidget):
         self.pmtContourLayout.addWidget(self.contour_samprate, 3, 1)        
         self.pmtContourLayout.addWidget(QLabel("Sampling rate:"), 3, 0)
         
-        self.generate_contour_sacn = QPushButton("Generate contour")
-        self.generate_contour_sacn.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                 "QPushButton:pressed {color:red;background-color: DarkOliveGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                 "QPushButton:hover:!pressed {color:gray;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.generate_contour_sacn = StylishQT.generateButton()
         self.pmtContourLayout.addWidget(self.generate_contour_sacn, 4, 1)
         self.generate_contour_sacn.clicked.connect(lambda: self.generate_contour())
         
-        self.do_contour_sacn = QPushButton("Continuous scan")
-        self.do_contour_sacn.setStyleSheet("QPushButton {color:black;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                           "QPushButton:pressed {color:red;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                           "QPushButton:hover:!pressed {color:white;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.do_contour_sacn = StylishQT.runButton("Contour")
+        self.do_contour_sacn.setFixedHeight(32)
         self.pmtContourLayout.addWidget(self.do_contour_sacn, 5, 0)
         self.do_contour_sacn.clicked.connect(lambda:self.buttonenabled('contourscan', 'start'))
         self.do_contour_sacn.clicked.connect(lambda: self.measure_pmt_contourscan())
         
-        self.stopButton_contour = QPushButton("Stop")
-        self.stopButton_contour.setStyleSheet("QPushButton {color:white;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:hover:!pressed {color:gray;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.stopButton_contour = StylishQT.stop_deleteButton()
+        self.stopButton_contour.setFixedHeight(32)
         self.stopButton_contour.clicked.connect(lambda:self.buttonenabled('contourscan', 'stop'))
         self.stopButton_contour.clicked.connect(lambda: self.stopMeasurement_pmt_contour())
+        self.stopButton_contour.setEnabled(False)
         self.pmtContourLayout.addWidget(self.stopButton_contour, 5, 1)
         
         pmtContourContainer.setLayout(self.pmtContourLayout)
         #----------------------------Control-----------------------------------
         controlContainer = QGroupBox("Galvo Scanning Panel")
+        controlContainer.setFixedWidth(280)
         self.controlLayout = QGridLayout()
         
         self.pmt_fps_Label = QLabel("Per frame: ")
         self.controlLayout.addWidget(self.pmt_fps_Label, 5, 0)
     
-        self.saveButton_pmt = QPushButton("Save image")
-        self.saveButton_pmt.setStyleSheet("QPushButton {color:DarkGreen;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                          "QPushButton:pressed {color:DarkGreen;background-color: DarkOliveGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                          "QPushButton:hover:!pressed {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.saveButton_pmt = StylishQT.saveButton()
         self.saveButton_pmt.clicked.connect(lambda: self.saveimage_pmt())
         self.controlLayout.addWidget(self.saveButton_pmt, 5, 1)
     
-        self.startButton_pmt = QPushButton("Start")
-        self.startButton_pmt.setStyleSheet("QPushButton {color:black;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                           "QPushButton:pressed {color:black;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                           "QPushButton:hover:!pressed {color:white;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.startButton_pmt = StylishQT.runButton("")
+        self.startButton_pmt.setFixedHeight(32)
         self.startButton_pmt.setCheckable(True)
         self.startButton_pmt.clicked.connect(lambda:self.buttonenabled('rasterscan', 'start'))
         self.startButton_pmt.clicked.connect(lambda: self.measure_pmt())
 
         self.controlLayout.addWidget(self.startButton_pmt, 6, 0)
         
-        self.stopButton = QPushButton("Stop")
-        self.stopButton.setStyleSheet("QPushButton {color:white;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:hover:!pressed {color:gray;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.stopButton = StylishQT.stop_deleteButton()
+        self.stopButton.setFixedHeight(32)
         self.stopButton.clicked.connect(lambda:self.buttonenabled('rasterscan', 'stop'))
         self.stopButton.clicked.connect(lambda: self.stopMeasurement_pmt())
+        self.stopButton.setEnabled(False)
         self.controlLayout.addWidget(self.stopButton, 6, 1)
         
         #-----------------------------------Galvo scanning------------------------------------------------------------------------
@@ -217,30 +209,6 @@ class PMTWidgetUI(QWidget):
         self.textbox1B_pmt.setSingleStep(1)        
         self.controlLayout.addWidget(self.textbox1B_pmt, 2, 1)
         self.controlLayout.addWidget(QLabel("Volt range:"), 2, 0)
-
-#        self.textbox1C_pmt = QSpinBox(self)
-#        self.textbox1C_pmt.setMinimum(-10)
-#        self.textbox1C_pmt.setMaximum(10)
-#        self.textbox1C_pmt.setValue(3)
-#        self.textbox1C_pmt.setSingleStep(1)   
-#        self.controlLayout.addWidget(self.textbox1C_pmt, 2, 2)
-#        self.controlLayout.addWidget(QLabel("voltXMax"), 2, 1)
-#
-#        self.textbox1D_pmt = QSpinBox(self)
-#        self.textbox1D_pmt.setMinimum(-10)
-#        self.textbox1D_pmt.setMaximum(10)
-#        self.textbox1D_pmt.setValue(-3)
-#        self.textbox1D_pmt.setSingleStep(1)   
-#        self.controlLayout.addWidget(self.textbox1D_pmt, 1, 4)
-#        self.controlLayout.addWidget(QLabel("voltYMin"), 1, 3)
-#
-#        self.textbox1E_pmt = QSpinBox(self)
-#        self.textbox1E_pmt.setMinimum(-10)
-#        self.textbox1E_pmt.setMaximum(10)
-#        self.textbox1E_pmt.setValue(3)
-#        self.textbox1E_pmt.setSingleStep(1)   
-#        self.controlLayout.addWidget(self.textbox1E_pmt, 2, 4)
-#        self.controlLayout.addWidget(QLabel("voltYMax"), 2, 3)
         
         self.Scanning_pixel_num_combobox = QSpinBox(self)
         self.Scanning_pixel_num_combobox.setMinimum(0)
@@ -278,37 +246,21 @@ class PMTWidgetUI(QWidget):
         
         if button == 'rasterscan':
             if switch == 'start':
-#                if self.startButton_pmt.isChecked():#disable start button and enable stop button
+
                 self.startButton_pmt.setEnabled(False)
-                self.startButton_pmt.setStyleSheet("QPushButton {color:black;background-color: gray; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                   "QPushButton:pressed {color:black;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
                 self.stopButton.setEnabled(True)
-                self.stopButton.setStyleSheet("QPushButton {color:white;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                              "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
                     
             elif switch == 'stop':
                 self.startButton_pmt.setEnabled(True)
-                self.startButton_pmt.setStyleSheet("QPushButton {color:black;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                   "QPushButton:pressed {color:black;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
                 self.stopButton.setEnabled(False)
-                self.stopButton.setStyleSheet("QPushButton {color:white;background-color: gray; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                              "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
                     
         elif button == 'contourscan':
             if switch == 'start': #disable start button and enable stop button
                 self.do_contour_sacn.setEnabled(False)
-                self.do_contour_sacn.setStyleSheet("QPushButton {color:black;background-color: gray; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                   "QPushButton:pressed {color:red;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
                 self.stopButton_contour.setEnabled(True)
-                self.stopButton_contour.setStyleSheet("QPushButton {color:white;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                      "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
             elif switch == 'stop':
                 self.do_contour_sacn.setEnabled(True)
-                self.do_contour_sacn.setStyleSheet("QPushButton {color:black;background-color: Aquamarine; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                   "QPushButton:pressed {color:red;background-color: Turquoise; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
                 self.stopButton_contour.setEnabled(False)
-                self.stopButton_contour.setStyleSheet("QPushButton {color:white;background-color: gray; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                                      "QPushButton:pressed {color:black;background-color: FireBrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
                 
                 
                 
@@ -371,6 +323,9 @@ class PMTWidgetUI(QWidget):
         self.pmt_handlenum_Label.setText("Handle number: %.d" % self.ROIhandles_nubmer)
         
     def generate_contour(self):
+        """
+        getLocalHandlePositions IS THE FUNCTION TO GRAP COORDINATES FROM IMAGEITEM REGARDLESS OF IMAGEITEM ZOOMING OR PANNING!!!
+        """
         self.ROIhandles = self.roi.getHandles()
         self.ROIhandles_nubmer = len(self.ROIhandles)
         self.contour_point_number = int(self.pointsinContour.value())
@@ -685,6 +640,11 @@ class PMTWidgetUI(QWidget):
         """Stop the seal test."""
         self.pmtTest_contour.aboutToQuitHandler()
         self.MessageToMainGUI('---!! Contour stopped !!---'+'\n')
+        
+    def closeEvent(self, event):
+            
+        QtWidgets.QApplication.quit()
+        event.accept()
     '''    
     def closeEvent(self, event):
         """On closing the application we have to make sure that the measuremnt

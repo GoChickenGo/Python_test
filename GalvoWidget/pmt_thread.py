@@ -24,6 +24,10 @@ from NIDAQ.configuration import Configuration
 from NIDAQ.wavegenerator import blockWave
 from NIDAQ.constants import MeasurementConstants
 
+# =============================================================================
+# For continuous raster scanning
+# =============================================================================
+
 class pmtimaging_continuous_Thread(QThread):
     measurement = pyqtSignal(np.ndarray) #The signal for the measurement, we can connect to this signal
     def __init__(self, wave, sampleRate, readNumber, averagenumber, ScanArrayXnum, *args, **kwargs):
@@ -144,7 +148,11 @@ class pmtimagingTest:
     def aboutToQuitHandler(self):
         self.pmtimagingThread.requestInterruption()
         self.pmtimagingThread.wait()
-        
+
+# =============================================================================
+# For continuous contour scanning
+# =============================================================================
+
 class pmtimaging_continuous_Thread_contour(QThread):
     measurement = pyqtSignal(np.ndarray) #The signal for the measurement, we can connect to this signal
     def __init__(self, wave, sampleRate, readNumber, averagenumber, ScanArrayXnum, *args, **kwargs):
