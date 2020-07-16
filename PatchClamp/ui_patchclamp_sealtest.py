@@ -13,6 +13,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QPen, QPixmap
 from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QDoubleSpinBox, QPushButton, QGroupBox, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QSpinBox
+import pyqtgraph.exporters
 
 import pyqtgraph as pg
 import time
@@ -74,6 +75,7 @@ class SlidingWindow(pg.PlotWidget):
 class PatchclampSealTestUI(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.saving_dir = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp'
         
         #------------------------Initiating patchclamp class-------------------
         self.sealTest = PatchclampSealTest()
@@ -290,6 +292,10 @@ class PatchclampSealTestUI(QWidget):
         self.valueLayout.addWidget(self.resistanceLabel)
         self.valueLayout.addWidget(self.capacitanceLabel)
         self.valueLayout.addWidget(self.ratioLabel)
+        
+        self.savedataButton = QPushButton("Save figure")
+        self.savedataButton.clicked.connect(lambda: self.savePatchfigure())
+        self.valueLayout.addWidget(self.savedataButton)        
         
         valueContainer.setLayout(self.valueLayout)
         self.plotLayout.addWidget(valueContainer, 2, 0, 1, 2)
@@ -538,6 +544,17 @@ class PatchclampSealTestUI(QWidget):
         self.lowervoltage = self.LowerVoltagebox.value()/1000
         self.sealTest.setWave(self.inVolGain, self.diffvoltage, self.lowervoltage)
         self.sealTest.start()
+        
+    def savePatchfigure(self):
+        # create an exporter instance, as an argument give it
+        # the item you wish to export
+        exporter = pg.exporters.ImageExporter(self.outCurPlotWidget.getPlotItem)
+        
+        # set export parameters if needed
+        exporter.parameters()['width'] = 100   # (note this also affects height parameter)
+        
+        # save to file
+        exporter.export(self.saving_dir + '\R{}_C{}_sealtest.png'.format(int(self.estimated_size_resistance), int(self.estimated_size_capacitance)))        
 
 if __name__ == "__main__":
     def run_app():
