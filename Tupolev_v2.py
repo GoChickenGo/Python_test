@@ -17,6 +17,7 @@ Created on Sat Aug 10 20:54:40 2019
     - NIDAQ.AOTFWidget: To control AOTF, which is controlled by NI-daq.
     - ThorlabsFilterSlider.FilterSliderWidget: Controller for Thorlabs filter slider.
     - PI_ObjectiveMotor.ObjMotorWidget: Widget for objective motor control.
+    - CoordinatesManager.CoordinatesWidget: Widget to create mask based on widefield image. Project mask with DMD or galvos
     ============================== ==============================================
 """
 from __future__ import division
@@ -29,7 +30,7 @@ from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont, QPalet
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory)
+                             QFileDialog, QProgressBar, QTextEdit, QStyleFactory, QGraphicsDropShadowEffect)
 
 import pyqtgraph as pg
 import StylishQT
@@ -40,12 +41,15 @@ import GalvoWidget.PMTWidget
 import ImageAnalysis.AnalysisWidget
 import SampleStageControl.StageMoveWidget
 import NIDAQ.AOTFWidget
+import NIDAQ.DAQoperator
 import ThorlabsFilterSlider.FilterSliderWidget
 import PI_ObjectiveMotor.ObjMotorWidget
+import InsightX3.TwoPhotonLaserUI
+import Weather_GUI
 
 import pyqtgraph.console
 import HamamatsuCam.HamamatsuUI
-import DMDManager.ui_dmd_widget
+import CoordinatesManager.CoordinateWidget2
 
 
 #Setting graph settings
@@ -62,15 +66,6 @@ import DMDManager.ui_dmd_widget
 
 class Mainbody(QWidget):
     
-#    waveforms_generated = pyqtSignal(object, object, list, int)
-    
-    # def closeEvent(self, event):
-    #     ## Because the software combines both PyQt and PyQtGraph, using the
-    #     ## closeEvent() from PyQt will cause a segmentation fault. Calling 
-    #     ## also the exit() from PyQtGraph solves this problem. 
-    #     pg.exit()    
-    #     event.accept()
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -80,19 +75,22 @@ class Mainbody(QWidget):
         try:
             os.chdir(os.path.dirname(sys.argv[0]))
         except:
-            os.chdir(sys.path[0])
+            pass
+            # os.chdir(sys.path[0])
                 
 #        os.chdir(os.path.dirname(sys.argv[0]))# Set directory to current folder.
             
         self.setWindowIcon(QIcon('./Icons/Icon.png'))
         self.setFont(QFont("Arial"))
+#        blur_effect = QtWidgets.QGraphicsBlurEffect(blurRadius=5)
+#        self.setGraphicsEffect(blur_effect)
         self.OC = 0.1
         
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
-        self.setMinimumSize(1600,1050)
-        self.setWindowTitle("Tupolev v2.0")
+        self.setMinimumSize(1600,1080)
+        self.setWindowTitle("Fiumicino")
         self.layout = QGridLayout(self)
         """
         # =============================================================================
@@ -105,7 +103,7 @@ class Mainbody(QWidget):
         self.PatchClamp_WidgetInstance = PatchClamp.ui_patchclamp_sealtest.PatchclampSealTestUI()
         #self.tab4 = ui_camera_lab_5.CameraUI()
         self.Analysis_WidgetInstance = ImageAnalysis.AnalysisWidget.AnalysisWidgetUI()
-        self.DMD_WidgetInstance = DMDManager.ui_dmd_widget.UI_DMD_Widget()
+        self.Coordinate_WidgetInstance = CoordinatesManager.CoordinateWidget2.CoordinatesWidgetUI(self)
         
         #--------------Add tab widgets-------------------
         self.tabs.addTab(self.Galvo_WidgetInstance,"PMT imaging")
@@ -113,7 +111,7 @@ class Mainbody(QWidget):
         self.tabs.addTab(self.PatchClamp_WidgetInstance,"Patch clamp")
         #self.tabs.addTab(self.tab4,"Camera")        
         self.tabs.addTab(self.Analysis_WidgetInstance,"Image analysis")
-        self.tabs.addTab(self.DMD_WidgetInstance, "DMD")
+        self.tabs.addTab(self.Coordinate_WidgetInstance, "Coordinates")
         # =============================================================================
         
         self.savedirectory = os.path.join(os.path.expanduser("~"), "Desktop") #'M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'
@@ -146,85 +144,148 @@ class Mainbody(QWidget):
         
         self.prefixtextbox = QLineEdit(self)
         self.prefixtextbox.setPlaceholderText('Prefix')
+        self.prefixtextbox.returnPressed.connect(self.set_prefix)
         self.setdirectorycontrolLayout.addWidget(self.prefixtextbox, 0, 0)
         
         #self.setdirectorycontrolLayout.addWidget(QLabel("Saving prefix:"), 0, 0)
         
-        self.toolButtonOpenDialog = QtWidgets.QPushButton('Click me!')
-        self.toolButtonOpenDialog.setStyleSheet("QPushButton {color:teal;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}"
-                                                "QPushButton:pressed {color:yellow;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}"
-                                                "QPushButton:hover:!pressed {color:white;background-color: pink; border-style: outset;border-radius: 5px;border-width: 2px;font: bold 14px;padding: 2px}")
-
+        self.toolButtonOpenDialog = QtWidgets.QPushButton()
+        self.toolButtonOpenDialog.setIcon(QIcon('./Icons/Browse.png')) 
         self.toolButtonOpenDialog.setObjectName("toolButtonOpenDialog")
-        self.toolButtonOpenDialog.clicked.connect(self._open_file_dialog)
+        self.toolButtonOpenDialog.clicked.connect(self.set_saving_directory)
         
         self.setdirectorycontrolLayout.addWidget(self.toolButtonOpenDialog, 0, 2)
         
         setdirectoryContainer.setLayout(self.setdirectorycontrolLayout)
         setdirectoryContainer.setMaximumHeight(70)
         
-        self.layout.addWidget(setdirectoryContainer, 0, 0)
+        self.layout.addWidget(setdirectoryContainer, 0, 0, 1, 2)
+        
+        # =============================================================================
+        #         GUI for toolbox
+        # =============================================================================
+        toolboxContainer = QGroupBox("Toolbox")
+        toolboxContainer.setStyleSheet("QGroupBox {\
+                                        font: bold;\
+                                        border: 1px solid silver;\
+                                        border-radius: 6px;\
+                                        margin-top: 10px;\
+                                        color:Navy}\
+                                        font-size: 14px;\
+                                        QGroupBox::title{subcontrol-origin: margin;\
+                                                         left: 7px;\
+                                                         padding: 5px 5px 5px 5px;}")
+        self.toolboxContainerlLayout = QGridLayout()
+        
+        self.shutter2PButton = QtWidgets.QPushButton()
+        self.shutter2PButton.setIcon(QIcon('./Icons/shutter.png'))
+        self.shutter2PButton.setStyleSheet("QPushButton {color:white;background-color: #FFE5CC;}"
+                                      "QPushButton:hover:!pressed {color:white;background-color: #CCFFFF;}")
+        self.shutter2PButton.setCheckable(True)
+        self.shutter2PButton.setFixedWidth(30)
+        self.shutter2PButton.setFixedHeight(30)
+        self.shutter2PButton.clicked.connect(self.shutter2Paction)        
+        
+        self.LEDButton = QtWidgets.QPushButton()
+        self.LEDButton.setIcon(QIcon('./Icons/LED.png'))
+        self.LEDButton.setStyleSheet("QPushButton {color:white;background-color: #FFE5CC;}"
+                                      "QPushButton:hover:!pressed {color:white;background-color: #CCFFFF;}")
+        self.LEDButton.setCheckable(True)
+        self.LEDButton.setFixedWidth(30)
+        self.LEDButton.setFixedHeight(30)
+        self.LEDButton.clicked.connect(self.LEDaction)
+
+        self.shutter2PButton.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
+        self.LEDButton.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
+        
+        self.toolboxContainerlLayout.addWidget(self.shutter2PButton, 0, 1)
+        self.toolboxContainerlLayout.addWidget(self.LEDButton, 0, 2)
+        
+        toolboxContainer.setLayout(self.toolboxContainerlLayout)
+
+        self.layout.addWidget(toolboxContainer, 1, 1)
+        
+        # =============================================================================
+        #         GUI for weather
+        # =============================================================================
+        self.layout.addWidget(Weather_GUI.WeatherUI(), 1, 0)
         
         # =============================================================================
         #         GUI for sample stage
         # =============================================================================
-        StageMoveWidgetInstance = SampleStageControl.StageMoveWidget.StageWidgetUI()
-        self.layout.addWidget(StageMoveWidgetInstance, 2, 0)
+        self.StageMoveWidgetInstance = SampleStageControl.StageMoveWidget.StageWidgetUI()
+        self.layout.addWidget(self.StageMoveWidgetInstance, 6, 0, 1, 2)
 
         # =============================================================================
         #         GUI for AOTF
         # =============================================================================             
         self.AOTFWidgetInstance = NIDAQ.AOTFWidget.AOTFWidgetUI()
-        self.layout.addWidget(self.AOTFWidgetInstance, 1, 0)
+        self.layout.addWidget(self.AOTFWidgetInstance, 5, 0, 1, 2)
 
         # =============================================================================
         #         GUI for fliter silder
         # =============================================================================        
         FilterSliderWidgetInstance = ThorlabsFilterSlider.FilterSliderWidget.FilterSliderWidgetUI()
-        self.layout.addWidget(FilterSliderWidgetInstance, 4, 0)    
+        self.layout.addWidget(FilterSliderWidgetInstance, 8, 0, 1, 2)    
 
         # =============================================================================
         #         GUI for objective motor
         # =============================================================================        
         ObjMotorInstance = PI_ObjectiveMotor.ObjMotorWidget.ObjMotorWidgetUI()
-        self.layout.addWidget(ObjMotorInstance, 3, 0)         
+        self.layout.addWidget(ObjMotorInstance, 7, 0, 1, 2)         
 
         # =============================================================================
         #         GUI for camera button       
         # =============================================================================
-        self.open_cam = StylishQT.FancyPushButton(55, 25)
-        self.open_cam.setText("Open Camera")
+        self.open_cam = StylishQT.FancyPushButton(55, 25, color1=(255,153,255), color2=(204,208,255))
+        self.open_cam.setIcon(QIcon('./Icons/Hamamatsu.png'))
+        self.open_cam.setIconSize(QSize(100, 100))
         self.open_cam.clicked.connect(self.open_camera)
-        self.layout.addWidget(self.open_cam,5,0)
-        
+        self.layout.addWidget(self.open_cam, 2, 0, 1, 2)
+        self.open_cam.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
+        # =============================================================================
+        #         GUI for Insight X3      
+        # =============================================================================
+        self.open_Insight = StylishQT.FancyPushButton(55, 25, color1=(70,130,180), color2=(144,238,144))
+        self.open_Insight.setText("Open Insight laser")
+        self.open_Insight.clicked.connect(self.open_Insight_UI)
+        self.layout.addWidget(self.open_Insight, 3, 0, 1, 2)
+        self.open_Insight.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
+        # =============================================================================
+        #         Console massage    
+        # =============================================================================
         self.console_text_edit = QTextEdit()
         self.console_text_edit.setFontItalic(True)
         self.console_text_edit.setPlaceholderText('Notice board from console.')
         self.console_text_edit.setFixedHeight(200)
-        self.layout.addWidget(self.console_text_edit, 6, 0)
+        self.layout.addWidget(self.console_text_edit, 9, 0, 1, 2)
         
         #**************************************************************************************************************************************        
         #self.setLayout(pmtmaster)
-        self.layout.addWidget(self.tabs, 0, 1, 10, 4)
+            
+        self.layout.addWidget(self.tabs, 0, 2, 10, 4)
         self.setLayout(self.layout)
         
         # =============================================================================
         #         Establishing communication between widgets.
         # =============================================================================
-        self.Galvo_WidgetInstance.SignalForContourScanning.connect(self.PassVariable_GalvoWidget2Waveformer)
+        self.Galvo_WidgetInstance.SignalForContourScanning.connect(self.PassVariable_GalvoWidget_to_Waveformer)
         self.Galvo_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
+        
+        self.Coordinate_WidgetInstance.sig_start_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(True))
+        self.Coordinate_WidgetInstance.sig_finished_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(False))
+        # self.Coordinate_WidgetInstance.sig_control_laser.connect(self.AOTFWidgetInstance.control_for_registration)
+        # self.Coordinate_WidgetInstance.sig_console_print.connect(self.normalOutputWritten)
+        
+        # self.AOTFWidgetInstance.sig_lasers_status_changed.connect(self.Coordinate_WidgetInstance.lasers_status_changed)
+        
         self.Analysis_WidgetInstance.MessageBack.connect(self.normalOutputWritten)
-        
-        self.DMD_WidgetInstance.sig_start_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(True))
-        self.DMD_WidgetInstance.sig_finished_registration.connect(lambda: self.AOTFWidgetInstance.set_registration_mode(False))
-        self.DMD_WidgetInstance.sig_control_laser.connect(self.AOTFWidgetInstance.control_AOTF)
-        self.AOTFWidgetInstance.sig_lasers_status_changed.connect(self.DMD_WidgetInstance.lasers_status_changed)
-        
+        self.Analysis_WidgetInstance.Cellselection_DMD_mask_contour.connect(self.Coordinate_WidgetInstance.DMDWidget.receive_mask_coordinates)
         '''
         ***************************************************************************************************************************************
         ************************************************************END of GUI*****************************************************************
         '''
-        
+    #%%
     def __del__(self):
         # Restore sys.stdout
         sys.stdout = sys.__stdout__
@@ -233,7 +294,7 @@ class Mainbody(QWidget):
         ***************************************************************************************************************************************
         ************************************************************ Functions to pass variables across widges ********************************
         '''        
-    def PassVariable_GalvoWidget2Waveformer(self, contour_point_number, Daq_sample_rate_pmt, time_per_contour, handle_viewbox_coordinate_x, handle_viewbox_coordinate_y):
+    def PassVariable_GalvoWidget_to_Waveformer(self, contour_point_number, Daq_sample_rate_pmt, time_per_contour, handle_viewbox_coordinate_x, handle_viewbox_coordinate_y):
         
         self.Waveformer_WidgetInstance.galvo_contour_label_1.setText("Points in contour: %.d" % contour_point_number)
         self.Waveformer_WidgetInstance.galvo_contour_label_2.setText("Sampling rate: %.d" % Daq_sample_rate_pmt)
@@ -242,22 +303,45 @@ class Mainbody(QWidget):
         self.Waveformer_WidgetInstance.handle_viewbox_coordinate_position_array_expanded_y = handle_viewbox_coordinate_y
         self.Waveformer_WidgetInstance.time_per_contour = time_per_contour
         
+#    def PassVariable_AnalysisWidget_to_DMDWidget(self, output_mask_from_Cellselection):
+#        print('Mask from AnalysisWidget_to_DMDWidget')
+#        
+#        self.Coordinate_WidgetInstance.mask = output_mask_from_Cellselection
+#        self.Coordinate_WidgetInstance.mask_view.setImage(output_mask_from_Cellselection)
     # =============================================================================
     #     Fucs for set directory
     # =============================================================================
-    def _open_file_dialog(self):
+    # Set the savedirectory and prefix of Waveform widget in syn.
+    def set_saving_directory(self):
         self.savedirectory = str(QtWidgets.QFileDialog.getExistingDirectory())
         self.savedirectorytextbox.setText(self.savedirectory)
+        self.Galvo_WidgetInstance.savedirectory = self.savedirectory        
+        self.Waveformer_WidgetInstance.savedirectory = self.savedirectory        
+        self.Analysis_WidgetInstance.savedirectory = self.savedirectory
+        self.PatchClamp_WidgetInstance.saving_dir = self.savedirectory
+        
+        self.set_prefix()
+        
+    def set_prefix(self):
         self.saving_prefix = str(self.prefixtextbox.text())
-        
-        # Set the savedirectory and prefix of Waveform widget in syn.
-        self.Galvo_WidgetInstance.savedirectory = self.savedirectory
         self.Galvo_WidgetInstance.prefixtextboxtext = self.saving_prefix
-        
-        self.Waveformer_WidgetInstance.savedirectory = self.savedirectory
         self.Waveformer_WidgetInstance.saving_prefix = self.saving_prefix
         
-        self.Analysis_WidgetInstance.savedirectory = self.savedirectory
+    def shutter2Paction(self):
+        daq= NIDAQ.DAQoperator.DAQmission()
+        # For 2P shutter
+        if self.shutter2PButton.isChecked():
+            daq.sendSingleDigital('2Pshutter', True)
+        else:
+            daq.sendSingleDigital('2Pshutter', False)
+            
+    def LEDaction(self):
+        daq= NIDAQ.DAQoperator.DAQmission()
+        # For LED
+        if self.LEDButton.isChecked():
+            daq.sendSingleDigital('LED', True)
+        else:
+            daq.sendSingleDigital('LED', False)        
     # =============================================================================
     #    Fucs for camera options
     # =============================================================================
@@ -265,6 +349,13 @@ class Mainbody(QWidget):
         self.camWindow = HamamatsuCam.HamamatsuUI.CameraUI()
         self.camWindow.show()
         
+        # Connect camera with DMD widget, so that snapped images are shown in 
+        # DMD widget.
+        self.camWindow.signal_SnapImg.connect(self.Coordinate_WidgetInstance.set_camera_image)
+        
+    def open_Insight_UI(self):
+        self.open_Insight_UIWindow = InsightX3.TwoPhotonLaserUI.InsightWidgetUI()
+        self.open_Insight_UIWindow.show()        
     # =============================================================================
     #     Fucs for console display
     # =============================================================================
@@ -276,7 +367,10 @@ class Mainbody(QWidget):
         cursor.insertText(text)
         self.console_text_edit.setTextCursor(cursor)
         self.console_text_edit.ensureCursorVisible()
-
+        
+    def closeEvent(self, event):
+        QtWidgets.QApplication.quit()
+        event.accept()
         
 if __name__ == "__main__":
     def run_app():

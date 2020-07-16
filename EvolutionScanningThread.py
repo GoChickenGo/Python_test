@@ -193,7 +193,7 @@ class ScanningExecutionThread(QThread):
                     
                     if EMprotein == 'Arch':
                         EM_filter_Pos = 0
-                    elif EMprotein == 'eGFP':
+                    elif EMprotein == 'eGFP' or EMprotein == 'Citrine':
                         EM_filter_Pos = 1
                     
                 #-------------Unpack infor for Insight X3. In the list, the first one is for shutter event and the second one is for wavelength event. 

@@ -42,7 +42,8 @@ import GalvoWidget.PMTWidget
 import NIDAQ.AOTFWidget
 import ThorlabsFilterSlider.FilterSliderWidget
 import InsightX3.TwoPhotonLaserUI
-import EvolutionAnalysisGUI
+#import EvolutionAnalysisGUI
+from ImageAnalysis import EvolutionAnalysisGUI_ML
 
 class Mainbody(QWidget):
     
@@ -188,7 +189,7 @@ class Mainbody(QWidget):
         ToolWidgetsLayout = QGridLayout()
         
         self.OpenPMTWidgetButton = QPushButton('PMT', self)
-        ToolWidgetsLayout.addWidget(self.OpenPMTWidgetButton, 0, 0)
+        ToolWidgetsLayout.addWidget(self.OpenPMTWidgetButton, 0, 1)
         self.OpenPMTWidgetButton.clicked.connect(self.openPMTWidget)   
         
         self.OpenInsightWidgetButton = QPushButton('Insight X3', self)
@@ -200,9 +201,13 @@ class Mainbody(QWidget):
         self.switchbutton_LED.clicked.connect(lambda: self.execute_tread_single_sample_digital('LED'))
         ToolWidgetsLayout.addWidget(self.switchbutton_LED, 0, 3)
         
-        self.openScreenAnalysisWidgetButton = QPushButton('Screen Analysis', self)
-        ToolWidgetsLayout.addWidget(self.openScreenAnalysisWidgetButton, 1, 3)
-        self.openScreenAnalysisWidgetButton.clicked.connect(self.openScreenAnalysisWidget)        
+#        self.openScreenAnalysisWidgetButton = QPushButton('Screen Analysis', self)
+#        ToolWidgetsLayout.addWidget(self.openScreenAnalysisWidgetButton, 1, 3)
+#        self.openScreenAnalysisWidgetButton.clicked.connect(self.openScreenAnalysisWidget)  
+        
+        self.openScreenAnalysisMLWidgetButton = QPushButton('Screen Analysis ML', self)
+        ToolWidgetsLayout.addWidget(self.openScreenAnalysisMLWidgetButton, 1, 2)
+        self.openScreenAnalysisMLWidgetButton.clicked.connect(self.openScreenAnalysisMLWidget)
         
         ToolWidgetsContainer.setLayout(ToolWidgetsLayout)
 
@@ -222,6 +227,7 @@ class Mainbody(QWidget):
         self.ConsoleTextDisplay.setFontItalic(True)
         self.ConsoleTextDisplay.setPlaceholderText('Notice board from console.')
         self.ConsoleTextDisplay.setMaximumHeight(200)
+        self.ConsoleTextDisplay.setFixedWidth(200)
         ImageDisplayContainerLayout.addWidget(self.ConsoleTextDisplay, 0, 1, 2, 1)
         
         ImageDisplayContainerLayout.addWidget(ToolWidgetsContainer, 2, 0, 1, 1)
@@ -278,7 +284,7 @@ class Mainbody(QWidget):
         ButtonClearRound.clicked.connect(self.ClearRoundQueue)
         
         self.ScanRepeatTextbox = QSpinBox(self)
-        self.ScanRepeatTextbox.setMinimum(1)
+        self.ScanRepeatTextbox.setMinimum(2)
         self.ScanRepeatTextbox.setMaximum(100000)
         self.ScanRepeatTextbox.setSingleStep(1)
         PipelineContainerLayout.addWidget(self.ScanRepeatTextbox, 0, 7)
@@ -1152,9 +1158,13 @@ class Mainbody(QWidget):
         self.InsightWindow = InsightX3.TwoPhotonLaserUI.InsightWidgetUI()
         self.InsightWindow.show()
         
-    def openScreenAnalysisWidget(self):
-        self.ScreenAnalysisWindow = EvolutionAnalysisGUI.MainGUI()
-        self.ScreenAnalysisWindow.show()
+#    def openScreenAnalysisWidget(self):
+#        self.ScreenAnalysisWindow = EvolutionAnalysisGUI.MainGUI()
+#        self.ScreenAnalysisWindow.show()
+        
+    def openScreenAnalysisMLWidget(self):
+        self.ScreenAnalysisMLWindow = EvolutionAnalysisGUI_ML.MainGUI()
+        self.ScreenAnalysisMLWindow.show()
         
     def execute_tread_single_sample_digital(self, channel):
         if channel == 'LED':
