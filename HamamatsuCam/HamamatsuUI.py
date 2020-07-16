@@ -44,7 +44,9 @@ pg.setConfigOption('useOpenGL', True)
 pg.setConfigOption('leftButtonPan', False)
 
 class CameraUI(QMainWindow):
-
+    
+    signal_SnapImg = pyqtSignal(np.ndarray)
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -53,6 +55,7 @@ class CameraUI(QMainWindow):
         self.Live_item_autolevel = True
         self.ShowROIImgSwitch = False
         self.ROIselector_ispresented = False
+        self.Live_sleeptime = 0.04 # default 25 camera live fps
         #----------------------------------------------------------------------
         #----------------------------------GUI---------------------------------
         #----------------------------------------------------------------------
@@ -440,14 +443,12 @@ class CameraUI(QMainWindow):
         self.LiveButton.clicked.connect(self.LiveSwitchEvent)
         CamLiveActionLayout.addWidget(self.LiveButton, 0, 1, 1, 2)
         
-        SnapImgButton = StylishQT.FancyPushButton(23, 23, color1=(51,153,255), color2=(153,204,153))
-        SnapImgButton.setText("Snap")
+        SnapImgButton = StylishQT.FancyPushButton(23, 32, color1=(255,204,229), color2=(153,153,255))
+        SnapImgButton.setIcon(QIcon('./Icons/snap.png'))
         SnapImgButton.clicked.connect(self.SnapImg)
         CamLiveActionLayout.addWidget(SnapImgButton, 1, 1, 1, 1)         
         
-        SaveLiveImgButton = StylishQT.FancyPushButton(23, 23)
-#        SaveLiveImngButton = QPushButton()
-        SaveLiveImgButton.setText("Save")
+        SaveLiveImgButton = StylishQT.saveButton()
         SaveLiveImgButton.clicked.connect(lambda: self.SaveLiveImg())
         CamLiveActionLayout.addWidget(SaveLiveImgButton, 1, 2, 1, 1)
         
@@ -483,7 +484,7 @@ class CameraUI(QMainWindow):
         
         self.StreamStopSingalComBox = QComboBox()
 #        self.StreamStopSingalComBox.lineEdit().setAlignment(Qt.AlignCenter)
-        self.StreamStopSingalComBox.addItems(['Stop signal: Time', 'Stop signal: Frames'])
+        self.StreamStopSingalComBox.addItems(['Stop signal: Frames', 'Stop signal: Time'])
         CamStreamActionLayout.addWidget(self.StreamStopSingalComBox, 1, 0)
 
         EstFPSLabel = QLabel("Estimated FPS")
@@ -879,6 +880,9 @@ class CameraUI(QMainWindow):
         self.LiveSwitchEvent()
          
     def SetExposureTime(self):
+        # Change the live fps if the exposure time is set to be larger
+        self.Live_sleeptime = max(0.04, self.CamExposureBox.value() + 0.005)
+        # print(self.Live_sleeptime)
         self.CamExposureTime = self.hcam.setPropertyValue("exposure_time", self.CamExposureBox.value())
         self.CamExposureBox.setValue(round(self.CamExposureTime, 6))
         
@@ -1187,10 +1191,8 @@ class CameraUI(QMainWindow):
             self.subarray_vsize = dims[1]
             self.subarray_hsize = dims[0]
             
-            if dims[1] >= 1800 and dims[0] >= 1800:
-                time.sleep(0.05) # 20 hz refreshing rate
-            else:
-                time.sleep(0.033)
+            time.sleep(self.Live_sleeptime)
+
             self.UpdateScreen(self.Live_image)
         
     def StopLIVE(self):
@@ -1209,7 +1211,7 @@ class CameraUI(QMainWindow):
         
     def UpdateScreen(self, image):
         if self.Live_item_autolevel == True:
-            # Down sample the image when it's larger than 1080 * 1080
+            # Down sample the image when it's full resolution
             if self.subarray_vsize == 2048 and self.subarray_hsize == 2048 and self.ROIselector_ispresented == False:
                 
                 self.Live_item.setImage(block_reduce(image, block_size=(2,2), func=np.mean, cval=np.mean(image)), autoLevels=None)
@@ -1243,7 +1245,7 @@ class CameraUI(QMainWindow):
         It's actually start acquisition with buffer being 1 image.
         """
         if self.isStreaming == False and self.isLiving == False:
-            self.hcam.setACQMode("fixed_length", number_frames = 1)
+#            self.hcam.setACQMode("fixed_length", number_frames = 1)
             self.hcam.startAcquisition()              
             # Start pulling out frames from buffer
             self.video_list = []
@@ -1260,6 +1262,8 @@ class CameraUI(QMainWindow):
             
             self.UpdateScreen(self.SnapImage)
             
+            self.signal_SnapImg.emit(self.SnapImage)
+            
         elif self.isStreaming == False and self.isLiving == True:
             
             self.hcam.stopAcquisition()
@@ -1267,6 +1271,8 @@ class CameraUI(QMainWindow):
             self.SnapImage = self.Live_image
                   
             self.UpdateScreen(self.SnapImage)
+            
+            self.signal_SnapImg.emit(self.SnapImage)
             
     def ResetLiveImgView(self):
         """Closes the widget nicely, making sure to clear the graphics scene and release memory."""
@@ -1305,6 +1311,8 @@ class CameraUI(QMainWindow):
         options = QFileDialog.Options()
         self.Streamfilename, _ = QFileDialog.getSaveFileName(
                     self, 'Save as... File', 'InternalFps_{}.tif'.format(int(self.internal_frame_rate)), filter=files_types,options=options)
+        
+#        self.Streamdirectorytextbox.setEnabled(True)
         
         if len(self.Streamfilename) > 35:
             self.Streamdirectorytextbox.setText('...' + self.Streamfilename[len(self.Streamfilename)-35:len(self.Streamfilename)])
@@ -1392,12 +1400,15 @@ class CameraUI(QMainWindow):
             # Frame number hard limit
             elif StopSignal == "Frames":
                 self.isStreaming = True
+                self.imageCount = 0 # The actual frame number that gets recorded.
+                self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+                
                 self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
                 self.hcam.startAcquisition()              
                 
                 # Start pulling out frames from buffer
                 self.video_list = []
-                self.imageCount = 0 # The actual frame number that gets recorded.
+
                 for _ in range(BufferNumber): # Record for range() number of images.
                     [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
                     for aframe in frames:
