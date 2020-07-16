@@ -14,13 +14,13 @@ from PyQt5.QtGui import QColor, QPen, QPixmap, QIcon, QTextCursor, QFont
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
-                             QFileDialog, QProgressBar, QTextEdit, QScrollBar)
+                             QFileDialog, QProgressBar, QTextEdit, QScrollBar, QGraphicsDropShadowEffect)
 from PyQt5.QtCore import QThread
 import pyqtgraph as pg
 import numpy as np
 import sys
 import threading
-
+import StylishQT
 from PI_ObjectiveMotor.focuser import PIMotor
 
 class ObjMotorWidgetUI(QWidget):
@@ -37,7 +37,7 @@ class ObjMotorWidgetUI(QWidget):
 #        self.setMinimumSize(1350,900)
         self.setWindowTitle("ObjMotorWidget")
         self.layout = QGridLayout(self)
-        
+        self.connect_status = False
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
         #-----------------------------------------------------------GUI for Objective Motor----------------------------------------------------
@@ -51,25 +51,26 @@ class ObjMotorWidgetUI(QWidget):
                                 border: 1px solid silver;\
                                 border-radius: 6px;\
                                 margin-top: 12px;\
-                                color:Navy; }\
+                                color:Navy; \
+                                background-color: #FFFAFA}\
                                 QGroupBox::title{subcontrol-origin: margin;\
                                                  left: 7px;\
                                                  padding: 5px 5px 5px 5px;}")
         self.ObjMotorcontrolLayout = QGridLayout()
         
-        self.ObjMotor_connect = QPushButton("Connect")
-        self.ObjMotor_connect.setStyleSheet("QPushButton {color:white;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:hover:!pressed {color:gray;background-color: green; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.ObjMotor_connect = StylishQT.connectButton()
+        self.ObjMotor_connect.setFixedWidth(70)
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_connect, 0, 0)
-        self.ObjMotor_connect.clicked.connect(lambda: self.ConnectMotor())       
+        self.ObjMotor_connect.clicked.connect(lambda: self.ConnectMotor())     
+        self.ObjMotor_connect.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
         
-        self.ObjMotor_disconnect = QPushButton("Disconnect")
-        self.ObjMotor_disconnect.setStyleSheet("QPushButton {color:white;background-color: firebrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:hover:!pressed {color:gray;background-color: firebrick; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.ObjMotor_disconnect = StylishQT.disconnectButton()
+        self.ObjMotor_disconnect.setFixedWidth(70)
+        self.ObjMotor_disconnect.setGraphicsEffect(QGraphicsDropShadowEffect(blurRadius=3, xOffset=2, yOffset=2))
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_disconnect, 0, 1)
+        
         self.ObjMotor_disconnect.clicked.connect(lambda: self.DisconnectMotor()) 
+        self.ObjMotor_disconnect.setEnabled(False)
         
         self.ObjMotor_upwards = QPushButton("↑")
         self.ObjMotor_upwards.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
@@ -99,10 +100,13 @@ class ObjMotorWidgetUI(QWidget):
         self.ObjMotor_current_pos_Label = QLabel("Current position: ")
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_current_pos_Label, 2, 0, 1, 2)
         
-        self.ObjMotor_goto = QPushButton("Move")
-        self.ObjMotor_goto.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            "QPushButton:hover:!pressed {color:gray;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        self.ObjMotor_goto = QPushButton()
+        self.ObjMotor_goto.setIcon(QIcon('./Icons/move_coord.png')) 
+        self.ObjMotor_goto.setToolTip("Move to absolute position")
+        self.ObjMotor_goto.setStyleSheet("QPushButton {color:white;background-color: #CCFFFF;}"
+                                      "QPushButton:hover:!pressed {color:white;background-color: #FFE5CC;}")
+        self.ObjMotor_goto.setFixedWidth(35)
+        self.ObjMotor_goto.setFixedHeight(35)
         self.ObjMotorcontrolLayout.addWidget(self.ObjMotor_goto, 1, 2)
         self.ObjMotor_goto.clicked.connect(lambda: self.MovingMotorThread("Motor_move_target"))
         
@@ -142,6 +146,7 @@ class ObjMotorWidgetUI(QWidget):
     def ConnectMotor(self):
         self.ObjMotorcontrolContainer.setEnabled(False)
         self.ObjMotor_disconnect.setEnabled(True)
+        self.ObjMotor_connect.setEnabled(False)
         
         self.device_instance = ConnectObj_Thread()
         self.device_instance.start()
@@ -150,6 +155,7 @@ class ObjMotorWidgetUI(QWidget):
     def getmotorhandle(self):
         self.pi_device_instance = self.device_instance.getInstance()
         print('Objective motor connected.')
+        self.connect_status = True
 #        self.normalOutputWritten('Objective motor connected.'+'\n')
         
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
@@ -200,8 +206,19 @@ class ObjMotorWidgetUI(QWidget):
         
         PIMotor.CloseMotorConnection(self.pi_device_instance.pidevice)
         print('Disconnected')
+        self.connect_status = False
 #        self.normalOutputWritten('Objective motor disconnected.'+'\n')
         
+    def closeEvent(self, event):
+        # ## Because the software combines both PyQt and PyQtGraph, using the
+        # ## closeEvent() from PyQt will cause a segmentation fault. Calling 
+        # ## also the exit() from PyQtGraph solves this problem. 
+        # pg.exit()
+        if self.connect_status == True:
+            self.DisconnectMotor()
+            
+        QtWidgets.QApplication.quit()
+        event.accept()
         
 class ConnectObj_Thread(QThread):
 #    videostack_signal = pyqtSignal(np.ndarray)
