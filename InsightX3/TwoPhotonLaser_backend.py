@@ -60,7 +60,7 @@ class InsightX3:
                     except:
     
                         failnumber += 1                    
-                        print('filter move failed, failnumber: {}'.format(failnumber))
+                        print('Laser action failed, failnumber: {}'.format(failnumber))
                         time.sleep(0.2)
                 else:
                     print('Fail for 8 times, give up - -')

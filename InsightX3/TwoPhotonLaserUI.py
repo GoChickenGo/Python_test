@@ -35,7 +35,7 @@ class InsightWidgetUI(QWidget):
 #        os.chdir('./')# Set directory to current folder.
         self.setFont(QFont("Arial"))
 #        self.Laserinstance = TwoPhotonExecutor(address = 'COM11', WatchdogTimer = 3, WatchdogFreq = 1.1)
-        self.Laserinstance = InsightX3('COM11')
+        
         self.resize(265,150)
         self.setWindowTitle("Insight UI")
         self.layout = QGridLayout(self)
@@ -50,36 +50,44 @@ class InsightWidgetUI(QWidget):
         BasicLaserEventContainer = QGroupBox()
         self.BasicLaserEventLayout = QGridLayout()
         
+#        self.Initialize_laserButton = QtWidgets.QPushButton('Connect')
+#        self.Initialize_laserButton.setCheckable(True)
+#        self.Initialize_laserButton.clicked.connect(self.Initialize_laser)
+#        self.BasicLaserEventLayout.addWidget(self.Initialize_laserButton, 0, 0)
+        
         PumpLabel = QLabel('Pump diode:')
-        self.BasicLaserEventLayout.addWidget(PumpLabel, 1, 0)
+        self.BasicLaserEventLayout.addWidget(PumpLabel, 2, 0)
 #        PumpLabel.setAlignment(Qt.AlignRight)
         
         self.LaserSwitch = StylishQT.MySwitch('ON', 'green', 'OFF', 'red', width = 32)
         self.LaserSwitch.clicked.connect(self.LaserSwitchEvent)
-        self.BasicLaserEventLayout.addWidget(self.LaserSwitch, 1, 1)
+        self.BasicLaserEventLayout.addWidget(self.LaserSwitch, 2, 1)
+#        self.LaserSwitch.setEnabled(False)
         
         ShutterLabel = QLabel('Shutter:')
-        self.BasicLaserEventLayout.addWidget(ShutterLabel, 0, 0)
+        self.BasicLaserEventLayout.addWidget(ShutterLabel, 1, 0)
 #        ShutterLabel.setAlignment(Qt.AlignRight)
         
         self.ShutterSwitchButton = StylishQT.MySwitch('ON', 'green', 'OFF', 'red', width = 32)
         self.ShutterSwitchButton.clicked.connect(self.ShutterSwitchEvent)
-        self.BasicLaserEventLayout.addWidget(self.ShutterSwitchButton, 0, 1)
+        self.BasicLaserEventLayout.addWidget(self.ShutterSwitchButton, 1, 1)
+#        self.ShutterSwitchButton.setEnabled(False)
         
         self.ModeSwitchButton = StylishQT.MySwitch('ALIGN MODE', 'yellow', 'RUNNING MODE', 'cyan', width = 76)
         self.ModeSwitchButton.clicked.connect(self.ModeSwitchEvent)
-        self.BasicLaserEventLayout.addWidget(self.ModeSwitchButton, 2, 0, 1, 2)
+        self.BasicLaserEventLayout.addWidget(self.ModeSwitchButton, 0, 1, 1, 3)
         
         WavelengthLabel = QLabel('Wavelength(nm):')
-        self.BasicLaserEventLayout.addWidget(WavelengthLabel, 0, 2)
+        self.BasicLaserEventLayout.addWidget(WavelengthLabel, 1, 2)
         
         self.SWavelengthTextbox = QSpinBox(self)
         self.SWavelengthTextbox.setMinimum(680)
         self.SWavelengthTextbox.setMaximum(1300)
         self.SWavelengthTextbox.setSingleStep(1)
         self.SWavelengthTextbox.setKeyboardTracking(False)
-        self.BasicLaserEventLayout.addWidget(self.SWavelengthTextbox, 0, 3)
+        self.BasicLaserEventLayout.addWidget(self.SWavelengthTextbox, 1, 3)
         self.SWavelengthTextbox.valueChanged.connect(self.setwavelegth)
+#        self.SWavelengthTextbox.setEnabled(False)
         
         self.WatchdogTimerTextbox = QSpinBox(self)
         self.WatchdogTimerTextbox.setMinimum(0)
@@ -87,9 +95,10 @@ class InsightWidgetUI(QWidget):
         self.WatchdogTimerTextbox.setSingleStep(1)
         self.WatchdogTimerTextbox.setKeyboardTracking(False)
         self.WatchdogTimerTextbox.setValue(ini_watchdogtimeout)
-        self.BasicLaserEventLayout.addWidget(self.WatchdogTimerTextbox, 3, 1)
-        self.BasicLaserEventLayout.addWidget(QLabel('Watch dog timer:'), 3, 0)
+        self.BasicLaserEventLayout.addWidget(self.WatchdogTimerTextbox, 2, 3)
+        self.BasicLaserEventLayout.addWidget(QLabel('Watch dog timer:'), 2, 2)
         self.WatchdogTimerTextbox.valueChanged.connect(self.setWatchdogTimer)
+#        self.WatchdogTimerTextbox.setEnabled(False)
         
         BasicLaserEventContainer.setLayout(self.BasicLaserEventLayout)
         self.layout.addWidget(BasicLaserEventContainer, 1, 0)        
@@ -104,7 +113,8 @@ class InsightWidgetUI(QWidget):
         
         LaserStatusContainer.setLayout(self.LaserStatusLayout)
         self.layout.addWidget(LaserStatusContainer, 0, 0)
-
+        
+        self.Initialize_laser()
         # =============================================================================
         #         Quit event panel
         # =============================================================================
@@ -122,9 +132,16 @@ class InsightWidgetUI(QWidget):
 #        LaserQuitContainer.setLayout(self.LaserQuitLayout)
 #        self.layout.addWidget(LaserQuitContainer, 2, 0)        
         
+        
+    def Initialize_laser(self):
         # =============================================================================
         #         Initialization
-        # =============================================================================        
+        # =============================================================================   
+        self.Laserinstance = InsightX3('COM11')
+        
+        self.WatchdogTimerTextbox.setEnabled(True)
+        self.SWavelengthTextbox.setEnabled(True)
+        
         try:
             querygap = 1.1
             self.Laserinstance.SetWatchdogTimer(0)
@@ -135,11 +152,15 @@ class InsightWidgetUI(QWidget):
             time.sleep(0.3)
             self.pill2kill = threading.Event()
             # self.Status_watchdog_thread = threading.Thread(target = self.Status_watchdog, args=(self.Status_queue, querygap), daemon = True)
-            # self.Status_watchdog_thread.start()    
+            # self.Status_watchdog_thread.start()
+            self.Status_list = self.Laserinstance.QueryStatus()
+            self.LaserStatuslabel.setText(str(self.Status_list))
         except:
             self.LaserStatuslabel.setText('Laser not connected.')
             
-            
+#        self.LaserSwitch.setEnabled(True)
+#        self.ShutterSwitchButton.setEnabled(True)
+
     """
     # =============================================================================
     #     Laser events
