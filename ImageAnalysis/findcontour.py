@@ -143,3 +143,4 @@ class imageanalysistoolbox():
         contour_mask = dilationimg*imagewithouthole
         
         return contour_mask
+    

@@ -20,6 +20,7 @@ from skimage.measure import regionprops, moments, moments_central, moments_hu
 from skimage.color import label2rgb, gray2rgb
 from skimage.restoration import denoise_tv_chambolle
 from skimage.io import imread
+from PIL import Image
 from scipy.signal import convolve2d, medfilt
 import scipy.interpolate as interpolate
 from scipy.ndimage.filters import gaussian_filter1d
@@ -34,6 +35,7 @@ try:
 except:
     from ImageAnalysis.findcontour import imageanalysistoolbox
 #------------------------------------------------------------------------------
+os.chdir(r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Python_test\ImageAnalysis') 
 from mrcnn import visualize
 sys.path.append(".\MaskRCNN")
 
@@ -58,7 +60,7 @@ class ProcessImageML():
         self.config.WeigthPath = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Data\Weights\WeightsMaskRCNNVal009.h5'
         self.Detector = Detect(self.config)        
         self.Detector.loadModel()
-        
+    #%%
     """
     # ======================================================================================================================
     # ************************************  Retrive scanning scheme and read in images. ************************************ 
@@ -67,9 +69,19 @@ class ProcessImageML():
 
     def ReadinImgs_Roundstack(self, Nest_data_directory, rowIndex, colIndex):
         """
-        # =============================================================================
-        #         Read in images from nest directory.
-        # =============================================================================
+        Read in images from nest directory.
+        
+        Parameters
+        ----------
+        Nest_data_directory : string.
+            The directory to folder where the screening data is stored.
+        rowIndex, colIndex:
+            Row and column index in stage coordinates.
+    
+        Returns
+        -------
+        PMT_image_wholetrace_stack : 2-D ndarray or stack of 2-D ndarray.
+            Loaded images.
         """
         fileNameList = []
         ImgSequenceNum = 0
@@ -94,9 +106,21 @@ class ProcessImageML():
     
     def retrive_scanning_scheme(self, Nest_data_directory):
         """
-        # =============================================================================
-        # Return lists that contain round sequence and coordinates strings, like ['Coords1_R0C0', 'Coords2_R0C1500']
-        # =============================================================================
+        Return lists that contain round sequence and coordinates strings, like ['Coords1_R0C0', 'Coords2_R0C1500']
+
+        Parameters
+        ----------
+        Nest_data_directory : string.
+            The directory to folder where the screening data is stored.
+    
+        Returns
+        -------
+        RoundNumberList : List.
+            List of all round numbers in screening.
+        CoordinatesList : List.
+            List of all stage coordinates in screening scheme.
+        fileNameList: List.
+            List of file names strings.
         """
         fileNameList = []
 #        ImgSequenceNum = 0
@@ -114,11 +138,37 @@ class ProcessImageML():
             CoordinatesList.append(eachfilename[eachfilename.index('Coord'):eachfilename.index('_PMT')])
             CoordinatesList = list(dict.fromkeys(CoordinatesList))
             
-#        print(CoordinatesList)
+#        print(RoundNumberList, CoordinatesList, fileNameList)
         return RoundNumberList, CoordinatesList, fileNameList
+    #%%
+    """
+    # ================================================================================================================
+    # ************************************  Run detection on single image  ************************************* 
+    # ================================================================================================================
+    """
+    def DetectionOnImage(self, Rawimage, axis = None, show_mask=True, show_bbox=True):
+        """ 
+        Convert image pixel values to unit8 to run on MaskRCNN, and then run MaskRCNN on it.
+        """        
+        image = Rawimage * (255.0/Rawimage.max())
+        image=image.astype(int)+1
     
-
-    
+        if len(np.shape(image)) == 2:
+            image = gray2rgb(image)
+        
+        # Run the detection on input image.
+        results        = self.Detector.RunDetectionOnImage(image)
+        
+        MLresults      = results[0]
+        
+        if axis != None:
+            # If axis is given, draw on axis.
+            ax, fig        = visualize.display_instances(image, MLresults['rois'], MLresults['masks'], MLresults['class_ids'], 
+                            ['BG'] + self.config.ValidLabels, scores=None, ax = axis, show_mask=show_mask, show_bbox=show_bbox, ReturnImageHandle=True) #MLresults['scores']
+            
+            return MLresults, ax, fig
+        else:
+            return MLresults
     """
     # ================================================================================================================
     # ************************************  Organize cell properties dictionary  ************************************* 
@@ -128,7 +178,7 @@ class ProcessImageML():
     def FluorescenceAnalysis(self, folder, round_num):
         """
         # =============================================================================
-        # Given the folder and round number, return a dictionary 
+        # Given the folder and round number, return a dictionary for the round
         # that contains each scanning position as key and structured array of detailed 
         # information about each identified cell as content.
         #
@@ -138,8 +188,21 @@ class ProcessImageML():
         #   - Mean intensity of cell membrane part
         #   - Contour soma ratio
         # =============================================================================
+        
+        Parameters
+        ----------
+        folder : string.
+            The directory to folder where the screening data is stored.
+        round_num : int.
+            The target round number of analysis.
+            
+        Returns
+        -------
+        cell_Data : pd.DataFrame.
+            Sum of return from func: retrieveDataFromML, for whole round.
         """
         RoundNumberList, CoordinatesList, fileNameList = self.retrive_scanning_scheme(folder)
+        os.mkdir(os.path.join(folder, 'MLimages_{}'.format(round_num))) # Create the folder
         
         for EachRound in RoundNumberList:
             
@@ -182,6 +245,10 @@ class ProcessImageML():
                     ax, fig        = visualize.display_instances(image, MLresults['rois'], MLresults['masks'], MLresults['class_ids'], 
                                                     ['BG'] + self.config.ValidLabels, MLresults['scores'],ReturnImageHandle=True)
                     ax.imshow(fig)
+
+                    # Save the detection image
+                    segmentationImg = Image.fromarray(fig) #generate an image object
+                    segmentationImg.save(os.path.join(folder, 'MLimages_{}\{}.tif'.format(round_num, ImgNameInfor)))#save as tif
                     
                     if self.cell_counted_inRound == 0:
                         cell_Data = self.retrieveDataFromML(Rawimage, MLresults, str(ImgNameInfor))
@@ -201,10 +268,13 @@ class ProcessImageML():
             image = Rawimage * (255.0/Rawimage.max())
             image=image.astype(int)+1
         
-        if len(np.shape(image)) == 2:
-            image = gray2rgb(image)
+            if len(np.shape(image)) == 2:
+                image = gray2rgb(image)
     
-        return image
+            return image
+        
+        else:
+            return Rawimage
                 
     def retrieveDataFromML(self, image, MLresults, ImgNameInfor):
         """ Given the raw image and ML returned result dictionary, calculate interested parameters from it.
@@ -218,6 +288,20 @@ class ProcessImageML():
         #   - Mean intensity of whole cell area
         #   - Mean intensity of cell membrane part
         #   - Contour soma ratio
+        
+        Parameters
+        ----------
+        image : 2-D ndarray.
+            Input image.
+        MLresults : Dictionary.
+            The returned dictionary from MaskRCNN.
+        ImgNameInfor : String.
+            Information of input image.
+            
+        Returns
+        -------
+        Cell_DataFrame : pd.DataFrame.
+            Detail information extracted from MaskRCNN mask from the image, in pandas dataframe format.
         """
         ROInumber = len(MLresults['scores']) 
         cell_counted_inImage = 0
@@ -265,12 +349,26 @@ class ProcessImageML():
         else:
             return Cell_DataFrame 
     
+    #%%
     def MergeDataFrames(self, cell_Data_1, cell_Data_2, method = 'TagLib'):
         """ Merge Data frames based on input methods.
         
         #   'TagLib': Merge tag protein screening round with library screening round.
         #   -In this mode, for each bounding box in the tag round, it will search through every bounding box in library round and find the best match with
         #   -with the most intersection, and then treat them as images from the same cell and merge the two input dataframes.
+        
+        Parameters
+        ----------
+        cell_Data_1, cell_Data_2 : pd.DataFrame.
+            Input data from two rounds.
+        method : String.
+            Merge method. 
+            'TagLib': for brightness screening.
+            
+        Returns
+        -------
+        Cell_DataFrame_Merged : pd.DataFrame.
+            Detail information from merging two input dataframe, with bounding boxes from different rounds overlapping above 60% seen as same cell.
         """
         if method == 'TagLib':
             cell_Data_1 = cell_Data_1.add_suffix('_Tag')
@@ -346,34 +444,49 @@ class ProcessImageML():
     def FilterDataFrames(self, DataFrame, Mean_intensity_in_contour_thres, Contour_soma_ratio_thres, *args, **kwargs):
         """
         Filter the dataframe based on input numbers.
+        
+        Parameters
+        ----------
+        DataFrame : pd.DataFrame.
+            Input data.
+        Mean_intensity_in_contour_thres : Float.
+            Threshold for eliminating dim cells.
+        Contour_soma_ratio_thres : Float.
+            Threshold for contour soma ratio.
+            
+        Returns
+        -------
+        DataFrames_filtered : pd.DataFrame.
+            Filtered dataframe.
         """
         DataFrames_filtered = DataFrame[(DataFrame['Mean_intensity_in_contour_Lib'] > Mean_intensity_in_contour_thres) & 
                                         (DataFrame['Contour_soma_ratio_Lib'] > Contour_soma_ratio_thres)]
                 
         return DataFrames_filtered
     
-    def Sorting_onTwoaxes(self, DataFrame, axis_1, axis_2):
+    def Sorting_onTwoaxes(self, DataFrame, axis_1, axis_2, weight_1, weight_2):
         """
         Sort the dataframe based on normalized distance calculated from two given axes.
         """
-        if axis_1 == "Contour_soma_ratio_Lib" and axis_2 == "Lib_Tag_contour_ratio":
+        if axis_1 == "Lib_Tag_contour_ratio" and axis_2 == "Contour_soma_ratio_Lib":
             # Get the min and max on two axes, prepare for next step.
             Contour_soma_ratio_min, Contour_soma_ratio_max = DataFrame.Contour_soma_ratio_Lib.min(), DataFrame.Contour_soma_ratio_Lib.max()
             Lib_Tag_contour_ratio_min, Lib_Tag_contour_ratio_max = DataFrame.Lib_Tag_contour_ratio.min(), DataFrame.Lib_Tag_contour_ratio.max()
             
-            DataFrame_sorted = DataFrame.loc[(((DataFrame.Contour_soma_ratio_Lib - Contour_soma_ratio_min) / (Contour_soma_ratio_max - Contour_soma_ratio_min)) ** 2 
-            + ((DataFrame.Lib_Tag_contour_ratio - Lib_Tag_contour_ratio_min) / (Lib_Tag_contour_ratio_max - Lib_Tag_contour_ratio_min)) **2).sort_values(ascending=False).index]   
+            DataFrame_sorted = DataFrame.loc[(((DataFrame.Contour_soma_ratio_Lib - Contour_soma_ratio_min) / (Contour_soma_ratio_max - Contour_soma_ratio_min)) ** 2 * weight_2
+            + ((DataFrame.Lib_Tag_contour_ratio - Lib_Tag_contour_ratio_min) / (Lib_Tag_contour_ratio_max - Lib_Tag_contour_ratio_min)) **2 * weight_1) \
+            .sort_values(ascending=False).index]   
     
         return DataFrame_sorted
     
     def showPlotlyScatter(self, DataFrame, x_axis, y_axis):
         
-        fig = px.scatter(DataFrame, x = x_axis, y=y_axis, hover_name= 'ImgNameInfor_Lib', color= 'Lib_Tag_contour_ratio',
-                         hover_data= ['Contour_soma_ratio_Lib', 'Lib_Tag_contour_ratio'], width=1050, height=950)
-        fig.update_layout(hovermode="x")
+        fig = px.scatter(DataFrame, x = x_axis, y=y_axis, hover_name= DataFrame.index, color= 'Lib_Tag_contour_ratio',
+                         hover_data= ['Contour_soma_ratio_Lib', 'Lib_Tag_contour_ratio', 'ImgNameInfor_Lib'], width=1050, height=950)
+#        fig.update_layout(hovermode="x")
         fig.write_html('Screening scatters.html', auto_open=True)
         
-    
+    #%%
     """
     # ======================================================================================================================
     # ****************************************  Traditional image analysis part. ******************************************* 
@@ -382,6 +495,20 @@ class ProcessImageML():
     def findContour(self, imagewithouthole, image, threshold):
         """
         Return contour mask by eroding inward from filled cell mask.
+        
+        Parameters
+        ----------
+        imagewithouthole : 2-D ndarray.
+            Input filled image.
+        image : 2-D ndarray.
+            Raw image.
+        threshold : Float.
+            Threshold for finding contour.
+            
+        Returns
+        -------
+        binarycontour : 2-D ndarray.
+            Binary contour mask.
         """      
         contours = find_contours(imagewithouthole, threshold) # Find iso-valued contours in a 2D array for a given level value.
                 
@@ -397,6 +524,7 @@ class ProcessImageML():
                 #filledimg[contour[:, 0], contour[:, 1]] = 2
             #ax.plot(contour[:, 1]+minc, contour[:, 0]+minr, linewidth=3, color='yellow')
         binarycontour = np.where(image == 5, 1, 0)
+        
         return binarycontour
     
     def inwardDilationMask(self, binarycontour, imagewithouthole, dilationparameter):
@@ -465,14 +593,14 @@ class ProcessImageML():
         ClearedImg = FinalpreProcessROIMask * image
         
         return ClearedImg
-    
+    #%%
     
 if __name__ == "__main__":
     
     import time
     # =============================================================================
     tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-4-08 Archon citrine library 100FOVs\trial_3_library_cellspicked'
-    lib_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Data\Archon_tif'
+    lib_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-5-28 Stage stability test\crll1\New folder'
   #   tag_folder = r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Octoscope\2020-3-6 Archon brightness screening\NovArch library'
 
     tag_round = 'Round1'
@@ -482,12 +610,12 @@ if __name__ == "__main__":
     
     ProcessML = ProcessImageML()
 
-    cell_Data_1 = ProcessML.FluorescenceAnalysis(lib_folder, tag_round)
-    cell_Data_2 = ProcessML.FluorescenceAnalysis(lib_folder, lib_round)
-    Cell_DataFrame_Merged = ProcessML.MergeDataFrames(cell_Data_1, cell_Data_2, method = 'TagLib')
-    DataFrames_filtered = ProcessML.FilterDataFrames(Cell_DataFrame_Merged, Mean_intensity_in_contour_thres = 0.25, Contour_soma_ratio_thres = 1)
-    DataFrame_sorted = ProcessML.Sorting_onTwoaxes(DataFrames_filtered, axis_1 = "Contour_soma_ratio_Lib", axis_2 = "Lib_Tag_contour_ratio")
-    ProcessML.showPlotlyScatter(DataFrame_sorted, x_axis='Lib_Tag_contour_ratio', y_axis="Contour_soma_ratio_Lib")
+#    cell_Data_1 = ProcessML.FluorescenceAnalysis(lib_folder, tag_round)
+    cell_Data_2 = ProcessML.FluorescenceAnalysis(lib_folder, tag_round)
+#    Cell_DataFrame_Merged = ProcessML.MergeDataFrames(cell_Data_1, cell_Data_2, method = 'TagLib')
+#    DataFrames_filtered = ProcessML.FilterDataFrames(Cell_DataFrame_Merged, Mean_intensity_in_contour_thres = 0.25, Contour_soma_ratio_thres = 1)
+#    DataFrame_sorted = ProcessML.Sorting_onTwoaxes(DataFrames_filtered, axis_1 = "Lib_Tag_contour_ratio", axis_2 = "Contour_soma_ratio_Lib", weight_1 = 1, weight_2 = 0.5)
+#    ProcessML.showPlotlyScatter(DataFrame_sorted, x_axis='Lib_Tag_contour_ratio', y_axis="Contour_soma_ratio_Lib")
     # =============================================================================
 #    tif_image = imread(r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\People\Xin Meng\Code\Data\Trial_tif\Round1_Coords3_R16500C19800_PMT_0Zmax.tif')
 #    MLresults_dict = np.load \

@@ -1,14 +1,12 @@
+#test-copy of AnalysisWidget
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 25 17:27:04 2020
-
 @author: xinmeng
-
 -------------------------------------------------------------------------------------------------------------------------------------
                                 Image analysis GUI
 -------------------------------------------------------------------------------------------------------------------------------------
 """
-
 from __future__ import division
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject
@@ -29,12 +27,15 @@ from PIL import Image
 try:
     from ImageAnalysis.matlabAnalysis import readbinaryfile, extractV
     import ImageAnalysis.Plotanalysis
-#    import ImageAnalysis.CellSelectionGUI_ML
 except:
     from matlabAnalysis import readbinaryfile, extractV
     import Plotanalysis
-#    import CellSelectionGUI_ML
 from skimage.io import imread
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+from PyQt5.QtCore import pyqtSignal, QThread
 import threading
 
 class AnalysisWidgetUI(QWidget):
@@ -42,7 +43,7 @@ class AnalysisWidgetUI(QWidget):
 #    waveforms_generated = pyqtSignal(object, object, list, int)
 #    SignalForContourScanning = pyqtSignal(int, int, int, np.ndarray, np.ndarray)
     MessageBack = pyqtSignal(str)
-    Cellselection_DMD_mask_contour =  pyqtSignal(list)
+    
     #------------------------------------------------------------------------------------------------------------------------------------------
     
     def __init__(self, *args, **kwargs):
@@ -53,7 +54,7 @@ class AnalysisWidgetUI(QWidget):
         self.setMinimumSize(1250,850)
         self.setWindowTitle("AnalysisWidget")
         self.layout = QGridLayout(self)
-        self.savedirectory = r"C:/Users/Mels Jagt/OneDrive/Documenten/BEP/Curve Fitting Analysis/Archon Analysis Data/Archon2"
+        self.savedirectory = r"M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/People/Hina Vuijk"
         self.OC = 0.1 # Patch clamp constant
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -64,7 +65,7 @@ class AnalysisWidgetUI(QWidget):
         self.readimageLayout = QGridLayout()
         
         self.switch_Vp_or_camtrace = QComboBox()
-        self.switch_Vp_or_camtrace.addItems(['With Vp', 'Camera trace'])
+        self.switch_Vp_or_camtrace.addItems(['Camera trace', 'With Vp'])
         self.readimageLayout.addWidget(self.switch_Vp_or_camtrace, 1, 1)
         
         self.readimageLayout.addWidget(QLabel('Video of interest:'), 1, 0)
@@ -85,7 +86,7 @@ class AnalysisWidgetUI(QWidget):
         
         self.Spincamsamplingrate = QSpinBox(self)
         self.Spincamsamplingrate.setMaximum(2000)
-        self.Spincamsamplingrate.setValue(250)
+        self.Spincamsamplingrate.setValue(500)
         self.Spincamsamplingrate.setSingleStep(250)
         self.readimageLayout.addWidget(self.Spincamsamplingrate, 1, 6)
         self.readimageLayout.addWidget(QLabel("Camera FPS:"), 1, 5)
@@ -323,35 +324,22 @@ class AnalysisWidgetUI(QWidget):
         image_display_container_layout.addWidget(imageanalysis_average_Container, 0, 0)
         image_display_container_layout.addWidget(imageanalysis_weight_Container, 1, 0)
         
-        #----------------------------------------------------------------------
         try:
             Display_Container_tabs_tab3 = Plotanalysis.PlotAnalysisGUI()
         except:
             Display_Container_tabs_tab3 = ImageAnalysis.Plotanalysis.PlotAnalysisGUI()
 #        Display_Container_tabs_tab3.setLayout(self.Curvedisplay_Layout)
         
-        #----------------------------------------------------------------------
         Display_Container_tabs_tab2 = QWidget()
         Display_Container_tabs_tab2.setLayout(self.VIdisplay_Layout)        
         
-        #----------------------------------------------------------------------
         Display_Container_tabs_Galvo_WidgetInstance = QWidget()
         Display_Container_tabs_Galvo_WidgetInstance.setLayout(image_display_container_layout)
-        
-        #----------------------------------------------------------------------
-        self.Display_Container_tabs_Cellselection = QWidget()
-        self.Display_Container_tabs_Cellselection_layout = QGridLayout()
-        
-        self.show_cellselection_gui_button = QPushButton('show')
-        self.show_cellselection_gui_button.clicked.connect(self.show_cellselection_gui)
-        self.Display_Container_tabs_Cellselection_layout.addWidget(self.show_cellselection_gui_button, 0,0)
-        self.Display_Container_tabs_Cellselection.setLayout(self.Display_Container_tabs_Cellselection_layout)
         
         # Add tabs
         Display_Container_tabs.addTab(Display_Container_tabs_Galvo_WidgetInstance,"Graph display")
         Display_Container_tabs.addTab(Display_Container_tabs_tab2,"Patch display")        
-        Display_Container_tabs.addTab(Display_Container_tabs_tab3,"Patch perfusion")
-        Display_Container_tabs.addTab(self.Display_Container_tabs_Cellselection,"Cell selection")
+        Display_Container_tabs.addTab(Display_Container_tabs_tab3,"Patch perfusion")   
         
         Display_Layout.addWidget(Display_Container_tabs, 0, 0)  
         Display_Container.setLayout(Display_Layout)        
@@ -383,12 +371,14 @@ class AnalysisWidgetUI(QWidget):
         
     def loadtiffile_thread(self):
         self.videostack = imread(self.fileName)
+        print(self.fileName)
         print(self.videostack.shape)
         self.MessageToMainGUI('Video size: '+str(self.videostack.shape)+'\n')
         self.roi_average.maxBounds= QRectF(0,0,self.videostack.shape[2],self.videostack.shape[1])
         self.roi_weighted.maxBounds= QRectF(0,0,self.videostack.shape[2],self.videostack.shape[1])
         print('Loading complete, ready to fire')
         self.MessageToMainGUI('Loading complete, ready to fire'+'\n')
+        print('maxvideostack is '+str(np.amax(self.videostack)))
         
     def ReceiveVideo(self, videosentin):  
 
@@ -402,7 +392,6 @@ class AnalysisWidgetUI(QWidget):
         
     def loadcurve(self, filepath):
         for file in os.listdir(os.path.dirname(self.fileName)):
-			# For Labview generated data.
             if file.endswith(".Ip"):
                 self.Ipfilename = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_i =  readbinaryfile(self.Ipfilename)               
@@ -414,20 +403,19 @@ class AnalysisWidgetUI(QWidget):
                 curvereadingobjective_V =  readbinaryfile(self.Vpfilename)               
                 self.Vp, self.samplingrate_curve = curvereadingobjective_V.readbinarycurve()                
                 self.Vp = self.Vp[0:len(self.Vp)-2] # Here -2 because there are two extra recording points in the recording file.
-            
-			# For python generated data
+                
             elif file.startswith('Vp'):
                 self.Vpfilename_npy = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_V =  np.load(self.Vpfilename_npy)
                 self.Vp = curvereadingobjective_V[5:len(curvereadingobjective_V)]
                 self.samplingrate_curve = curvereadingobjective_V[0]
-                self.Vp = self.Vp[0:-2]
+                self.Vp = self.Vp[0:len(self.Vp)-2]
                 
             elif file.startswith('Ip'):
                 self.Ipfilename_npy = os.path.dirname(self.fileName) + '/'+file
                 curvereadingobjective_I =  np.load(self.Ipfilename_npy)
                 self.Ip = curvereadingobjective_I[5:len(curvereadingobjective_I)]
-                self.Ip = self.Ip[0:-2]
+                self.Ip = self.Ip[0:len(self.Ip)-2]
                 self.samplingrate_curve = curvereadingobjective_I[0]
                 
             elif 'Wavefroms_sr_' in file:
@@ -476,9 +464,6 @@ class AnalysisWidgetUI(QWidget):
             pass
             
     def displayConfiguredWaveform(self):
-        """
-        Display the saved NI configured waveforms
-        """
         try:
             reference_length=len(self.waveform_display_temp_loaded_container[0]['Waveform'])
             self.time_xlabel_all_waveform = np.arange(reference_length)/self.samplingrate_display_curve
@@ -528,6 +513,7 @@ class AnalysisWidgetUI(QWidget):
                     self.pw_preset_waveform.addItem(self.displaytextitem_Perfusion_8)
                 if self.waveform_display_temp_loaded_container[i]['Sepcification'] == 'Perfusion_7':
                     self.display_finalwave_Perfusion_7 = self.waveform_display_temp_loaded_container[i]['Waveform']
+                    self.display_PlotDataItem_Perfusion_7 = PlotDataItem(self.time_xlabel_all_waveform, self.display_finalwave_Perfusion_7, downsample = 10)
                     self.display_PlotDataItem_Perfusion_7.setPen(127,255,212)
                     #self.Display_PlotDataItem_640AO.setDownsampling(ds=(int(self.textboxAA.value())/10), method='mean')
                     self.pw_preset_waveform.addItem(self.display_PlotDataItem_Perfusion_7)
@@ -539,9 +525,6 @@ class AnalysisWidgetUI(QWidget):
             pass
         
     def showpointdata(self):
-        """
-        Functions for the display of vertical lines added in patch windows.
-        """
         try:
             self.pw_patch_current.removeItem(self.currenttextitem)
         except:
@@ -606,131 +589,136 @@ class AnalysisWidgetUI(QWidget):
         self.line_cam_weightedtrace_selection = 0
         
         self.samplingrate_cam = self.Spincamsamplingrate.value()
+        print('samplingrate_cam is '+str(self.samplingrate_cam))
         
         self.camsignalsum = np.zeros(len(self.videostack))
         for i in range(len(self.videostack)):
             self.camsignalsum[i] = np.sum(self.videostack[i])
-            
+        print('maxcamsignalsum is'+str(np.amax(self.camsignalsum)))
+
         self.patchcamtracelabel = np.arange(len(self.camsignalsum))/self.samplingrate_cam
+        print(np.amax(self.patchcamtracelabel))
         
         self.PlotDataItem_patchcam = PlotDataItem(self.patchcamtracelabel, self.camsignalsum, name = 'Pixel sum trace')
         self.PlotDataItem_patchcam.setPen('w')
-        self.pw_patch_camtrace.addItem(self.PlotDataItem_patchcam)        
+        self.pw_patch_camtrace.addItem(self.PlotDataItem_patchcam) 
         
-#    def Matdisplay_plot(self):
-#        self.Nest_data_directory = str(QtWidgets.QFileDialog.getExistingDirectory())
-#        self.Curvedisplay_savedirectorytextbox.setText(self.Nest_data_directory)
+        print('camsignalsum shape is '+str(self.camsignalsum.shape))
         
-#    def matdisplay_draw(self):
-#        self.Nest_data_directory = self.Curvedisplay_savedirectorytextbox.text()
-#        get_ipython().run_line_magic('matplotlib', 'qt')
-#        
-#        self.cam_trace_fluorescence_dictionary = {}
-#        self.cam_trace_fluorescence_filename_dictionary = {}
-#        self.region_file_name = []
-#        
-#        for file in os.listdir(self.Nest_data_directory):
-#            if 'Wavefroms_sr_' in file:
-#                self.wave_fileName = os.path.join(self.Nest_data_directory, file)
-#            elif file.endswith('csv'): # Quick dirty fix
-#                self.recorded_cam_fileName = os.path.join(self.Nest_data_directory, file)
-#                
-#                self.samplingrate_cam = self.Spincamsamplingrate.value()
-#                self.cam_trace_time_label = np.array([])
-#                self.cam_trace_fluorescence_value = np.array([])
-#                
-#                with open(self.recorded_cam_fileName, newline='') as csvfile:
-#                    spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-#                    for column in spamreader:
-#                        coords = column[0].split(",")
-#                        if coords[0] != 'X': # First row and column is 'x, y'
-#                            self.cam_trace_time_label = np.append(self.cam_trace_time_label, int(coords[0]))
-#                            self.cam_trace_fluorescence_value = np.append(self.cam_trace_fluorescence_value, float(coords[1]))
-#                self.cam_trace_fluorescence_dictionary["region_{0}".format(len(self.region_file_name)+1)] = self.cam_trace_fluorescence_value
-#                self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(len(self.region_file_name)+1)] = file
-#                self.region_file_name.append(file)
-#            elif 'Vp' in file:
-#                self.recorded_wave_fileName = os.path.join(self.Nest_data_directory, file)
-#
-#        # Read in configured waveforms
-#        configwave_wavenpfileName = self.wave_fileName#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2019-11-29 patch-perfusion-Archon1\trial-1\perfusion2\2019-11-29_15-51-16__Wavefroms_sr_100.npy'
-#        temp_loaded_container = np.load(configwave_wavenpfileName, allow_pickle=True)
-#
-#        Daq_sample_rate = int(float(configwave_wavenpfileName[configwave_wavenpfileName.find('sr_')+3:-4]))
-#        
-#        self.Checked_display_list = ['Waveform']
-#        if self.checkboxTrace.isChecked():
-#            self.Checked_display_list = np.append(self.Checked_display_list, 'Recorded_trace')
-#        if self.checkboxCam.isChecked():
-#            self.Checked_display_list = np.append(self.Checked_display_list, 'Cam_trace')
-#        
-##            Vm_diff = round(np.mean(Vm[100:200]) - np.mean(Vm[-200:-100]), 2)
-#        
-#        reference_length=len(temp_loaded_container[0]['Waveform'])
-#        xlabel_all = np.arange(reference_length)/Daq_sample_rate
-#        
-#        #plt.figure()
-#        if len(self.Checked_display_list) == 2:
-#            ax1 = self.Matdisplay_figure.add_subplot(211)
-#            ax2 = self.Matdisplay_figure.add_subplot(212)
-##                self.Matdisplay_figure, (ax1, ax2) = plt.subplots(2, 1)
-#        elif len(self.Checked_display_list) == 3:
-##                self.Matdisplay_figure, (ax1, ax2, ax3) = plt.subplots(3, 1)
-#            ax1 = self.Matdisplay_figure.add_subplot(221)
-#            ax2 = self.Matdisplay_figure.add_subplot(222)
-#            ax3 = self.Matdisplay_figure.add_subplot(223)
-#        for i in range(len(temp_loaded_container)):
-#            if temp_loaded_container[i]['Sepcification'] == '640AO':
-#                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='640AO', color='r')
-#            elif temp_loaded_container[i]['Sepcification'] == '488AO':
-#                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='488AO', color='b')
-#            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_8':
-#                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='KCL')
-#            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_7':
-#                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='EC')
-#            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_2':
-#                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='Suction')
-#        ax1.set_title('Output waveforms')        
-#        ax1.set_xlabel('time(s)')
-#        ax1.set_ylabel('Volt')
-#        ax1.legend()
-#
-#        if 'Recorded_trace' in self.Checked_display_list:
-#    #        plt.yticks(np.round(np.arange(min(Vm), max(Vm), 0.05), 2))      
-#            # Read in recorded waves
-#            Readin_fileName = self.recorded_wave_fileName#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2019-11-29 patch-perfusion-Archon1\trial-2\Vp2019-11-29_17-31-18.npy'
-#            
-#            if 'Vp' in os.path.split(Readin_fileName)[1]: # See which channel is recorded
-#                Vm = np.load(Readin_fileName, allow_pickle=True)
-#                Vm = Vm[4:-1]# first 5 are sampling rate, Daq coffs
-#                Vm[0]=Vm[1]
-#            
-#            ax2.set_xlabel('time(s)')        
-#            ax2.set_title('Recording')
-#            ax2.set_ylabel('V (Vm*10)')
-#            ax2.plot(xlabel_all, Vm, label = 'Vm')
-#            #ax2.annotate('Vm diff = '+str(Vm_diff*100)+'mV', xy=(0, max(Vm)-0.1))        
-#            ax2.legend()
-#        elif 'Recorded_trace' not in self.Checked_display_list and len(self.Checked_display_list) == 2:
-#            ax2.plot(self.cam_trace_time_label/self.samplingrate_cam, self.cam_trace_fluorescence_dictionary["region_{0}".format(0+1)], label = 'Fluorescence')
-#            ax2.set_xlabel('time(s)')        
-#            ax2.set_title('ROI Fluorescence')#+' ('+str(self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(region_number+1)])+')')
-#            ax2.set_ylabel('CamCounts')
-#            ax2.legend()
-#            
-#        if len(self.Checked_display_list) == 3:
-#            ax3.plot(self.cam_trace_time_label/self.samplingrate_cam, self.cam_trace_fluorescence_dictionary["region_{0}".format(0+1)], label = 'Fluorescence')
-#            ax3.set_xlabel('time(s)')        
-#            ax3.set_title('ROI Fluorescence')#+' ('+str(self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(region_number+1)])+')')
-#            ax3.set_ylabel('CamCounts')
-#            ax3.legend()
-#        #plt.autoscale(enable=True, axis="y", tight=False)
-#        self.Matdisplay_figure.tight_layout()
-#        self.Matdisplay_figure_canvas.draw()
-#        #get_ipython().run_line_magic('matplotlib', 'inline')
+    def Matdisplay_plot(self):
+        self.Nest_data_directory = str(QtWidgets.QFileDialog.getExistingDirectory())
+        self.Curvedisplay_savedirectorytextbox.setText(self.Nest_data_directory)
         
-#    def matdisplay_clear(self):
-#        self.Matdisplay_figure.clear()
+    def matdisplay_draw(self):
+        self.Nest_data_directory = self.Curvedisplay_savedirectorytextbox.text()
+        get_ipython().run_line_magic('matplotlib', 'qt')
+        
+        self.cam_trace_fluorescence_dictionary = {}
+        self.cam_trace_fluorescence_filename_dictionary = {}
+        self.region_file_name = []
+        
+        for file in os.listdir(self.Nest_data_directory):
+            if 'Wavefroms_sr_' in file:
+                self.wave_fileName = os.path.join(self.Nest_data_directory, file)
+            elif file.endswith('csv'): # Quick dirty fix
+                self.recorded_cam_fileName = os.path.join(self.Nest_data_directory, file)
+                
+                self.samplingrate_cam = self.Spincamsamplingrate.value()
+                self.cam_trace_time_label = np.array([])
+                self.cam_trace_fluorescence_value = np.array([])
+                
+                with open(self.recorded_cam_fileName, newline='') as csvfile:
+                    spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+                    for column in spamreader:
+                        coords = column[0].split(",")
+                        if coords[0] != 'X': # First row and column is 'x, y'
+                            self.cam_trace_time_label = np.append(self.cam_trace_time_label, int(coords[0]))
+                            self.cam_trace_fluorescence_value = np.append(self.cam_trace_fluorescence_value, float(coords[1]))
+                self.cam_trace_fluorescence_dictionary["region_{0}".format(len(self.region_file_name)+1)] = self.cam_trace_fluorescence_value
+                self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(len(self.region_file_name)+1)] = file
+                self.region_file_name.append(file)
+            elif 'Vp' in file:
+                self.recorded_wave_fileName = os.path.join(self.Nest_data_directory, file)
+
+        # Read in configured waveforms
+        configwave_wavenpfileName = self.wave_fileName#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2019-11-29 patch-perfusion-Archon1\trial-1\perfusion2\2019-11-29_15-51-16__Wavefroms_sr_100.npy'
+        temp_loaded_container = np.load(configwave_wavenpfileName, allow_pickle=True)
+
+        Daq_sample_rate = int(float(configwave_wavenpfileName[configwave_wavenpfileName.find('sr_')+3:-4]))
+        
+        self.Checked_display_list = ['Waveform']
+        if self.checkboxTrace.isChecked():
+            self.Checked_display_list = np.append(self.Checked_display_list, 'Recorded_trace')
+        if self.checkboxCam.isChecked():
+            self.Checked_display_list = np.append(self.Checked_display_list, 'Cam_trace')
+        
+#            Vm_diff = round(np.mean(Vm[100:200]) - np.mean(Vm[-200:-100]), 2)
+        
+        reference_length=len(temp_loaded_container[0]['Waveform'])
+        xlabel_all = np.arange(reference_length)/Daq_sample_rate
+        
+        #plt.figure()
+        if len(self.Checked_display_list) == 2:
+            ax1 = self.Matdisplay_figure.add_subplot(211)
+            ax2 = self.Matdisplay_figure.add_subplot(212)
+#                self.Matdisplay_figure, (ax1, ax2) = plt.subplots(2, 1)
+        elif len(self.Checked_display_list) == 3:
+#                self.Matdisplay_figure, (ax1, ax2, ax3) = plt.subplots(3, 1)
+            ax1 = self.Matdisplay_figure.add_subplot(221)
+            ax2 = self.Matdisplay_figure.add_subplot(222)
+            ax3 = self.Matdisplay_figure.add_subplot(223)
+        for i in range(len(temp_loaded_container)):
+            if temp_loaded_container[i]['Sepcification'] == '640AO':
+                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='640AO', color='r')
+            elif temp_loaded_container[i]['Sepcification'] == '488AO':
+                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='488AO', color='b')
+            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_8':
+                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='KCL')
+            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_7':
+                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='EC')
+            elif temp_loaded_container[i]['Sepcification'] == 'Perfusion_2':
+                ax1.plot(xlabel_all, temp_loaded_container[i]['Waveform'], label='Suction')
+        ax1.set_title('Output waveforms')        
+        ax1.set_xlabel('time(s)')
+        ax1.set_ylabel('Volt')
+        ax1.legend()
+
+        if 'Recorded_trace' in self.Checked_display_list:
+    #        plt.yticks(np.round(np.arange(min(Vm), max(Vm), 0.05), 2))      
+            # Read in recorded waves
+            Readin_fileName = self.recorded_wave_fileName#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2019-11-29 patch-perfusion-Archon1\trial-2\Vp2019-11-29_17-31-18.npy'
+            
+            if 'Vp' in os.path.split(Readin_fileName)[1]: # See which channel is recorded
+                Vm = np.load(Readin_fileName, allow_pickle=True)
+                Vm = Vm[4:-1]# first 5 are sampling rate, Daq coffs
+                Vm[0]=Vm[1]
+            
+            ax2.set_xlabel('time(s)')        
+            ax2.set_title('Recording')
+            ax2.set_ylabel('V (Vm*10)')
+            ax2.plot(xlabel_all, Vm, label = 'Vm')
+            #ax2.annotate('Vm diff = '+str(Vm_diff*100)+'mV', xy=(0, max(Vm)-0.1))        
+            ax2.legend()
+        elif 'Recorded_trace' not in self.Checked_display_list and len(self.Checked_display_list) == 2:
+            ax2.plot(self.cam_trace_time_label/self.samplingrate_cam, self.cam_trace_fluorescence_dictionary["region_{0}".format(0+1)], label = 'Fluorescence')
+            ax2.set_xlabel('time(s)')        
+            ax2.set_title('ROI Fluorescence')#+' ('+str(self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(region_number+1)])+')')
+            ax2.set_ylabel('CamCounts')
+            ax2.legend()
+            
+        if len(self.Checked_display_list) == 3:
+            ax3.plot(self.cam_trace_time_label/self.samplingrate_cam, self.cam_trace_fluorescence_dictionary["region_{0}".format(0+1)], label = 'Fluorescence')
+            ax3.set_xlabel('time(s)')        
+            ax3.set_title('ROI Fluorescence')#+' ('+str(self.cam_trace_fluorescence_filename_dictionary["region_{0}".format(region_number+1)])+')')
+            ax3.set_ylabel('CamCounts')
+            ax3.legend()
+        #plt.autoscale(enable=True, axis="y", tight=False)
+        self.Matdisplay_figure.tight_layout()
+        self.Matdisplay_figure_canvas.draw()
+        #get_ipython().run_line_magic('matplotlib', 'inline')
+        
+    def matdisplay_clear(self):
+        self.Matdisplay_figure.clear()
         
     def calculateaverage(self):
         self.imganalysis_averageimage = np.mean(self.videostack, axis = 0)
@@ -749,29 +737,30 @@ class AnalysisWidgetUI(QWidget):
         self.roi_avg_coord_raw_start = round(self.roi_average_Bounds.topLeft().y())
         self.roi_avg_coord_raw_end = round(self.roi_average_Bounds.bottomRight().y())
 
-        #print(self.roi_average_pos)
-#        plt.figure()
-#        plt.imshow(self.averageimage_ROI_mask, cmap = plt.cm.gray)
-#        plt.show()
+        print(self.roi_average_pos)
+        plt.figure()
+        plt.imshow(self.averageimage_ROI_mask, cmap = plt.cm.gray)
+        plt.show()
         
-#        plt.figure()
-#        plt.imshow(self.imganalysis_averageimage[self.roi_coord_raw_start:self.roi_coord_raw_end, self.roi_coord_col_start:self.roi_coord_col_end], cmap = plt.cm.gray)
-#        plt.show()
+        plt.figure()
+        plt.imshow(self.imganalysis_averageimage[self.roi_coord_raw_start:self.roi_coord_raw_end, self.roi_coord_col_start:self.roi_coord_col_end], cmap = plt.cm.gray)
+        plt.show()
         
-#        print(self.averageimage_ROI[13:15,13:15])
-#        print(self.imganalysis_averageimage[self.roi_coord_raw_start:self.roi_coord_raw_end, self.roi_coord_col_start:self.roi_coord_col_end][13:15,13:15])
+        print(self.averageimage_ROI[13:15,13:15])
+        print(self.imganalysis_averageimage[self.roi_coord_raw_start:self.roi_coord_raw_end, self.roi_coord_col_start:self.roi_coord_col_end][13:15,13:15])
     def calculateweight(self): 
         t2 = threading.Thread(target = self.calculateweight_thread)
         t2.start()
     
-    def calculateweight_thread(self):        
+    def calculateweight_thread(self): 
+        global weightimage
         if self.switch_Vp_or_camtrace.currentText() == 'With Vp':
             self.samplingrate_cam = self.Spincamsamplingrate.value()
             self.downsample_ratio = int(self.samplingrate_curve/self.samplingrate_cam) 
             
-            print(self.downsample_ratio)
-            print(self.samplingrate_cam)
-            print(self.samplingrate_curve)
+#            print(self.downsample_ratio)
+#            print(self.samplingrate_cam)
+#            print(self.samplingrate_curve)
             
             self.Vp_downsample = self.Vp.reshape(-1, self.downsample_ratio).mean(axis=1)
             
@@ -787,7 +776,25 @@ class AnalysisWidgetUI(QWidget):
             self.corrimage, self.weightimage, self.sigmaimage= weight_ins.cal()
     
             self.pw_weightimage.setImage(self.weightimage)
-
+        #print(self.pw_weightimage.levelMax)
+        #print(self.pw_weightimage.levelMin)
+        #self.pw_weightimage.weightedimgItem.setImage(self.weightimage)
+        #k=self.pw_weightimage.hiswidget_weight.getLevels()
+        #print(k)
+        weightimage = self.weightimage
+        self.maxweightimage = np.amax(self.weightimage)
+        print('maxweightimage is'+str(self.maxweightimage))
+        
+        mask = self.weightimage
+        fig = plt.figure()
+        MaskPlot=plt.subplot(111)
+        plt.title('mask '+self.fileName)
+        img = MaskPlot.imshow(mask)
+        fig.colorbar(img)
+        print('weight image displayed')
+        return fig
+        
+        
         
     def displayweighttrace(self):     
         try:
@@ -833,6 +840,9 @@ class AnalysisWidgetUI(QWidget):
             self.PlotDataItem_patchcam_weighted.setPen('c')
             self.pw_patch_camtrace.addItem(self.PlotDataItem_patchcam_weighted)
             
+        print(self.weighttrace_data)  
+        self.maxweighttrace_data = np.amax(self.weighttrace_data)
+        print('maxweighttrace_data is'+str(self.maxweighttrace_data))            
             
     def displayROIweighttrace(self):
         print('Under construction!')
@@ -910,29 +920,17 @@ class AnalysisWidgetUI(QWidget):
     def MessageToMainGUI(self, text):
         self.MessageBack.emit(text)
         
-        
-    def show_cellselection_gui(self):
-        
-        try:
-            import CellSelectionGUI_ML
-            self.Cellselection_UI = CellSelectionGUI_ML.MainGUI()
-
-        except:
-            import ImageAnalysis.CellSelectionGUI_ML
-            self.Cellselection_UI = ImageAnalysis.CellSelectionGUI_ML.MainGUI()
-        
-        self.show_cellselection_gui_button.hide()
-        self.Display_Container_tabs_Cellselection_layout.addWidget(self.Cellselection_UI, 0,0)
-        
-        self.Cellselection_UI.signal_DMDcontour.connect(self.send_DMD_mask_contour)
-        
-    def send_DMD_mask_contour(self, contour_from_cellselection):
-        self.Cellselection_DMD_mask_contour.emit(contour_from_cellselection)
-
-#    def closeEvent(self, event):
-#        QtWidgets.QApplication.quit()
-#        event.accept()
-
+#class loadtif_Thread(QThread):
+#    videostack_signal = pyqtSignal(np.ndarray)
+#    def __init__(self, fileName, *args, **kwargs):
+#        super().__init__(*args, **kwargs)
+#        self.fileName = fileName
+##        self.xRel = xRel
+##        self.yRel = yRel
+#        
+#    def run(self):
+#        videostack = imread(self.fileName)
+#        self.videostack_signal.emit(videostack)
         
 if __name__ == "__main__":
     def run_app():
