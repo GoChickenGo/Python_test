@@ -28,11 +28,13 @@ from NIDAQ.adfunctiongenerator import generate_AO_for640, generate_AO_for488, ge
         generate_DO_for532blanking, generate_DO_for488blanking, generate_DO_forPerfusion, generate_DO_for2Pshutter, generate_ramp
 import pyqtgraph as pg
 from pyqtgraph import PlotDataItem, TextItem
+from scipy import signal
 import os
 from PIL import Image
 from NIDAQ.code_5nov import generate_AO
 from datetime import datetime
 from Oldversions.generalDaqer import execute_digital
+import StylishQT
 
 class WaveformGenerator(QWidget):
     
@@ -48,6 +50,8 @@ class WaveformGenerator(QWidget):
         self.tabs = QTabWidget()
         self.tab2 = QWidget()
         self.savedirectory = None#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2020-2-19 patch-perfusion-Archon1\cell1'
+        
+        # These contour scanning signals will be set from main panel.
         self.handle_viewbox_coordinate_position_array_expanded_forDaq_waveform = None
         self.time_per_contour = None
         self.handle_viewbox_coordinate_position_array_expanded_x = None
@@ -83,16 +87,12 @@ class WaveformGenerator(QWidget):
         self.textbox2A.addItems(['galvos', '640 AO', '532 AO', '488 AO', 'V-patch'])
         self.AnalogLayout.addWidget(self.textbox2A, 3, 0)
         
-        self.button2 = QPushButton('Add', self)
-        self.button2.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:hover:!pressed {color:gray;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.button2 = StylishQT.addButton()
+        self.button2.setFixedHeight(32)
         self.AnalogLayout.addWidget(self.button2, 3, 1)
         
-        self.button_del_analog = QPushButton('Delete', self)
-        self.button_del_analog.setStyleSheet("QPushButton {color:white;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                             "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                             "QPushButton:hover:!pressed {color:gray;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}") 
+        self.button_del_analog = StylishQT.stop_deleteButton()
+        self.button_del_analog.setFixedHeight(32)
         self.AnalogLayout.addWidget(self.button_del_analog, 3, 2)        
         
         
@@ -130,26 +130,18 @@ class WaveformGenerator(QWidget):
         self.ReadLayout.addWidget(self.ReferenceWaveformBox, 0, 1)
         self.ReadLayout.addWidget(QLabel("Reference waveform:"), 0, 0)
 
-        self.button_all = QPushButton('Organize waveforms', self)
-        self.button_all.setStyleSheet("QPushButton {color:white;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:pressed {color:black;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                      "QPushButton:hover:!pressed {color:gray;background-color: DeepSkyBlue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.button_all = StylishQT.generateButton()
+        self.button_all.setFixedWidth(80)
         self.ReadLayout.addWidget(self.button_all, 0, 5)
         self.button_all.clicked.connect(self.show_all)
 
-        self.button_execute = QPushButton('EXECUTE !', self)
-        self.button_execute.setStyleSheet("QPushButton {color:white;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                          "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                          "QPushButton:hover:!pressed {color:gray;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.button_execute = StylishQT.runButton("Execute")
+        self.button_execute.setEnabled(False)
+        self.button_execute.setFixedWidth(110)
         self.ReadLayout.addWidget(self.button_execute, 0, 6)
         
         self.button_execute.clicked.connect(self.execute_tread)   
-        self.button_execute.clicked.connect(self.startProgressBar)
-#        self.button_stop_waveforms = QPushButton('Stop', self)
-#        self.button_stop_waveforms.setStyleSheet("QPushButton {color:white;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-#                                                 "QPushButton:pressed {color:black;background-color: red; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-#        self.ReadLayout.addWidget(self.button_stop_waveforms, 0, 6)
-#        self.button_stop_waveforms.clicked.connect(self.stopMeasurement_daqer)        
+        self.button_execute.clicked.connect(self.startProgressBar)     
                 
         self.button_clear_canvas = QPushButton('Clean canvas', self)
         self.ReadLayout.addWidget(self.button_clear_canvas, 1, 6)
@@ -537,7 +529,7 @@ class WaveformGenerator(QWidget):
         
         self.GalvoContourLastTextbox = QSpinBox(self)
         self.GalvoContourLastTextbox.setMinimum(000000)
-        self.GalvoContourLastTextbox.setMaximum(200000)
+        self.GalvoContourLastTextbox.setMaximum(20000000)
         self.GalvoContourLastTextbox.setValue(1000)
         self.GalvoContourLastTextbox.setSingleStep(500)
         self.galvo_contour_tablayout.addWidget(self.GalvoContourLastTextbox, 0, 3)
@@ -592,10 +584,7 @@ class WaveformGenerator(QWidget):
                                   '2Pshutter'])
         self.DigitalLayout.addWidget(self.textbox3A, 0, 0)
         
-        self.button3 = QPushButton('Add', self)
-        self.button3.setStyleSheet("QPushButton {color:white;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:pressed {color:OrangeRed;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                   "QPushButton:hover:!pressed {color:gray;background-color: LimeGreen; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
+        self.button3 = StylishQT.addButton()
         self.DigitalLayout.addWidget(self.button3, 0, 1)
         self.button3.clicked.connect(self.chosen_wave_digital)
         #---------------------------------------------------------------------------------------------------------------------------        
@@ -605,11 +594,8 @@ class WaveformGenerator(QWidget):
 #                                                  "QPushButton:pressed {color:black;background-color: BlueViolet; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
 #        self.DigitalLayout.addWidget(self.button_execute_digital, 0, 3)
         
-        self.button_del_digital = QPushButton('Delete', self)
-        self.button_del_digital.setStyleSheet("QPushButton {color:white;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                              "QPushButton:pressed {color:black;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                              "QPushButton:hover:!pressed {color:gray;background-color: Crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-  
+        self.button_del_digital = StylishQT.stop_deleteButton()
+        self.button_del_digital.setFixedHeight(32)
         self.DigitalLayout.addWidget(self.button_del_digital, 0, 2)
         
 #        self.button_execute_digital.clicked.connect(self.execute_digital)
@@ -2111,6 +2097,7 @@ class WaveformGenerator(QWidget):
             if self.analogcontainer_array['Sepcification'][i] != 'galvosx'+'avgnum_'+str(int(self.GalvoAvgNumTextbox.value())) and self.analogcontainer_array['Sepcification'][i] != 'galvos_X'+'_contour': #skip the galvoX, as it is too intense
                 if self.analogcontainer_array['Sepcification'][i] == 'galvosy'+'ypixels_'+str(int(self.GalvoYpixelNumTextbox.currentText())) or self.analogcontainer_array['Sepcification'][i] == 'galvos_Y'+'_contour':
                     self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, self.analogcontainer_array['Waveform'][i])
+#                    self.PlotDataItem_final = PlotDataItem(signal.resample(self.xlabelhere_all, int(len(self.xlabelhere_all)/10)), signal.resample(self.analogcontainer_array['Waveform'][i], int(len(self.xlabelhere_all)/10)))
                     #use the same color as before, taking advantages of employing same keys in dictionary
                     self.PlotDataItem_final.setPen('w')
                     self.PlotDataItem_final.setDownsampling(auto=True, method='subsample')
@@ -2120,7 +2107,8 @@ class WaveformGenerator(QWidget):
                     self.textitem_final.setPos(0, i+1)
                     self.pw.addItem(self.textitem_final)
                 else:
-                    self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, self.analogcontainer_array['Waveform'][i])
+                    self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, self.analogcontainer_array['Waveform'][i])                  
+#                    self.PlotDataItem_final = PlotDataItem(signal.resample(self.xlabelhere_all, int(len(self.xlabelhere_all)/10)), signal.resample(self.analogcontainer_array['Waveform'][i], int(len(self.xlabelhere_all)/10)))
                     #use the same color as before, taking advantages of employing same keys in dictionary
                     self.PlotDataItem_final.setPen(color_dictionary[self.analogcontainer_array['Sepcification'][i]][0],color_dictionary[self.analogcontainer_array['Sepcification'][i]][1],\
                                                    color_dictionary[self.analogcontainer_array['Sepcification'][i]][2])
@@ -2135,6 +2123,7 @@ class WaveformGenerator(QWidget):
         for i in range(digitalloopnum):
             digitalwaveforgraphy = self.digitalcontainer_array['Waveform'][i].astype(int)
             self.PlotDataItem_final = PlotDataItem(self.xlabelhere_all, digitalwaveforgraphy)
+#            self.PlotDataItem_final = PlotDataItem(signal.resample(self.xlabelhere_all, int(len(self.xlabelhere_all)/10)), signal.resample(digitalwaveforgraphy, int(len(self.xlabelhere_all)/10)))
             self.PlotDataItem_final.setPen(color_dictionary[self.digitalcontainer_array['Sepcification'][i]][0],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][1],color_dictionary[self.digitalcontainer_array['Sepcification'][i]][2])
             self.PlotDataItem_final.setDownsampling(auto=True, method='subsample')
             self.pw.addItem(self.PlotDataItem_final)
@@ -2195,9 +2184,14 @@ class WaveformGenerator(QWidget):
         except:
             self.GalvoScanInfor.emit('NoGalvo') # Emit a string
         #execute(int(self.SamplingRateTextbox.currentText()), self.analogcontainer_array, self.digitalcontainer_array, self.readinchan)
+        
+        self.button_execute.setEnabled(True)
+        
         return self.analogcontainer_array, self.digitalcontainer_array, self.readinchan
     
     def execute_tread(self):
+        # print(self.analogcontainer_array)
+        # print(self.digitalcontainer_array)
         if self.clock_source.currentText() == 'Dev1 as clock source':
             self.adcollector = execute_analog_readin_optional_digital_thread()
             self.adcollector.set_waves(int(self.SamplingRateTextbox.value()), self.analogcontainer_array, self.digitalcontainer_array, self.readinchan)
@@ -2211,6 +2205,9 @@ class WaveformGenerator(QWidget):
             self.adcollector.set_waves(int(self.SamplingRateTextbox.value()), self.analogcontainer_array, self.digitalcontainer_array, self.readinchan)
             self.adcollector.collected_data.connect(self.recive_data)
             self.adcollector.start()
+        
+        self.button_execute.setEnabled(False)
+
 #            self.adcollector.wait()
 #            self.adcollector.save_as_binary(self.savedirectory)
             #self.ai_dev_scaling_coeff = self.adcollector.get_ai_dev_scaling_coeff()
@@ -2443,6 +2440,10 @@ class WaveformGenerator(QWidget):
     def stopMeasurement_daqer(self):
         """Stop """
         self.adcollector.aboutToQuitHandler()
+        
+    def closeEvent(self, event):
+        QtWidgets.QApplication.quit()
+        event.accept()
         
 if __name__ == "__main__":
     def run_app():

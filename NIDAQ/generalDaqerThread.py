@@ -59,21 +59,44 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
                                  '2Pshutter':"Dev1/port0/line18"
                                 }    
     def set_waves(self, samplingrate, analogsignals, digitalsignals, readinchannels):
-        
+        """
+        Input:
+          - samplingrate:
+              Sampling rate of the waveforms.
+              
+          - analogsignals:
+              Signals for the analog channels.
+              It's a structured array with two fields: 1) 'Waveform': Raw 1-D np.array of actual float voltage signals.
+                                                     2) 'Sepcification': string telling which device to control that help to specify the NI-daq port
+    
+              For galvos scanning signals, it comes with average number and y pixel number specified, like galvosxavgnum_2 and galvosyypixels_500, 
+              and then below after extracting these information these two field names are set back to galvosx and galvosy for channel assignment.
+              
+           -digitalsignals:
+              Signals for the digital channels.
+              It's a structured array with two fields: 1) 'Waveform': Raw 1-D np.array of type bool.
+                                                     2) 'Sepcification': string that specifies the NI-daq port.
+           -readinchannels:
+              A list that contains the readin channels wanted. 
+        """
         self.analogsignals = analogsignals
         self.digitalsignals = digitalsignals
         self.readinchannels=readinchannels
         self.Daq_sample_rate = samplingrate
         
+        # !!! NOT NECESSARY !!!
         # Get the average number and y pixel number information from data
         self.averagenumber = 0
         self.ypixelnumber = 0
+        self.galvosx_originalkey = 'galvosx'
+        self.galvosy_originalkey = 'galvosy'
+        
         for i in range(len(self.analogsignals['Sepcification'])):
-            if 'galvosx' in self.analogsignals['Sepcification'][i]:
+            if 'galvosxavgnum' in self.analogsignals['Sepcification'][i]:
                 self.averagenumber = int(self.analogsignals['Sepcification'][i][self.analogsignals['Sepcification'][i].index('_')+1:len(self.analogsignals['Sepcification'][i])])
                 self.galvosx_originalkey = self.analogsignals['Sepcification'][i]
                 self.analogsignals['Sepcification'][i] = 'galvosx'
-            elif 'galvosy' in self.analogsignals['Sepcification'][i]:
+            elif 'galvosyypixels' in self.analogsignals['Sepcification'][i]:
                 self.ypixelnumber = int(self.analogsignals['Sepcification'][i][self.analogsignals['Sepcification'][i].index('_')+1:len(self.analogsignals['Sepcification'][i])])
                 self.galvosy_originalkey = self.analogsignals['Sepcification'][i]
                 self.analogsignals['Sepcification'][i] = 'galvosy'
@@ -103,10 +126,9 @@ class execute_analog_readin_optional_digital_thread(QThread): # For all-purpose 
                 
         self.analogsignal_dev1_number = len(self.analogwritesamplesdev1_Sepcification)
         self.analogsignal_dev2_number = len(self.analogwritesamplesdev2_Sepcification)
-        print(self.analogsignal_dev2_number)
         
-        self.analogsignalslinenumber = len(self.analogsignals['Waveform'])
-        self.digitalsignalslinenumber = len(self.digitalsignals['Waveform'])
+        self.analogsignalslinenumber = len(self.analogsignals)
+        self.digitalsignalslinenumber = len(self.digitalsignals)
         
         # See if only digital signal is involved.
         if self.analogsignalslinenumber == 0 and self.digitalsignalslinenumber != 0:
@@ -591,12 +613,13 @@ class execute_tread_singlesample_analog(QThread):
                             }
     def set_waves(self, channel, value):
         self.channelname = self.configdictionary[channel]
-        self.writting_value = value/100
+        self.writting_value = value
     def start(self):
         # Assume that dev1 is always employed
         with nidaqmx.Task() as writingtask:
             writingtask.ao_channels.add_ao_voltage_chan(self.channelname)
             writingtask.write(self.writting_value)
+    
             
 class execute_tread_singlesample_digital(QThread):    
     def __init__(self, *args, **kwargs):
@@ -706,21 +729,38 @@ class execute_analog_and_readin_digital_optional_camtrig_thread(QThread):
                                  '2Pshutter':"Dev1/port0/line18"
                                 }    
     def set_waves(self, samplingrate, analogsignals, digitalsignals, readinchannels):
+        """
+        Input:
+          - analogsignals:
+            Signals for the analog channels.
+            It's a structured array with two fields: 1) 'Waveform': Raw 1-D np.array of actual float voltage signals.
+                                                     2) 'Sepcification': string telling which device to control that help to specify the NI-daq port
+           -digitalsignals:
+            Signals for the digital channels.
+            It's a structured array with two fields: 1) 'Waveform': Raw 1-D np.array of type bool.
+                                                     2) 'Sepcification': string that specifies the NI-daq port.
+           -readinchannels:
+            A list that contains the readin channels wanted. 
+        """
         
         self.analogsignals = analogsignals
         self.digitalsignals = digitalsignals
         self.readinchannels=readinchannels
         self.Daq_sample_rate = samplingrate
         
+        # !!! NOT NECESSARY !!!
         # Get the average number and y pixel number information from data
         self.averagenumber = 0
         self.ypixelnumber = 0
+        self.galvosx_originalkey = 'galvosx'
+        self.galvosy_originalkey = 'galvosy'
+        
         for i in range(len(self.analogsignals['Sepcification'])):
-            if 'galvosx' in self.analogsignals['Sepcification'][i]:
+            if 'galvosxavgnum' in self.analogsignals['Sepcification'][i]:
                 self.averagenumber = int(self.analogsignals['Sepcification'][i][self.analogsignals['Sepcification'][i].index('_')+1:len(self.analogsignals['Sepcification'][i])])
                 self.galvosx_originalkey = self.analogsignals['Sepcification'][i]
                 self.analogsignals['Sepcification'][i] = 'galvosx'
-            elif 'galvosy' in self.analogsignals['Sepcification'][i]:
+            elif 'galvosyypixels' in self.analogsignals['Sepcification'][i]:
                 self.ypixelnumber = int(self.analogsignals['Sepcification'][i][self.analogsignals['Sepcification'][i].index('_')+1:len(self.analogsignals['Sepcification'][i])])
                 self.galvosy_originalkey = self.analogsignals['Sepcification'][i]
                 self.analogsignals['Sepcification'][i] = 'galvosy'
