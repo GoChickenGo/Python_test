@@ -233,7 +233,7 @@ class FilterSliderWidgetUI(QWidget):
         self.EM_filtercontrolContainerLayout.addWidget(self.filter3_pos0, 1, 0)
 #        self.filter1_pos0.clicked.connect(lambda: self.filter_move_towards("COM9", 0))
 
-        self.filter3_pos1 = QPushButton('Critine')
+        self.filter3_pos1 = QPushButton('Citrine')
         self.filter3_pos1.setCheckable(True)
         self.FilterButtongroup_3.addButton(self.filter3_pos1)
         self.EM_filtercontrolContainerLayout.addWidget(self.filter3_pos1, 0, 0)   
