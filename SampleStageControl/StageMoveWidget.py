@@ -47,7 +47,8 @@ class StageWidgetUI(QWidget):
                                 border: 1px solid silver;\
                                 border-radius: 6px;\
                                 margin-top: 12px;\
-                                color:Navy; }\
+                                color:Navy; \
+                                background-color: #F8F8FF;}\
                                 QGroupBox::title{subcontrol-origin: margin;\
                                                  left: 7px;\
                                                  padding: 5px 5px 5px 5px;}")
@@ -59,7 +60,7 @@ class StageWidgetUI(QWidget):
         self.stage_upwards.setFixedHeight(40)
         self.stage_upwards.setIcon(QIcon('./Icons/UpArrow.png')) 
         self.stage_upwards.setIconSize(QSize(35,35))
-        self.stagecontrolLayout.addWidget(self.stage_upwards, 1, 2)
+        self.stagecontrolLayout.addWidget(self.stage_upwards, 1, 4)
         self.stage_upwards.clicked.connect(lambda: self.sample_stage_move_upwards())
         self.stage_upwards.setShortcut('w')
         
@@ -70,7 +71,7 @@ class StageWidgetUI(QWidget):
         self.stage_left.setIcon(QIcon('./Icons/LeftArrow.png'))
 #        self.stage_left.setStyleSheet("QPushButton {padding: 10px;}");
         self.stage_left.setIconSize(QSize(35,35))
-        self.stagecontrolLayout.addWidget(self.stage_left, 2, 1)
+        self.stagecontrolLayout.addWidget(self.stage_left, 2, 3)
         self.stage_left.clicked.connect(lambda: self.sample_stage_move_leftwards())
         self.stage_left.setShortcut('a')
         
@@ -80,7 +81,7 @@ class StageWidgetUI(QWidget):
         self.stage_right.setFixedHeight(40)
         self.stage_right.setIcon(QIcon('./Icons/RightArrow.png')) 
         self.stage_right.setIconSize(QSize(35,35))
-        self.stagecontrolLayout.addWidget(self.stage_right, 2, 3)
+        self.stagecontrolLayout.addWidget(self.stage_right, 2, 5)
         self.stage_right.clicked.connect(lambda: self.sample_stage_move_rightwards())
         self.stage_right.setShortcut('d')
         
@@ -90,7 +91,7 @@ class StageWidgetUI(QWidget):
         self.stage_down.setFixedHeight(40)
         self.stage_down.setIcon(QIcon('./Icons/DownArrow.png'))
         self.stage_down.setIconSize(QSize(35,35))
-        self.stagecontrolLayout.addWidget(self.stage_down, 2, 2)
+        self.stagecontrolLayout.addWidget(self.stage_down, 2, 4)
         self.stage_down.clicked.connect(lambda: self.sample_stage_move_downwards())
         self.stage_down.setShortcut('s')
         
@@ -100,40 +101,33 @@ class StageWidgetUI(QWidget):
         self.stage_speed.setMaximum(100000)
         self.stage_speed.setValue(300)
         self.stage_speed.setSingleStep(1650)        
-        self.stagecontrolLayout.addWidget(self.stage_speed, 0, 1)
-        self.stagecontrolLayout.addWidget(QLabel("Moving step:"), 0, 0)
+        self.stagecontrolLayout.addWidget(self.stage_speed, 2, 1)
+        self.stagecontrolLayout.addWidget(QLabel("Step:"), 2, 0)
         
-        self.led_Label = QLabel("LED: ")
-        self.stagecontrolLayout.addWidget(self.led_Label, 0, 2)
+#        self.stage_current_pos_Label = QLabel("Current position: ")
+#        self.stagecontrolLayout.addWidget(self.stage_current_pos_Label, 1, 0)
         
-        self.switchbutton_LED = QPushButton()
-        #self.switchbutton_LED.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                            #"QPushButton:pressed {color:black;background-color: blue; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        self.switchbutton_LED.setCheckable(True)
-        self.switchbutton_LED.setIcon(QIcon('./Icons/AOTF_off.png'))
-        #self.holdingbutton.toggle()
-        
-        self.switchbutton_LED.clicked.connect(lambda: self.execute_tread_single_sample_digital('LED'))
-        self.switchbutton_LED.clicked.connect(lambda: self.change_AOTF_icon('LED'))
-        self.stagecontrolLayout.addWidget(self.switchbutton_LED, 0, 3)
-        
-        self.stage_current_pos_Label = QLabel("Current position: ")
-        self.stagecontrolLayout.addWidget(self.stage_current_pos_Label, 1, 0)
-        
-        self.stage_goto = QPushButton("Move to:")
-        self.stage_goto.setStyleSheet("QPushButton {color:white;background-color: blue; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}"
-                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}"
-                                            "QPushButton:hover:!pressed {color:green;background-color: blue; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}")        
-        self.stagecontrolLayout.addWidget(self.stage_goto, 3, 0)
+        self.stage_goto = QPushButton()
+        self.stage_goto.setIcon(QIcon('./Icons/move_coord.png')) 
+        self.stage_goto.setToolTip("Move to absolute position")
+        self.stage_goto.setStyleSheet("QPushButton {color:white;background-color: #CCFFFF;}"
+                                      "QPushButton:hover:!pressed {color:white;background-color: #FFE5CC;}")
+        self.stage_goto.setFixedWidth(35)
+        self.stage_goto.setFixedHeight(35)
+        self.stagecontrolLayout.setAlignment(Qt.AlignVCenter)
+#        self.stage_goto.setStyleSheet("QPushButton {color:white;background-color: #6495ED; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}"
+#                                            "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}"
+#                                            "QPushButton:hover:!pressed {color:green;background-color: #6495ED; border-style: outset;border-radius: 8px;border-width: 2px;font: bold 12px;padding: 6px}")        
+        self.stagecontrolLayout.addWidget(self.stage_goto, 1, 0)
         self.stage_goto.clicked.connect(lambda: self.sample_stage_move_towards())
         
         self.stage_goto_x = QLineEdit(self)
         self.stage_goto_x.setFixedWidth(47)
-        self.stagecontrolLayout.addWidget(self.stage_goto_x, 3, 1)
+        self.stagecontrolLayout.addWidget(self.stage_goto_x, 1, 1)
         
         self.stage_goto_y = QLineEdit(self)
         self.stage_goto_y.setFixedWidth(47)
-        self.stagecontrolLayout.addWidget(self.stage_goto_y, 3, 2)
+        self.stagecontrolLayout.addWidget(self.stage_goto_y, 1, 2)
         
 #        self.stagecontrolLayout.addWidget(QLabel('Click arrow to enable WASD keyboard control'), 4, 0, 1, 3)
         
@@ -195,68 +189,10 @@ class StageWidgetUI(QWidget):
         
     def update_stage_current_pos(self, current_pos):
         self.stage_current_pos = current_pos
-        self.stage_current_pos_Label.setText('X:'+str(self.stage_current_pos[0])+' Y: '+str(self.stage_current_pos[1]))
+        self.stage_goto_x.setText(str(self.stage_current_pos[0]))
+        self.stage_goto_y.setText(str(self.stage_current_pos[1]))
+#        self.stage_current_pos_Label.setText('X:'+str(self.stage_current_pos[0])+' Y: '+str(self.stage_current_pos[1]))
         
-    def execute_tread_single_sample_digital(self, channel):
-        if channel == '640blanking':
-            if self.switchbutton_640.isChecked():
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
-                execute_tread_singlesample_AOTF_digital.start()
-            else:
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
-                execute_tread_singlesample_AOTF_digital.start()
-        elif channel == '532blanking':
-            if self.switchbutton_532.isChecked():
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
-                execute_tread_singlesample_AOTF_digital.start()
-            else:
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
-                execute_tread_singlesample_AOTF_digital.start()        
-        elif channel == '488blanking':
-            if self.switchbutton_488.isChecked():
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
-                execute_tread_singlesample_AOTF_digital.start()
-            else:
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
-                execute_tread_singlesample_AOTF_digital.start()  
-                
-        elif channel == 'LED':
-            if self.switchbutton_LED.isChecked():
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 1)
-                execute_tread_singlesample_AOTF_digital.start()
-            else:
-                execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
-                execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
-                execute_tread_singlesample_AOTF_digital.start() 
-                
-    def change_AOTF_icon(self, channel):
-        if channel == '640blanking':
-            if self.switchbutton_640.isChecked():
-                self.AOTF_red_iconlabel.setPixmap(QPixmap('./Icons/AOTF_red_on.png'))
-            else:
-                self.AOTF_red_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))
-        elif channel == '532blanking':
-            if self.switchbutton_532.isChecked():
-                self.AOTF_green_iconlabel.setPixmap(QPixmap('./Icons/AOTF_green_on.png'))
-            else:
-                self.AOTF_green_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF))        
-        elif channel == '488blanking':
-            if self.switchbutton_488.isChecked():
-                self.AOTF_blue_iconlabel.setPixmap(QPixmap('./Icons/AOTF_blue_on.png'))
-            else:
-                self.AOTF_blue_iconlabel.setPixmap(QPixmap(self.ICON_off_AOTF)) 
-        elif channel == 'LED':
-            if self.switchbutton_LED.isChecked():
-                self.switchbutton_LED.setIcon(QIcon('./Icons/LED_on.png'))
-            else:
-                self.switchbutton_LED.setIcon(QIcon('./Icons/AOTF_off.png'))
         
 if __name__ == "__main__":
     def run_app():
