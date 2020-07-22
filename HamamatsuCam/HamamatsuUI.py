@@ -8,7 +8,7 @@ Created on Tue Apr 14 18:47:31 2020
 from __future__ import division
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QPoint, QRect, QObject, QSize, QTimer
-from PyQt5.QtGui import QImage, QPalette, QBrush, QFont, QPainter, QColor, QPen, QIcon, QMovie
+from PyQt5.QtGui import QImage, QPalette, QBrush, QFont, QPainter, QColor, QPen, QIcon, QMovie, QIntValidator
 
 from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, QDoubleSpinBox, QGridLayout, QPushButton, QGroupBox, 
                              QLineEdit, QVBoxLayout, QHBoxLayout, QComboBox, QMessageBox, QTabWidget, QCheckBox, QRadioButton, 
@@ -254,28 +254,36 @@ class CameraUI(QMainWindow):
         CameraROIPosLayout.addWidget(OffsetLabel, 0, 1)
         CameraROIPosLayout.addWidget(ROISizeLabel, 0, 2)
         
+#        validator = QIntValidator(0, 2048, self)
+#        self.ROI_hpos_spinbox = QLineEdit(self)
+#        self.ROI_hpos_spinbox.setValidator(validator)
+#        self.ROI_hpos_spinbox.returnPressed.connect(self.spin_value_changed)
         self.ROI_hpos_spinbox = QSpinBox()
         self.ROI_hpos_spinbox.setMaximum(2048)
         self.ROI_hpos_spinbox.setValue(0)
-        self.ROI_hpos_spinbox.valueChanged.connect(self.spin_value_changed)
+#        self.ROI_hpos_spinbox.valueChanged.connect(self.spin_value_changed)
+
         CameraROIPosLayout.addWidget(self.ROI_hpos_spinbox, 1, 1)
         
         self.ROI_vpos_spinbox = QSpinBox()
         self.ROI_vpos_spinbox.setMaximum(2048)
         self.ROI_vpos_spinbox.setValue(0)
-        self.ROI_vpos_spinbox.valueChanged.connect(self.spin_value_changed)
+#        self.ROI_vpos_spinbox.valueChanged.connect(self.spin_value_changed)
+
         CameraROIPosLayout.addWidget(self.ROI_vpos_spinbox, 2, 1)
         
         self.ROI_hsize_spinbox = QSpinBox()
         self.ROI_hsize_spinbox.setMaximum(2048)
         self.ROI_hsize_spinbox.setValue(2048)
-        self.ROI_hsize_spinbox.valueChanged.connect(self.spin_value_changed)
+#        self.ROI_hsize_spinbox.valueChanged.connect(self.spin_value_changed)
+
         CameraROIPosLayout.addWidget(self.ROI_hsize_spinbox, 1, 2)
         
         self.ROI_vsize_spinbox = QSpinBox()
         self.ROI_vsize_spinbox.setMaximum(2048)
         self.ROI_vsize_spinbox.setValue(2048)
-        self.ROI_vsize_spinbox.valueChanged.connect(self.spin_value_changed)
+#        self.ROI_vsize_spinbox.valueChanged.connect(self.spin_value_changed)
+
         CameraROIPosLayout.addWidget(self.ROI_vsize_spinbox, 2, 2)
         
         CameraROIPosLayout.addWidget(QLabel("Horizontal"), 1, 0)
@@ -789,27 +797,41 @@ class CameraUI(QMainWindow):
         #                      "subarray_hsize",
         #                      "subarray_vsize",
         #                      "binning"]
+        
+        self.metaData = 'Hamamatsu C13440-20CU '
+        
         for param in params:
+            if param == "exposure_time":
+                self.CamExposureTime = self.hcam.getPropertyValue(param)[0]
+                self.metaData += "_exposure_time" + str(self.CamExposureTime)
             if param == "subarray_hsize":
                 self.subarray_hsize = self.hcam.getPropertyValue(param)[0]
                 self.ROI_hsize_spinbox.setValue(self.subarray_hsize)
+                self.metaData += "subarray_hsize" + str(self.subarray_hsize)
             if param == "subarray_hpos":
                 self.subarray_hpos = self.hcam.getPropertyValue(param)[0]   
                 self.ROI_hpos_spinbox.setValue(self.subarray_hpos)
+                self.metaData += "subarray_hpos" + str(self.subarray_hpos)
             if param == "subarray_vsize":
                 self.subarray_vsize = self.hcam.getPropertyValue(param)[0]
                 self.ROI_vsize_spinbox.setValue(self.subarray_vsize)
+                self.metaData += "subarray_vsize" + str(self.subarray_vsize)
             if param == "subarray_vpos":
                 self.subarray_vpos = self.hcam.getPropertyValue(param)[0]
                 self.ROI_vpos_spinbox.setValue(self.subarray_vpos)
+                self.metaData += "subarray_vpos" + str(self.subarray_vpos)
             if param == "internal_frame_rate":
                 self.internal_frame_rate = self.hcam.getPropertyValue(param)[0]
+                self.metaData += "internal_frame_rate" + str(self.internal_frame_rate)
             if param == "image_framebytes":
                 self.image_framebytes = self.hcam.getPropertyValue(param)[0]
+                self.metaData += "image_framebytes" + str(self.image_framebytes)
             if param == "buffer_framebytes":
                 self.buffer_framebytes = self.hcam.getPropertyValue(param)[0]
+                self.metaData += "buffer_framebytes" + str(self.buffer_framebytes)
             if param == "timing_readout_time":
                 self.timing_readout_time = self.hcam.getPropertyValue(param)[0]
+                self.metaData += "timing_readout_time" + str(self.timing_readout_time)
             if param == "trigger_source":
                 if self.hcam.getPropertyValue(param)[0] == 1:
                     self.trigger_source = "INTERNAL"
@@ -944,7 +966,7 @@ class CameraUI(QMainWindow):
                     if self.ROI_vpos_spinbox.value() == 0 and self.ROI_vsize_spinbox.value() == 2048: 
                         # If it's the first time opening ROI selector, respawn it at a imageview center.
                         self.ROIitem = pg.RectROI([924,924],
-                                                  [200,200],
+                                                  [200,200], centered=True, sideScalers=True,
                                                   pen=ROIpen)
                         ## Create text object, use HTML tags to specify color/size
                         self.ROIitemText = pg.TextItem \
@@ -956,7 +978,7 @@ class CameraUI(QMainWindow):
                         # If in the ROI position spinboxes there are numbers left from last ROI selection
                         self.ROIitem = pg.RectROI([self.ROI_hpos_spinbox.value(),self.ROI_vpos_spinbox.value()],
                                                   [self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()],
-                                                  pen=ROIpen)
+                                                   centered=True, sideScalers=True, pen=ROIpen)
                         ## Create text object, use HTML tags to specify color/size
                         self.ROIitemText = pg.TextItem \
                         (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
@@ -966,15 +988,15 @@ class CameraUI(QMainWindow):
                         
                 else:                       # If the camera is already in subarray mode        
                     self.ROIitem = pg.RectROI([self.hcam.getPropertyValue("subarray_hpos")[0],self.hcam.getPropertyValue("subarray_vpos")[0]],
-                                                [self.hcam.getPropertyValue("subarray_hsize")[0],self.hcam.getPropertyValue("subarray_vsize")[0]],
-                                                pen=ROIpen)
+                                              [self.hcam.getPropertyValue("subarray_hsize")[0],self.hcam.getPropertyValue("subarray_vsize")[0]],
+                                              centered=True, sideScalers=True,pen=ROIpen)
                     ## Create text object, use HTML tags to specify color/size
                     self.ROIitemText = pg.TextItem \
                     (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
                         font-size: 10pt;">0</span></div>', anchor=(1, 1))
                     self.ROIitemText.setPos(self.hcam.getPropertyValue("subarray_hpos")[0],self.hcam.getPropertyValue("subarray_vpos")[0])
             except:
-                self.ROIitem = pg.RectROI([0,0], [200,200], pen=ROIpen)
+                self.ROIitem = pg.RectROI([0,0], [200,200], centered=True, sideScalers=True, pen=ROIpen)
                 ## Create text object, use HTML tags to specify color/size
                 self.ROIitemText = pg.TextItem \
                 (html='<div style="text-align: center"><span style="color: #FFF;">Estimated max fps: </span><span style="color: #FF0; \
@@ -1057,12 +1079,12 @@ class CameraUI(QMainWindow):
         self.Live_view.addItem(self.ROIitemText)
         
     def spin_value_changed(self):
-        
+        # Update the ROI item size according to spinbox values.
         if self.ROI_hsize_spinbox.value() != self.ROI_hsize or self.ROI_vsize_spinbox.value() != self.ROI_vsize:
 
             self.ROIitem.setSize([self.ROI_hsize_spinbox.value(),self.ROI_vsize_spinbox.value()])
         
-        
+        # Update the ROI item position according to spinbox values.
         if self.center_roiButton.isChecked():
             if self.ROI_hpos_spinbox.value() != self.ROI_hpos:
                 self.ROIitem.setPos(self.ROI_hpos_spinbox.value())
@@ -1206,8 +1228,8 @@ class CameraUI(QMainWindow):
         filename, _ = QFileDialog.getSaveFileName(
                     self, 'Save as... File', 'InterFps_{}.tif'.format(int(self.internal_frame_rate)), filter=files_types,options=options)
         if len(filename) > 3:
-            Localimg = Image.fromarray(self.Live_image) #generate an image object
-            Localimg.save(filename) #save as tif
+            with skimtiff.TiffWriter(filename, append = False, imagej = False)as tif:
+                tif.save(self.Live_image, description=self.metaData, compress=0)
         
     def UpdateScreen(self, image):
         if self.Live_item_autolevel == True:
@@ -1244,6 +1266,9 @@ class CameraUI(QMainWindow):
         """
         It's actually start acquisition with buffer being 1 image.
         """
+        # Get propreties and stored as metadata
+        self.GetKeyCameraProperties()
+        
         if self.isStreaming == False and self.isLiving == False:
 #            self.hcam.setACQMode("fixed_length", number_frames = 1)
             self.hcam.startAcquisition()              
@@ -1372,55 +1397,57 @@ class CameraUI(QMainWindow):
             self.StopStream_Thread.start()            
             
     def StartStreaming(self, StopSignal, BufferNumber, StreamDuration):
-            #--------------------Start the acquisition-------------------------
-            # Duration hard limit:
-            if StopSignal == "Time":
-                # Set the timeout timer.
+        # Get propreties and stored as metadata
+        self.GetKeyCameraProperties()
+        #--------------------Start the acquisition-------------------------
+        # Duration hard limit:
+        if StopSignal == "Time":
+            # Set the timeout timer.
 #                self.StreamDuration_timer = QTimer()
 #                self.StreamDuration_timer.setSingleShot(True)
 #                self.StreamDuration_timer.timeout.connect(self.StopStreamingThread)
-                self.isStreaming = True
-                
-                self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
-                self.hcam.startAcquisition()
-                QTimer.singleShot(StreamDuration*1000, self.StopStreamingThread)
+            self.isStreaming = True
+            
+            self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
+            self.hcam.startAcquisition()
+            QTimer.singleShot(StreamDuration*1000, self.StopStreamingThread)
 #                self.StreamDuration_timer.start(StreamDuration*1000) # Starts or restarts the timer with a timeout of duration msec milliseconds.                
-                
-                # Start pulling out frames from buffer
-                self.video_list = []
-                self.imageCount = 0 # The actual frame number that gets recorded.
-                while self.isStreaming == True: # Record for range() number of images.
-                    [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
-                    for aframe in frames:
-                        self.video_list.append(aframe.np_array)
-                        self.imageCount += 1
-                        
-                        self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
-                        
-            # Frame number hard limit
-            elif StopSignal == "Frames":
-                self.isStreaming = True
-                self.imageCount = 0 # The actual frame number that gets recorded.
-                self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
-                
-                self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
-                self.hcam.startAcquisition()              
-                
-                # Start pulling out frames from buffer
-                self.video_list = []
+            
+            # Start pulling out frames from buffer
+            self.video_list = []
+            self.imageCount = 0 # The actual frame number that gets recorded.
+            while self.isStreaming == True: # Record for range() number of images.
+                [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+                for aframe in frames:
+                    self.video_list.append(aframe.np_array)
+                    self.imageCount += 1
+                    
+                    self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+                    
+        # Frame number hard limit
+        elif StopSignal == "Frames":
+            self.isStreaming = True
+            self.imageCount = 0 # The actual frame number that gets recorded.
+            self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+            
+            self.hcam.setACQMode("fixed_length", number_frames = BufferNumber)
+            self.hcam.startAcquisition()              
+            
+            # Start pulling out frames from buffer
+            self.video_list = []
 
-                for _ in range(BufferNumber): # Record for range() number of images.
-                    [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
-                    for aframe in frames:
-                        self.video_list.append(aframe.np_array)
-                        self.imageCount += 1  
-                        
-                        self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
-                        
-                self.StopStreamingThread()
+            for _ in range(BufferNumber): # Record for range() number of images.
+                [frames, self.dims] = self.hcam.getFrames() # frames is a list with HCamData type, with np_array being the image.
+                for aframe in frames:
+                    self.video_list.append(aframe.np_array)
+                    self.imageCount += 1  
+                    
+                    self.CamStreamingLabel.setText("Recording, {} frames..".format(self.imageCount))
+                    
+            self.StopStreamingThread()
                 
     def StopStreaming(self, saveFile):
-        # Stop the acquisition
+        # Stop the acquisitiondjc
         AcquisitionEndTime = time.time()
         print("Frames acquired: " + str(self.imageCount))
         print('Total time is: {} s.'.format(AcquisitionEndTime-self.hcam.AcquisitionStartTime))
@@ -1437,7 +1464,7 @@ class CameraUI(QMainWindow):
                 write_starttime = time.time()
                 for eachframe in range(self.imageCount): 
                     image = np.resize(self.video_list[eachframe], (self.dims[1], self.dims[0]))
-                    tif.save(image, compress=0)
+                    tif.save(image, compress=0, description=self.metaData)
                     #---------Update file saving progress bar------------
                     if eachframe/self.imageCount*100 - int(eachframe/self.imageCount*100) <= 0.1:
                         self.CamStreamSaving_progressbar.setValue(int(eachframe/self.imageCount*100))
