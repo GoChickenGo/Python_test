@@ -19,6 +19,7 @@ from NIDAQ.generalDaqerThread import (execute_analog_readin_optional_digital_thr
 from PI_ObjectiveMotor.focuser import PIMotor
 from ThorlabsFilterSlider.filterpyserial import ELL9Filter
 from InsightX3.TwoPhotonLaser_backend import InsightX3
+from HamamatsuCam.HamamatsuActuator import CamActuator
 import math
 import threading
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -35,21 +36,48 @@ class ScanningExecutionThread(QThread):
         self.ludlStage = LudlStage("COM12")
         self.watchdog_flag = True
         
-        self.PMTimageDict = {}
-        for i in range(int(len(self.RoundQueueDict)/2-1)): # initial the nested PMTimageDict dictionary. -2 because default keys for insight and filter.
-            self.PMTimageDict['RoundPackage_{}'.format(i+1)] = {}
+#        self.PMTimageDict = {}
+#        for i in range(int(len(self.RoundQueueDict)/2-1)): # initial the nested PMTimageDict dictionary. -2 because default keys for insight and filter.
+#            self.PMTimageDict['RoundPackage_{}'.format(i+1)] = {}
         self.clock_source = 'Dev1 as clock source' # Should be set by GUI.
         
         self.scansavedirectory = self.GeneralSettingDict['savedirectory']
         self.meshgridnumber = int(self.GeneralSettingDict['Meshgrid'])
         
+    def Try_until_Success(func):
+        """ This is the decorator to try to execute the function until succeed.
+        """
+        def wrapper(*args, **kwargs):
+            
+            success = None
+            failnumber = 0
+            
+            while success is None:
+                if failnumber <8:
+                    try:
+                        returnValue = func(*args, **kwargs)
+                        success = True
+
+                    except:
+    
+                        failnumber += 1                    
+                        print('Laser action failed, failnumber: {}'.format(failnumber))
+                        time.sleep(0.2)
+                else:
+                    print('Fail for 8 times, give up - -')
+                    success = False                    
+                    
+            return returnValue
+        
+        return wrapper
+    
     def run(self):
         """
         # ==========================================================================================================================================================
         #                                                                       Initialization
         # ==========================================================================================================================================================
         """
-#        if len(self.GeneralSettingDict['FocusCorrectionMatrixDict']) > 0:# if focus correction matrix was generated.
+        #%%
         """
         # =============================================================================
         #         connect the Objective motor
@@ -60,6 +88,26 @@ class ScanningExecutionThread(QThread):
         print('Objective motor connected.')
         self.errornum = 0
         self.ObjCurrentPos = self.pi_device_instance.pidevice.qPOS(self.pi_device_instance.pidevice.axes)
+
+        """
+        # =============================================================================
+        #         connect the Hmamatsu camera
+        # =============================================================================
+        """
+        self._use_camera = False
+        for key in self.RoundQueueDict:
+            if "RoundPackage_" in key:
+                for waveform_and_cam_key in self.RoundQueueDict[key][1]:
+                    if "CameraPackage_" in waveform_and_cam_key:
+                        if len(self.RoundQueueDict[key][1][waveform_and_cam_key]) != 0:
+                            self._use_camera = True
+        
+        if self._use_camera == True:
+            print('Connecting camera...')
+            self.HamamatsuCam = CamActuator()
+            self.HamamatsuCam.initializeCamera()
+        else:
+            print('No camera involved.')
         
         """
         # =============================================================================
@@ -110,7 +158,7 @@ class ScanningExecutionThread(QThread):
                     except:
                         time.sleep(1)
                 time.sleep(0.5)                
-        
+        #%%
         """
         # ==========================================================================================================================================================
         #                                                                       Execution
@@ -320,10 +368,11 @@ class ScanningExecutionThread(QThread):
     
                     
                 self.currentCoordsSeq = 0
+                #%%
                 for EachCoord in range(CoordsNum):
-                    """
-                    #------------------------------------------At each stage position:-------------------------------------------
-                    """
+
+                    #-----------------------------------------------At each stage coordinate:--------------------------------------------
+
                     self.error_massage = None
                     
                     self.currentCoordsSeq += 1
@@ -377,10 +426,12 @@ class ScanningExecutionThread(QThread):
                     #         Execute waveform packages
                     # =============================================================================
                     """
-                    self.WaveforpackageNum = int(len(self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]))
+                    self.WaveforpackageNum = int(len(self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)][0]))
                     #Execute each individual waveform package
                     print('*******************************************Round {}. Current index: {}.**************************************************'.format(EachRound+1, [RowIndex,ColumnIndex]))
-                    for EachZStackPos in range(self.ZStackNum): # Move to Z stack focus 
+                    
+                    #------------------Move to Z stack focus-------------------
+                    for EachZStackPos in range(self.ZStackNum): 
                         print('--------------------------------------------Stack {}--------------------------------------------------'.format(EachZStackPos+1))
                         if self.ZStackNum > 1:
                             self.ZStackOrder = int(EachZStackPos +1) # Here the first one is 1, not starting from 0.
@@ -395,14 +446,33 @@ class ScanningExecutionThread(QThread):
                         else:
                             self.ZStackOrder = 1
                         
+                        #------------For waveforms in each coordinate----------
                         for EachWaveform in range(self.WaveforpackageNum):
-                            WaveformPackageToBeExecute = self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)]['WaveformPackage_{}'.format(EachWaveform+1)]
-                            WaveformPackageGalvoInfor = self.RoundQueueDict['GalvoInforPackage_{}'.format(EachRound+1)]['GalvoInfor_{}'.format(EachWaveform+1)]  
+                            # Extract information
+                            WaveformPackageToBeExecute = self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)][0]['WaveformPackage_{}'.format(EachWaveform+1)]
+                            CameraPackageToBeExecute = self.RoundQueueDict['RoundPackage_{}'.format(EachRound+1)][1]["CameraPackage_{}".format(EachWaveform+1)]                  
+                            WaveformPackageGalvoInfor = self.RoundQueueDict['GalvoInforPackage_{}'.format(EachRound+1)]['GalvoInfor_{}'.format(EachWaveform+1)]
+
                             self.readinchan = WaveformPackageToBeExecute[3]
                             self.RoundWaveformIndex = [EachRound+1, EachWaveform+1] # first is current round number, second is current waveform package number.
                             self.CurrentPosIndex = [RowIndex, ColumnIndex]
-    #                        self.ProcessData_executed = False
                             
+                            #----------------Camera operations-----------------
+                            _camera_isUsed = False
+                            if CameraPackageToBeExecute != {}: # if camera operations are configured
+                                _camera_isUsed = True
+                                CamSettigList = CameraPackageToBeExecute["Settings"]
+                                self.HamamatsuCam.StartStreaming(BufferNumber = CameraPackageToBeExecute["Buffer_number"],
+                                                                 trigger_source = CamSettigList[CamSettigList.index("trigger_source")+1],
+                                                                 exposure_time = CamSettigList[CamSettigList.index("exposure_time")+1],
+                                                                 trigger_active = CamSettigList[CamSettigList.index("trigger_active")+1])
+                                # Make sure that the camera is prepared before waveform execution.
+#                                while self.HamamatsuCam.isStreaming == False:
+#                                    print('Waiting for camera...')
+#                                    time.sleep(0.5)
+                                time.sleep(1)
+                            print('Now start waveforms')
+                            #----------------Waveforms operations--------------
                             if WaveformPackageGalvoInfor != 'NoGalvo': # Unpack the information of galvo scanning.
                                 self.readinchan = WaveformPackageGalvoInfor[0]
                                 self.repeatnum = WaveformPackageGalvoInfor[1]
@@ -423,10 +493,23 @@ class ScanningExecutionThread(QThread):
                                 self.adcollector.set_waves(WaveformPackageToBeExecute[0], WaveformPackageToBeExecute[1], WaveformPackageToBeExecute[2], WaveformPackageToBeExecute[3])
                                 self.adcollector.collected_data.connect(self.ProcessData)
                                 self.adcollector.run()
+                            
+                            #------------------Camera saving-------------------
+                            if _camera_isUsed == True:
+                                self.HamamatsuCam.isSaving = True
+                                tif_name = os.path.join(self.scansavedirectory, 'Round'+str(self.RoundWaveformIndex[0])+'_Coords'+str(self.currentCoordsSeq)+'_R'+str(self.CurrentPosIndex[0])+'C'+str(self.CurrentPosIndex[1])+'_Cam_'+'Zpos'+str(self.ZStackOrder)+'.tif')
+                                self.HamamatsuCam.StopStreaming(saving_dir = tif_name)
+                                # Make sure that the saving process is finished.
+                                while self.HamamatsuCam.isSaving == True:
+                                    print('Camera saving...')
+                                    time.sleep(0.5)
+                                time.sleep(1)                                
+                                
+                            
                         time.sleep(0.6) # Wait for receiving data to be done.
                     time.sleep(0.3)
                     print('*************************************************************************************************************************')
-
+        #%%
         """
         # ==========================================================================================================================================================
         #                                                                       Finalizing
@@ -453,6 +536,10 @@ class ScanningExecutionThread(QThread):
                     break
                 except:
                     time.sleep(1)
+                    
+        # Disconnect camera
+        if self._use_camera == True:
+            self.HamamatsuCam.Exit()
         
         # Disconnect focus motor
         try:
@@ -460,6 +547,8 @@ class ScanningExecutionThread(QThread):
             print('Objective motor disconnected.')
         except:
             pass
+        
+    #%%
     #--------------------------------------------------------------Reconstruct and save images from 1D recorded array.--------------------------------------------------------------------------------       
     def ProcessData(self, data_waveformreceived):    
         print('ZStackOrder is:'+str(self.ZStackOrder)+'numis_'+str(self.ZStackNum))
@@ -575,44 +664,8 @@ class ScanningExecutionThread(QThread):
                     except:
                         print('No.{} image failed to generate.'.format(imageSequence))
 
-#        self.PMTimageDict['RoundPackage_{}'.format(self.RoundWaveformIndex[0])]['row_{}_column_{}'.format(self.CurrentPosIndex[0], self.CurrentPosIndex[1])] = self.PMT_image_maxprojection
-                 
-#        self.PMTimageDict['RoundPackage_{}'.format(self.RoundWaveformIndex[0])]['row_{}_column_{}_stack{}'.format(self.CurrentPosIndex[0], self.CurrentPosIndex[1], self.ZStackOrder)] = self.PMT_image_reconstructed_stack
-#        self.ProcessData_executed = True
         print('ProcessData executed.')
         
-    #-----------------------------------------------------------------Sorting the cells------------------------------------------------------------------------------------------------------------
-#    def SortingPropertiesArray(self, All_cell_properties):  
-#        #------------------------------------------CAN use 'import numpy.lib.recfunctions as rfn' to append field--------------
-#        original_cp = rfn.append_fields(All_cell_properties, 'Original_sequence', list(range(0, len(All_cell_properties))), usemask=False)
-#        #print('*********************sorted************************')        
-#        sortedcp = self.ImageAnalysisInstance.sort_using_weight(original_cp, 'Mean intensity in contour','Contour soma ratio','Change', self.GeneralSettingDict['Mean intensity in contour weight'], self.GeneralSettingDict['Contour soma ratio weight'], self.GeneralSettingDict['Change weight'])
-#        #******************************Add ranking to it*********************************
-#        ranked_cp = rfn.append_fields(sortedcp, 'Ranking', list(range(0, len(All_cell_properties))), usemask=False)
-#        #print('***********************Original sequence with ranking**************************')        
-#        withranking_cp = np.sort(ranked_cp, order='Original_sequence')
-#       
-#        # All the cells are ranked, now we find the desired group and their position indexs, call the images and show labels of
-#        # these who meet the requirements, omitting bad ones.
-#        
-#        #get the index
-#        cell_properties_selected_hits = ranked_cp[0:self.GeneralSettingDict['selectnum']]
-#        cell_properties_selected_hits_index_sorted = np.sort(cell_properties_selected_hits, order=['Row index', 'Column index'])
-#        index_samples = np.vstack((cell_properties_selected_hits_index_sorted['Row index'],cell_properties_selected_hits_index_sorted['Column index']))
-#        
-#        merged_index_samples = index_samples[:,0] # Merge coordinates which are the same.
-#
-#        #consider these after 1st one
-#        for i in range(1, len(index_samples[0])):
-#            #print(index_samples[:,i][0] - index_samples[:,i-1][0])    
-#            if index_samples[:,i][0] != index_samples[:,i-1][0] or index_samples[:,i][1] != index_samples[:,i-1][1]: 
-#                merged_index_samples = np.append(merged_index_samples, index_samples[:,i], axis=0)
-#        merged_index_samples = merged_index_samples.reshape(-1, 2) # 1st column=i, 2nd column=j
-#        
-#        return withranking_cp, merged_index_samples
-    
-#    def GetDataForShowingRank(self):
-#        return self.RankedAllCellProperties, self.FinalMergedCoords, self.IndexLookUpCellPropertiesDict, self.PMTimageDict
     #----------------------------------------------------------------WatchDog for laser----------------------------------------------------------------------------------
     def Status_watchdog(self, querygap):
         
@@ -623,42 +676,5 @@ class ScanningExecutionThread(QThread):
             else:
                 print('Watchdog stopped')
                 time.sleep(querygap)
-            
-    
-#class ShowTopCellsThread(QThread):
-#    
-#    PMTimageDictMeasurement = pyqtSignal(object) #The signal for the measurement, we can connect to this signal
-#    
-#    def __init__(self, GeneralSettingDict, RankedAllCellProperties, FinalMergedCoords, IndexLookUpCellPropertiesDict, PMTimage, MatdisplayFigureTopGuys, *args, **kwargs):        
-#        super().__init__(*args, **kwargs)
-#        self.GeneralSettingDict = GeneralSettingDict
-#        self.RankedAllCellProperties = RankedAllCellProperties
-#        self.CurrentPos = FinalMergedCoords
-#        self.IndexLookUpCellPropertiesDict = IndexLookUpCellPropertiesDict
-#        self.ShowTopCellImg = PMTimage
-#        self.MatdisplayFigureTopGuys = MatdisplayFigureTopGuys
-#        
-#        self.IndexLookUpCellPropertiesDictRow = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][0]
-#        self.IndexLookUpCellPropertiesDictCol = self.IndexLookUpCellPropertiesDict['row_{}_column_{}'.format(self.CurrentPos[0], self.CurrentPos[1])][1]
-#        
-#        self.ludlStage = LudlStage("COM6")
-#    def run(self):
-#        self.TopCellAx = self.MatdisplayFigureTopGuys.add_subplot(111)
-#
-#        print ('-----------------------------------')
-#        
-#        #stage movement
-#        self.ludlStage.moveAbs(self.CurrentPos[0],self.CurrentPos[1])
-#        time.sleep(1)
-#                        
-#        S = ImageAnalysis(self.ShowTopCellImg, self.ShowTopCellImg) #The same as ImageAnalysis(Data_dict_0[Pic_name], Data_dict_1[Pic_name]), call the same image with same dictionary index.
-#        v1, v2, mask_1, mask_2, thres = S.applyMask(self.GeneralSettingDict['openingfactor'], 
-#                                                    self.GeneralSettingDict['closingfactor'], 
-#                                                    self.GeneralSettingDict['binary_adaptive_block_size'])
-#        S.showlabel_with_rank_givenAx(self.GeneralSettingDict['smallestsize'], mask_1, v1, self.IndexLookUpCellPropertiesDictRow, self.IndexLookUpCellPropertiesDictCol, self.RankedAllCellProperties, 'Mean intensity in contour', self.GeneralSettingDict['selectnum'], self.TopCellAx)
-#
-#        print ('-----------------------------------')
-
-        
 
         

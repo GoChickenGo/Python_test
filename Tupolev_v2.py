@@ -140,6 +140,7 @@ class Mainbody(QWidget):
         self.saving_prefix = ''
         self.savedirectorytextbox = QLineEdit(self)
         self.savedirectorytextbox.setPlaceholderText('Saving directory')
+        self.savedirectorytextbox.returnPressed.connect(self.update_saving_directory)
         self.setdirectorycontrolLayout.addWidget(self.savedirectorytextbox, 0, 1)
         
         self.prefixtextbox = QLineEdit(self)
@@ -321,9 +322,13 @@ class Mainbody(QWidget):
         self.PatchClamp_WidgetInstance.saving_dir = self.savedirectory
         
         self.set_prefix()
+    
+    def update_saving_directory(self):
+        self.savedirectory = str(self.savedirectorytextbox.text())
         
     def set_prefix(self):
         self.saving_prefix = str(self.prefixtextbox.text())
+
         self.Galvo_WidgetInstance.prefixtextboxtext = self.saving_prefix
         self.Waveformer_WidgetInstance.saving_prefix = self.saving_prefix
         

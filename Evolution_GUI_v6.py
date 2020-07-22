@@ -42,13 +42,13 @@ import GalvoWidget.PMTWidget
 import NIDAQ.AOTFWidget
 import ThorlabsFilterSlider.FilterSliderWidget
 import InsightX3.TwoPhotonLaserUI
+import StylishQT
 #import EvolutionAnalysisGUI
-from ImageAnalysis import EvolutionAnalysisGUI_ML
 
 class Mainbody(QWidget):
     
     waveforms_generated = pyqtSignal(object, object, list, int)
-    
+    #%%
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         os.chdir('./')# Set directory to current folder.
@@ -58,8 +58,9 @@ class Mainbody(QWidget):
         self.setWindowTitle("McDonnell")
         self.layout = QGridLayout(self)
         
+        self.RoundQueueDict = {}        
         self.WaveformQueueDict = {}
-        self.RoundQueueDict = {}
+        self.CamOperationDict = {}
         self.RoundQueueDict['InsightEvents'] = []
         self.RoundQueueDict['FilterEvents'] = []
         
@@ -78,17 +79,19 @@ class Mainbody(QWidget):
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for GeneralSettings----------------------------------------------------
         #**************************************************************************************************************************************
-        GeneralSettingContainer = QGroupBox("Tanto Tanto")
+        GeneralSettingContainer = StylishQT.roundQGroupBox("Tanto Tanto")
         GeneralSettingContainerLayout = QGridLayout()
         
         self.saving_prefix = ''
         self.savedirectorytextbox = QtWidgets.QLineEdit(self)
         self.savedirectorytextbox.setFixedWidth(300)
+        self.savedirectorytextbox.returnPressed.connect(self.update_saving_directory)
         GeneralSettingContainerLayout.addWidget(self.savedirectorytextbox, 0, 1)
         
         self.prefixtextbox = QtWidgets.QLineEdit(self)
         self.prefixtextbox.setPlaceholderText('Prefix')
         self.prefixtextbox.setFixedWidth(80)
+        self.prefixtextbox.returnPressed.connect(self.set_prefix)
         GeneralSettingContainerLayout.addWidget(self.prefixtextbox, 0, 2)
         
         self.toolButtonOpenDialog = QtWidgets.QPushButton('Saving directory')
@@ -101,24 +104,14 @@ class Mainbody(QWidget):
         
         GeneralSettingContainerLayout.addWidget(self.toolButtonOpenDialog, 0, 0)
         
-        ButtonConfigurePipeline = QPushButton('Configure', self)
-        ButtonConfigurePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        ButtonConfigurePipeline = StylishQT.generateButton()
         ButtonConfigurePipeline.clicked.connect(self.ConfigGeneralSettings)
 #        ButtonConfigurePipeline.clicked.connect(self.GenerateFocusCorrectionMatrix)
         
-        ButtonExePipeline = QPushButton('Execute', self)
-        ButtonExePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(184,184,243); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-#        ButtonExePipeline.clicked.connect(self.ConfigGeneralSettings)      
+        ButtonExePipeline = StylishQT.runButton()
         ButtonExePipeline.clicked.connect(self.ExecutePipeline)
         
-        ButtonSavePipeline = QPushButton('Save pipeline', self)
-        ButtonSavePipeline.setStyleSheet("QPushButton {color:white;background-color: rgb(82,153,211); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: rgb(82,153,211); border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        ButtonSavePipeline = StylishQT.saveButton()
         ButtonSavePipeline.clicked.connect(self.Savepipeline)
         
         # Pipeline import
@@ -153,7 +146,7 @@ class Mainbody(QWidget):
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for Focus correction---------------------------------------------------
         #**************************************************************************************************************************************
-        FocusCorrectionContainer = QGroupBox("Focus correction")
+        FocusCorrectionContainer = StylishQT.roundQGroupBox("Focus correction")
         FocusCorrectionContainerLayout = QGridLayout()
         
         self.ApplyFocusSetCheckbox = QCheckBox("Apply focus set")
@@ -185,7 +178,7 @@ class Mainbody(QWidget):
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for tool widgets-------------------------------------------------------
         #**************************************************************************************************************************************
-        ToolWidgetsContainer = QGroupBox('Tool widgets')
+        ToolWidgetsContainer = StylishQT.roundQGroupBox('Tool widgets')
         ToolWidgetsLayout = QGridLayout()
         
         self.OpenPMTWidgetButton = QPushButton('PMT', self)
@@ -243,7 +236,7 @@ class Mainbody(QWidget):
         #         #-----------------------------------------------------------GUI for PiplineContainer---------------------------------------------------
         #         #**************************************************************************************************************************************
         # ==========================================================================================================================================================
-        PipelineContainer = QGroupBox("Pipeline settings")
+        PipelineContainer = StylishQT.roundQGroupBox("Pipeline settings")
         PipelineContainerLayout = QGridLayout()
         
         self.RoundOrderBox = QSpinBox(self)
@@ -259,14 +252,8 @@ class Mainbody(QWidget):
 #        ButtonAddRound.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
 #                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
         
-        ButtonAddRound = QPushButton('Add Round', self)
-        ButtonAddRound.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"    
-                                        "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")
-        ButtonDeleteRound = QPushButton('Delete Round', self)
-        ButtonDeleteRound.setStyleSheet("QPushButton {color:white;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+        ButtonAddRound = StylishQT.addButton()
+        ButtonDeleteRound = StylishQT.stop_deleteButton()
 
         ButtonClearRound = QPushButton('Clear Rounds', self)
         ButtonClearRound.setStyleSheet("QPushButton {color:white;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
@@ -284,7 +271,8 @@ class Mainbody(QWidget):
         ButtonClearRound.clicked.connect(self.ClearRoundQueue)
         
         self.ScanRepeatTextbox = QSpinBox(self)
-        self.ScanRepeatTextbox.setMinimum(2)
+        self.ScanRepeatTextbox.setMinimum(1)
+        self.ScanRepeatTextbox.setValue(1)
         self.ScanRepeatTextbox.setMaximum(100000)
         self.ScanRepeatTextbox.setSingleStep(1)
         PipelineContainerLayout.addWidget(self.ScanRepeatTextbox, 0, 7)
@@ -293,53 +281,7 @@ class Mainbody(QWidget):
         self.OpenTwoPLaserShutterCheckbox = QCheckBox("Open shutter first")
         self.OpenTwoPLaserShutterCheckbox.setStyleSheet('color:blue;font:bold "Times New Roman"')
         self.OpenTwoPLaserShutterCheckbox.setChecked(True)
-        PipelineContainerLayout.addWidget(self.OpenTwoPLaserShutterCheckbox, 0, 8)
-        
-        #**************************************************************************************************************************************
-        #-----------------------------------------------------------GUI for RoundContainer-----------------------------------------------------
-        #**************************************************************************************************************************************
-        RoundContainer = QGroupBox("Waveform settings")
-        RoundContainerLayout = QGridLayout()
-        
-        self.WaveformOrderBox = QSpinBox(self)
-        self.WaveformOrderBox.setMinimum(1)
-        self.WaveformOrderBox.setMaximum(1000)
-        self.WaveformOrderBox.setValue(1)
-        self.WaveformOrderBox.setSingleStep(1)
-        self.WaveformOrderBox.setMaximumWidth(30)
-        RoundContainerLayout.addWidget(self.WaveformOrderBox, 0, 1)
-        RoundContainerLayout.addWidget(QLabel("Waveform sequence:"), 0, 0)
-        
-        ButtonAddWaveform = QPushButton('Add Waveform', self)
-        ButtonAddWaveform.setStyleSheet("QPushButton {color:white;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: teal; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-
-        ButtonDeleteWaveform = QPushButton('Delete Waveform', self)
-        ButtonDeleteWaveform.setStyleSheet("QPushButton {color:white;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: crimson; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-        ButtonClearWaveform = QPushButton('Clear Waveforms', self)
-        ButtonClearWaveform.setStyleSheet("QPushButton {color:white;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
-                                        "QPushButton:hover:!pressed {color:gray;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
-
-        RoundContainerLayout.addWidget(ButtonAddWaveform, 0, 3)
-        RoundContainerLayout.addWidget(ButtonDeleteWaveform, 0, 4)
-        RoundContainerLayout.addWidget(ButtonClearWaveform, 0, 5)
-        ButtonAddWaveform.clicked.connect(self.AddFreshWaveform)
-        ButtonDeleteWaveform.clicked.connect(self.DeleteFreshWaveform)
-        ButtonClearWaveform.clicked.connect(self.ClearWaveformQueue)
-        
-        self.Waveformer_widget_instance = NIDAQ.Waveformer_for_screening.WaveformGenerator()
-        self.Waveformer_widget_instance.WaveformPackage.connect(self.UpdateWaveformerSignal)
-        self.Waveformer_widget_instance.GalvoScanInfor.connect(self.UpdateWaveformerGalvoInfor)
-
-        RoundContainerLayout.addWidget(self.Waveformer_widget_instance, 2, 0, 2, 9)
-        RoundContainer.setLayout(RoundContainerLayout)
-        
-        PipelineContainerLayout.addWidget(RoundContainer, 3, 0, 4, 10)       
-        #--------------------------------------------------------------------------------------------------------------------------------------     
+        PipelineContainerLayout.addWidget(self.OpenTwoPLaserShutterCheckbox, 0, 8)  
 
         #**************************************************************************************************************************************
         #-----------------------------------------------------------GUI for StageScanContainer-------------------------------------------------
@@ -465,8 +407,90 @@ class Mainbody(QWidget):
         self.RoundGeneralSettingTabs.addTab(ScanContainer,"Scanning settings")
         self.RoundGeneralSettingTabs.addTab(TwoPLaserContainer,"Pulse laser/Filter settings")
 
-        PipelineContainerLayout.addWidget(self.RoundGeneralSettingTabs, 2, 0, 1, 10)  
+        PipelineContainerLayout.addWidget(self.RoundGeneralSettingTabs, 2, 0, 1, 10)
+        
+        
+        self.WaveformOrderBox = QSpinBox(self)
+        self.WaveformOrderBox.setMinimum(1)
+        self.WaveformOrderBox.setMaximum(1000)
+        self.WaveformOrderBox.setValue(1)
+        self.WaveformOrderBox.setSingleStep(1)
+        self.WaveformOrderBox.setMaximumWidth(30)
+        PipelineContainerLayout.addWidget(self.WaveformOrderBox, 3, 1)
+        PipelineContainerLayout.addWidget(QLabel("Waveform/Camera sequence:"), 3, 0)
+        
+        ButtonAddWaveform = StylishQT.addButton()
+        ButtonDeleteWaveform = StylishQT.stop_deleteButton()
+        
+        ButtonClearWaveform = QPushButton('Clear Waveforms/Camera', self)
+        ButtonClearWaveform.setStyleSheet("QPushButton {color:white;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:pressed {color:red;background-color: white; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}"
+                                        "QPushButton:hover:!pressed {color:gray;background-color: maroon; border-style: outset;border-radius: 10px;border-width: 2px;font: bold 14px;padding: 6px}")        
+
+        PipelineContainerLayout.addWidget(ButtonAddWaveform, 3, 3)
+        PipelineContainerLayout.addWidget(ButtonDeleteWaveform, 3, 4)
+        PipelineContainerLayout.addWidget(ButtonClearWaveform, 3, 5)
+        
+        ButtonAddWaveform.clicked.connect(self.AddFreshWaveform)
+        ButtonAddWaveform.clicked.connect(self.AddCameraOperation)
+        
+        ButtonDeleteWaveform.clicked.connect(self.DeleteFreshWaveform)
+        ButtonDeleteWaveform.clicked.connect(self.DeleteCameraOperation)
+        ButtonClearWaveform.clicked.connect(self.ClearWaveformQueue)
+        ButtonClearWaveform.clicked.connect(self.CleanCameraOperation)
         #--------------------------------------------------------------------------------------------------------------------------------------
+        self.EachCoordDwellSettingTabs = QTabWidget()
+ 
+        # =============================================================================
+        #         Waveforms tab settings
+        # =============================================================================
+        waveformTab = QWidget()
+        waveformTabLayout = QGridLayout()
+        
+        self.Waveformer_widget_instance = NIDAQ.Waveformer_for_screening.WaveformGenerator()
+        self.Waveformer_widget_instance.WaveformPackage.connect(self.UpdateWaveformerSignal)
+        self.Waveformer_widget_instance.GalvoScanInfor.connect(self.UpdateWaveformerGalvoInfor)
+
+        waveformTabLayout.addWidget(self.Waveformer_widget_instance, 2, 0, 2, 9)
+        waveformTab.setLayout(waveformTabLayout)
+        
+        # =============================================================================
+        #         Camera tab settings
+        # =============================================================================
+        CameraDwellTab = QWidget()
+        CameraDwellTabLayout = QGridLayout()
+
+        self.CamTriggerSettingBox = QComboBox()
+        self.CamTriggerSettingBox.addItems(["EXTERNAL", "INTERNAL"])
+        
+        self.CamTriggerActive_SettingBox = QComboBox()
+        self.CamTriggerActive_SettingBox.addItems(['EDGE', 'LEVEL', 'SYNCREADOUT'])
+        
+        CameraDwellTabLayout.addWidget(QLabel("Trigger:"), 1, 0)
+        CameraDwellTabLayout.addWidget(self.CamTriggerSettingBox, 1, 1)
+        CameraDwellTabLayout.addWidget(self.CamTriggerActive_SettingBox, 1, 2)
+        
+        self.StreamBufferTotalFrames_spinbox = QSpinBox()
+        self.StreamBufferTotalFrames_spinbox.setMaximum(120000)
+        self.StreamBufferTotalFrames_spinbox.setValue(0)
+        CameraDwellTabLayout.addWidget(self.StreamBufferTotalFrames_spinbox, 1, 4)
+        CameraDwellTabLayout.addWidget(QLabel("Buffers:"), 1, 3)
+        
+        self.CamExposureBox = QDoubleSpinBox(self)
+        self.CamExposureBox.setDecimals(6)
+        self.CamExposureBox.setMinimum(0)
+        self.CamExposureBox.setMaximum(100)
+        self.CamExposureBox.setValue(0.001501)
+        self.CamExposureBox.setSingleStep(0.001)  
+        CameraDwellTabLayout.addWidget(self.CamExposureBox, 1, 6)  
+        CameraDwellTabLayout.addWidget(QLabel("Exposure time:"), 1, 5)
+        
+        CameraDwellTab.setLayout(CameraDwellTabLayout)
+        
+        self.EachCoordDwellSettingTabs.addTab(waveformTab,"Waveforms settings")
+        self.EachCoordDwellSettingTabs.addTab(CameraDwellTab,"Camera operations")
+
+        PipelineContainerLayout.addWidget(self.EachCoordDwellSettingTabs, 4, 0, 4, 10)    
         
         PipelineContainer.setLayout(PipelineContainerLayout)
         
@@ -478,16 +502,67 @@ class Mainbody(QWidget):
         self.layout.addWidget(PipelineContainer, 5, 0, 1, 4)
         self.setLayout(self.layout)
         
+        
+    #%%
     """
-    # =============================================================================
     #     FUNCTIONS FOR EXECUTION
-    # =============================================================================
+    
+    ----------------Screening routine configuration Structure -----------------
+    
+    ====RoundQueueDict====                              Dictionary=============
+    
+      -- key: RoundPackage_{}
+            |__ WaveformQueueDict                       Dictionary
+                key: WaveformPackage_{}                 Waveforms tuple signal from Waveformer. At each coordinate.
+                
+            |__ CamOperationDict                        Dictionary
+                key: CameraPackage_{}
+            
+      -- key: GalvoInforPackage_{}                   
+            |__ WaveformQueueDict_GalvoInfor            Dictionary
+                key: GalvoInfor_{}                      Galvo scanning configuration signal from Waveformer. At each coordinate.
+                
+      -- key: FilterEvents
+            |__ List of filter operation strings, in the round.
+            
+      -- key: InsightEvents
+            |__ List of insight laser operation strings, in the round.
+        
+    ====RoundCoordsDict====                             Dictionary=============
+    
+      -- key: CoordsPackage_{}
+            |__ np.array of scanning coordinates.
+            
+    ====GeneralSettingDict====                          Dictionary=============
+    
+      -- key: 'savedirectory'                           screening data saving directory.
+      
+      -- key: 'FocusCorrectionMatrixDict'               Dictionary
+                  |__ key: RoundPackage_{}
+                      or RoundPackage_{}_Grid_{}        np.array of pre-calibrated focus positions.
+                  
+      -- key: 'FocusStackInfoDict'                      Dictionary
+                  |__ key: RoundPackage_{}              String specifies 'NumberOfFocus{}WithIncrementBeing{}'.
+                  
+      -- key: 'Meshgrid'                                int if scanning grid number. meshrepeat
+      
+      -- key: 'Scanning step'                           Scanning stage step. self.step
+      
+      -- key: 'StartUpEvents'                           List of strings, like Shutter_Open
     """
-    # =============================================================================
-    # ------------------------------------------------------------Waveform package functions--------------------------------------------------------------------------        
-    # =============================================================================
+    # ==========================================================================================================================================================
+    # ------------------------------------------------------------Waveform package functions at each coordinate-------------------------------------------------
+    # ==========================================================================================================================================================
+    """
+    Every time when the 'configure' button in waveformer widget is hit, the 'WaveformPackage' and 'GalvoInfor' signals are sent here.
+    """
     def UpdateWaveformerSignal(self, WaveformPackage):
-        self.FreshWaveformPackage = WaveformPackage # Capture the newest generated waveform tuple signal from Waveformer.
+        """
+        Capture the newest generated waveform tuple signal from Waveformer, which contains 4 parts in tuple:
+        (sampling rate, analogcontainer_array, digitalcontainer_array, recording channel list)
+        """
+        self.FreshWaveformPackage = WaveformPackage
+
     def UpdateWaveformerGalvoInfor(self, GalvoInfor):
         self.FreshWaveformGalvoInfor = GalvoInfor
     
@@ -501,6 +576,7 @@ class Mainbody(QWidget):
         self.WaveformQueueDict_GalvoInfor['GalvoInfor_{}'.format(CurrentWaveformPackageSequence)] = self.FreshWaveformGalvoInfor
         self.normalOutputWritten('Waveform{} added.\n'.format(CurrentWaveformPackageSequence))
         print('Waveform added.')
+        
     def DeleteFreshWaveform(self): # Empty the waveform container to avoid crosstalk between rounds.
         CurrentWaveformPackageSequence = self.WaveformOrderBox.value()
         del self.WaveformQueueDict['WaveformPackage_{}'.format(CurrentWaveformPackageSequence)]
@@ -510,16 +586,40 @@ class Mainbody(QWidget):
     def ClearWaveformQueue(self):
         self.WaveformQueueDict = {}
         self.WaveformQueueDict_GalvoInfor = {}
-    
-    # =============================================================================
-    #     #--------------------------------------------------------------Round package functions------------------------------------------------------------------------        
-    # =============================================================================
+        
+    # ==========================================================================================================================================================
+    # --------------------------------------------------------------Camera operation at each coordinate---------------------------------------------------------
+    # ==========================================================================================================================================================
+    def AddCameraOperation(self):
+        CurrentCamPackageSequence = self.WaveformOrderBox.value()
+        
+        if self.StreamBufferTotalFrames_spinbox.value() != 0:
+            CameraOperation = {"Settings": ["trigger_source", self.CamTriggerSettingBox.currentText(), 
+                                            "exposure_time", self.CamExposureBox.value(),
+                                            "trigger_active", self.CamTriggerActive_SettingBox.currentText()], 
+                               "Buffer_number": self.StreamBufferTotalFrames_spinbox.value()}
+            
+            self.CamOperationDict['CameraPackage_{}'.format(CurrentCamPackageSequence)] = CameraOperation
+        else:
+            self.CamOperationDict['CameraPackage_{}'.format(CurrentCamPackageSequence)] = {}
+
+    def DeleteCameraOperation(self): # Empty the waveform container to avoid crosstalk between rounds.
+        CurrentCamPackageSequence = self.WaveformOrderBox.value()
+        del self.CamOperationDict['CameraPackage_{}'.format(CurrentCamPackageSequence)]    
+        
+    def CleanCameraOperation(self):
+        self.CamOperationDict = {}
+    # ==========================================================================================================================================================
+    # --------------------------------------------------------------Settings at each round----------------------------------------------------------------------
+    # ==========================================================================================================================================================
     def AddFreshRound(self):
         CurrentRoundSequence = self.RoundOrderBox.value()
         
         WaveformQueueDict = copy.deepcopy(self.WaveformQueueDict) # Here we make the self.WaveformQueueDict private so that other rounds won't refer to the same variable.
         WaveformQueueDict_GalvoInfor = copy.deepcopy(self.WaveformQueueDict_GalvoInfor)
-        self.RoundQueueDict['RoundPackage_{}'.format(CurrentRoundSequence)] = WaveformQueueDict
+        CamOperationDict = copy.deepcopy(self.CamOperationDict)
+        
+        self.RoundQueueDict['RoundPackage_{}'.format(CurrentRoundSequence)] = [WaveformQueueDict, CamOperationDict]
         self.RoundQueueDict['GalvoInforPackage_{}'.format(CurrentRoundSequence)] = WaveformQueueDict_GalvoInfor # Information we need to restore pmt scanning images.
         
         #Configure information for Z-stack
@@ -530,7 +630,7 @@ class Mainbody(QWidget):
         
         self.normalOutputWritten('Round{} added.\n'.format(CurrentRoundSequence))
         print('Round added.')
-    
+        
     #-----------------------Configure filter event-----------------------------
     def AddFilterEvent(self):
         CurrentRoundSequence = self.RoundOrderBox.value()
@@ -569,7 +669,8 @@ class Mainbody(QWidget):
             self.RoundQueueDict['InsightEvents'].remove('Round_{}_WavelengthTo_{}'.format(CurrentRoundSequence, self.TwoPLaserWavelengthbox.value()))
         print(self.RoundQueueDict['InsightEvents'])
         self.normalOutputWritten(str(self.RoundQueueDict['InsightEvents'])+'\n')
-        
+   
+    #-----------------------------Generate Scan Coords-----------------------------
     def GenerateScanCoords(self):
         self.CoordContainer = np.array([])
         # settings for scanning index
@@ -605,6 +706,7 @@ class Mainbody(QWidget):
     
     def ClearRoundQueue(self):
         self.WaveformQueueDict = {}
+        self.CamOperationDict = {}
         self.RoundQueueDict = {}
         self.RoundQueueDict['InsightEvents'] = []
         self.RoundQueueDict['FilterEvents'] = []
@@ -615,45 +717,13 @@ class Mainbody(QWidget):
         
         self.normalOutputWritten('Rounds cleared.\n')
         print('Rounds cleared.')
-        
+    #%%
     """
     # =============================================================================
     #     Configure general settings, get ready for execution      
     # =============================================================================
     """
     def ConfigGeneralSettings(self):
-#        selectnum = self.selec_num_box.value()
-#        if self.ComBoxSelectionFactor_1.currentText() == 'Mean intensity in contour weight':
-#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_1.value()
-#        elif self.ComBoxSelectionFactor_1.currentText() == 'Contour soma ratio weight':
-#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_1.value()
-#        elif self.ComBoxSelectionFactor_1.currentText() == 'Change weight':
-#            ChangeWeight = self.WeightBoxSelectionFactor_1.value()
-#            
-#        if self.ComBoxSelectionFactor_2.currentText() == 'Mean intensity in contour weight':
-#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_2.value()
-#        elif self.ComBoxSelectionFactor_2.currentText() == 'Contour soma ratio weight':
-#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_2.value()
-#        elif self.ComBoxSelectionFactor_2.currentText() == 'Change weight':
-#            ChangeWeight = self.WeightBoxSelectionFactor_2.value()
-#            
-#        if self.ComBoxSelectionFactor_3.currentText() == 'Mean intensity in contour weight':
-#            MeanIntensityContourWeight = self.WeightBoxSelectionFactor_3.value()
-#        elif self.ComBoxSelectionFactor_3.currentText() == 'Contour soma ratio weight':
-#            ContourSomaRatioWeight = self.WeightBoxSelectionFactor_3.value()
-#        elif self.ComBoxSelectionFactor_3.currentText() == 'Change weight':
-#            ChangeWeight = self.WeightBoxSelectionFactor_3.value()
-#        
-#        BefRoundNum = int(self.BefKCLRoundNumBox.value())        
-#        AftRoundNum = int(self.AftKCLRoundNumBox.value())        
-#        smallestsize = int(self.IPsizetextbox.value())            
-#        openingfactor = int(self.opening_factorBox.value())
-#        closingfactor = int(self.closing_factorBox.value())
-#        cellopeningfactor = int(self.cellopening_factorBox.value())
-#        cellclosingfactor = int(self.cellclosing_factorBox.value())
-#        binary_adaptive_block_size = int(self.binary_adaptive_block_sizeBox.value())
-#        self_findcontour_thres = float(self.find_contour_thres_box.value())
-#        contour_dilation = int(self.contour_dilation_box.value())
         savedirectory = self.savedirectory
         meshrepeat = self.ScanRepeatTextbox.value()
         StartUpEvents = []
@@ -801,14 +871,7 @@ class Mainbody(QWidget):
                                 print(self.FocusCorrectionMatrixDict['RoundPackage_{}_Grid_{}'.format(CurrentRound+1, EachGrid)])
         else:
             self.FocusCorrectionMatrixDict = {}
-        
-#        print(self.FocusCorrectionMatrixDict.keys())
-#        generalnamelist = ['selectnum', 'Mean intensity in contour weight','Contour soma ratio weight','Change weight', 'BefRoundNum', 
-#                            'AftRoundNum', 'smallestsize', 'openingfactor', 'closingfactor', 'cellopeningfactor', 
-#                           'cellclosingfactor', 'binary_adaptive_block_size', 'self_findcontour_thres', 'contour_dilation', 'savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict']
-#        
-#        generallist = [selectnum, MeanIntensityContourWeight, ContourSomaRatioWeight, ChangeWeight, BefRoundNum, AftRoundNum, smallestsize, openingfactor, closingfactor, cellopeningfactor, 
-#                       cellclosingfactor, binary_adaptive_block_size, self_findcontour_thres, contour_dilation, savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict]
+            
         generalnamelist = ['savedirectory', 'FocusCorrectionMatrixDict', 'FocusStackInfoDict', 'Meshgrid', 'Scanning step', 'StartUpEvents']
         
         generallist = [savedirectory, self.FocusCorrectionMatrixDict, self.FocusStackInfoDict, meshrepeat, self.step, StartUpEvents]
@@ -821,42 +884,76 @@ class Mainbody(QWidget):
         #---------------------------------------------------------------Show general info---------------------------------------------------------------------------------
         self.normalOutputWritten('--------Pipeline general info--------\n')
         for eachround in range(int(len(self.RoundQueueDict)/2-1)):
-
-            for eachwaveform in self.RoundQueueDict['RoundPackage_'+str(eachround+1)]:
+            
+            waveformPackage = self.RoundQueueDict['RoundPackage_'+str(eachround+1)][0]
+            camOperationPackage = self.RoundQueueDict['RoundPackage_'+str(eachround+1)][1]
+            waveform_sequence = 1
+            
+            for eachwaveform in waveformPackage:
+                
+                #--------------------------------------------------------------
+                # show waveform settings
+                
                 try:
-                    if len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]) != 0:
-                        self.normalOutputWritten('Round {}, recording channels:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]))
-                        print('Round {}, recording channels:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]))#[1]['Sepcification']
+                    if len(waveformPackage[eachwaveform][3]) != 0:
+                        self.normalOutputWritten('Round {}, sequence {}, recording channels:{}.\n'.format(eachround+1, waveform_sequence, waveformPackage[eachwaveform][3]))
+                        print('Round {}, recording channels:{}.'.format(eachround+1, waveformPackage[eachwaveform][3]))#[1]['Sepcification']
 #                    else:
 #                        self.normalOutputWritten('Round {} No recording channel.\n'.format(eachround+1))
                 except:
+                    
                     self.normalOutputWritten('No recording channel.\n')
+                    print(waveformPackage[eachwaveform][3])
                     print('No recording channel.')
+                    
                 try:
-                    self.normalOutputWritten('Round {}, Analog signals:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][1]['Sepcification']))
-                    print('Round {}, Analog signals:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][1]['Sepcification']))#
+                    self.normalOutputWritten('Round {}, Analog signals:{}.\n'.format(eachround+1, waveformPackage[eachwaveform][1]['Sepcification']))
+                    print('Round {}, Analog signals:{}.'.format(eachround+1, waveformPackage[eachwaveform][1]['Sepcification']))#
                 except:
                     self.normalOutputWritten('No Analog signals.\n')
                     print('No Analog signals.')
+                    
                 try:
-                    if len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']) != 0:
-                        self.normalOutputWritten('Round {}, Digital signals:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))
-                        print('Round {}, Digital signals:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))#
+                    if len(waveformPackage[eachwaveform][2]['Sepcification']) != 0:
+                        self.normalOutputWritten('Round {}, Digital signals:{}.\n'.format(eachround+1, waveformPackage[eachwaveform][2]['Sepcification']))
+                        print('Round {}, Digital signals:{}.'.format(eachround+1, waveformPackage[eachwaveform][2]['Sepcification']))#
 #                    else:
 #                        self.normalOutputWritten('Round {} No Digital signals.\n'.format(eachround+1))
                 except:
                     self.normalOutputWritten('No Digital signals.\n')
                     print('No Digital signals.')
-                    
-            self.normalOutputWritten('\n')
+                waveform_sequence += 1
+                self.normalOutputWritten('\n')
+                
+            for eachcamoperation in camOperationPackage:
+                #--------------------------------------------------------------
+                # Show camera operations
+               
+                try:
+                    if len(camOperationPackage[eachcamoperation]) != 0:
+                        self.normalOutputWritten('Round {}, cam Buffer_number:{}.\n'.format(eachround+1, camOperationPackage[eachcamoperation]['Buffer_number']))
+                        print('Round {}, cam Buffer_number:{}.\n'.format(eachround+1, camOperationPackage[eachcamoperation]['Buffer_number']))#
+#                    else:
+#                        self.normalOutputWritten('Round {} No Digital signals.\n'.format(eachround+1))
+                except:
+                    self.normalOutputWritten('No camera operations.\n')
+                    print('No camera operations.')                    
+            
+            self.normalOutputWritten('-----------end of round-----------\n')
+            
         self.normalOutputWritten('----------------------------------------\n')
         
         
     def _open_file_dialog(self):
         self.savedirectory = str(QtWidgets.QFileDialog.getExistingDirectory(directory='M:/tnw/ist/do/projects/Neurophotonics/Brinkslab/Data'))
         self.savedirectorytextbox.setText(self.savedirectory)
-        self.saving_prefix = str(self.prefixtextbox.text())
+        self.set_prefix()
+    
+    def update_saving_directory(self):
+        self.savedirectory = str(self.savedirectorytextbox.text())
         
+    def set_prefix(self):
+        self.saving_prefix = str(self.prefixtextbox.text())
         
     #--------------------------------------------------------------------GenerateFocusCorrectionMatrix-----------------------------------------
     def CaptureFocusCorrectionMatrix(self, CorrectionFomula):
@@ -876,7 +973,7 @@ class Mainbody(QWidget):
         SavepipelineInstance = []
         SavepipelineInstance.extend([self.RoundQueueDict, self.RoundCoordsDict, self.GeneralSettingDict])
         
-        np.save(os.path.join(self.savedirectory, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_Pipeline'), SavepipelineInstance)
+        np.save(os.path.join(self.savedirectory, self.saving_prefix, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_Pipeline'), SavepipelineInstance)
         
         
     def GetDataForShowingRank(self, RankedAllCellProperties, FinalMergedCoords, IndexLookUpCellPropertiesDict, PMTimageDict):
@@ -890,41 +987,41 @@ class Mainbody(QWidget):
         
         self.TopGeneralInforLabel.setText('Number of coords in total: {}'.format(self.TotalCoordsNum))
 
-    def PopNextTopCells(self, direction):       
-        if direction == 'next':
-            if self.popnexttopimgcounter > (self.TotalCoordsNum-1):#Make sure it doesn't go beyond the last coords.
-                self.popnexttopimgcounter -= 1
-            CurrentPosIndex = self.FinalMergedCoords[self.popnexttopimgcounter,:].tolist() # self.popnexttopimgcounter is the order number of each Stage coordinates.
-            
-            self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
-            self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
-                                                           self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
-            self.ShowTopCellsInstance.run()
-    #        self.ax = self.ShowTopCellsInstance.gg()
-    #        self.ax = self.Matdisplay_Figure.add_subplot(111)
-            self.Matdisplay_Canvas.draw()
-#            if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
-            self.popnexttopimgcounter += 1 # Alwasy plus 1 to get it ready for next move.
-            
-        elif direction == 'previous':
-            self.popnexttopimgcounter -= 2 
-            if self.popnexttopimgcounter >= 0:
-                CurrentPosIndex = self.FinalMergedCoords[self.popnexttopimgcounter,:].tolist() # self.popnexttopimgcounter is the order number of each Stage coordinates.
-                
-                self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
-                self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
-                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
-                                                               self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
-                self.ShowTopCellsInstance.run()
-        #        self.ax = self.ShowTopCellsInstance.gg()
-        #        self.ax = self.Matdisplay_Figure.add_subplot(111)
-                self.Matdisplay_Canvas.draw()
-                if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
-                    self.popnexttopimgcounter += 1
-            else:
-                self.popnexttopimgcounter = 0
-        
+#    def PopNextTopCells(self, direction):       
+#        if direction == 'next':
+#            if self.popnexttopimgcounter > (self.TotalCoordsNum-1):#Make sure it doesn't go beyond the last coords.
+#                self.popnexttopimgcounter -= 1
+#            CurrentPosIndex = self.FinalMergedCoords[self.popnexttopimgcounter,:].tolist() # self.popnexttopimgcounter is the order number of each Stage coordinates.
+#            
+#            self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
+#            self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
+#            self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
+#                                                           self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
+#            self.ShowTopCellsInstance.run()
+#    #        self.ax = self.ShowTopCellsInstance.gg()
+#    #        self.ax = self.Matdisplay_Figure.add_subplot(111)
+#            self.Matdisplay_Canvas.draw()
+##            if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
+#            self.popnexttopimgcounter += 1 # Alwasy plus 1 to get it ready for next move.
+#            
+#        elif direction == 'previous':
+#            self.popnexttopimgcounter -= 2 
+#            if self.popnexttopimgcounter >= 0:
+#                CurrentPosIndex = self.FinalMergedCoords[self.popnexttopimgcounter,:].tolist() # self.popnexttopimgcounter is the order number of each Stage coordinates.
+#                
+#                self.TopCoordsLabel.setText("Row: {} Col: {}".format(CurrentPosIndex[0], CurrentPosIndex[1]))     
+#                self.CurrentImgShowTopCells = self.PMTimageDict['RoundPackage_{}'.format(self.GeneralSettingDict['BefRoundNum'])]['row_{}_column_{}'.format(CurrentPosIndex[0], CurrentPosIndex[1])]
+#                self.ShowTopCellsInstance = ShowTopCellsThread(self.GeneralSettingDict, self.RankedAllCellProperties, CurrentPosIndex, 
+#                                                               self.IndexLookUpCellPropertiesDict, self.CurrentImgShowTopCells, self.Matdisplay_Figure)
+#                self.ShowTopCellsInstance.run()
+#        #        self.ax = self.ShowTopCellsInstance.gg()
+#        #        self.ax = self.Matdisplay_Figure.add_subplot(111)
+#                self.Matdisplay_Canvas.draw()
+#                if self.popnexttopimgcounter < (self.TotalCoordsNum-1):
+#                    self.popnexttopimgcounter += 1
+#            else:
+#                self.popnexttopimgcounter = 0
+    #%%
     """
     # =============================================================================
     #     For save and load file.    
@@ -1093,38 +1190,58 @@ class Mainbody(QWidget):
         self.normalOutputWritten('--------Pipeline general info--------\n')
         for eachround in range(int(len(self.RoundQueueDict)/2-1)):
 
-            for eachwaveform in self.RoundQueueDict['RoundPackage_'+str(eachround+1)]:
+            #--------------------------------------------------------------
+            # show waveform settings
+            waveformPackage = self.RoundQueueDict['RoundPackage_'+str(eachround+1)][0]
+            camOperationPackage = self.RoundQueueDict['RoundPackage_'+str(eachround+1)][1]
+            waveform_sequence = 1
+            
+            for eachwaveform in waveformPackage:
                 try:
-                    if len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]) != 0:
-                        self.normalOutputWritten('Round {}, recording channels:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]))
-                        print('Round {}, recording channels:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][3]))#[1]['Sepcification']
+                    if len(waveformPackage[eachwaveform][3]) != 0:
+                        self.normalOutputWritten('Round {}, sequence {}, recording channels:{}.\n'.format(eachround+1, waveform_sequence, waveformPackage[eachwaveform][3]))
+                        print('Round {}, recording channels:{}.'.format(eachround+1, waveformPackage[eachwaveform][3]))#[1]['Sepcification']
 #                    else:
 #                        self.normalOutputWritten('Round {} No recording channel.\n'.format(eachround+1))
                 except:
                     self.normalOutputWritten('No recording channel.\n')
                     print('No recording channel.')
                 try:
-                    self.normalOutputWritten('Round {}, Analog signals:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][1]['Sepcification']))
-                    print('Round {}, Analog signals:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][1]['Sepcification']))#
+                    self.normalOutputWritten('Round {}, Analog signals:{}.\n'.format(eachround+1, waveformPackage[eachwaveform][1]['Sepcification']))
+                    print('Round {}, Analog signals:{}.'.format(eachround+1, waveformPackage[eachwaveform][1]['Sepcification']))#
                 except:
                     self.normalOutputWritten('No Analog signals.\n')
                     print('No Analog signals.')
                 try:
-                    if len(self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']) != 0:
-                        self.normalOutputWritten('Round {}, Digital signals:{}.\n'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))
-                        self.normalOutputWritten('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+
-                                                 str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
+                    if len(waveformPackage[2]['Sepcification']) != 0:
+                        self.normalOutputWritten('Round {}, Digital signals:{}.\n'.format(eachround+1, waveformPackage[eachwaveform][2]['Sepcification']))
+                        self.normalOutputWritten('Lasting time:{} s.\n'.format(len(waveformPackage[eachwaveform][2]['Waveform'][0])/waveformPackage[eachwaveform][0]))
                         
-                        print('Lasting time:{} s.\n'.format(len(self.RoundQueueDict['RoundPackage_'+
-                              str(eachround+1)][eachwaveform][2]['Waveform'][0])/self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][0]))
-                        print('Round {}, Digital signals:{}.'.format(eachround+1, self.RoundQueueDict['RoundPackage_'+str(eachround+1)][eachwaveform][2]['Sepcification']))#
+                        print('Lasting time:{} s.\n'.format(len(waveformPackage[eachwaveform][2]['Waveform'][0])/waveformPackage[eachwaveform][0]))
+                        print('Round {}, Digital signals:{}.'.format(eachround+1, waveformPackage[eachwaveform][2]['Sepcification']))#
 #                    else:
 #                        self.normalOutputWritten('Round {} No Digital signals.\n'.format(eachround+1))
                 except:
                     self.normalOutputWritten('No Digital signals.\n')
                     print('No Digital signals.')
-                    
-            self.normalOutputWritten('\n')
+                waveform_sequence += 1
+                self.normalOutputWritten('\n')
+                
+            for eachcamoperation in camOperationPackage:
+                #--------------------------------------------------------------
+                # Show camera operations
+               
+                try:
+                    if len(camOperationPackage[eachcamoperation]) != 0:
+                        self.normalOutputWritten('Round {}, cam Buffer_number:{}.\n'.format(eachround+1, camOperationPackage[eachcamoperation]['Buffer_number']))
+                        print('Round {}, cam Buffer_number:{}.\n'.format(eachround+1, camOperationPackage[eachcamoperation]['Buffer_number']))#
+#                    else:
+#                        self.normalOutputWritten('Round {} No Digital signals.\n'.format(eachround+1))
+                except:
+                    self.normalOutputWritten('No camera operations.\n')
+                    print('No camera operations.')  
+            
+            self.normalOutputWritten('-----------end of round-----------\n')
         self.normalOutputWritten('----------------------------------------\n')
         
     #---------------------------------------------------------------functions for console display------------------------------------------------------------        
@@ -1136,7 +1253,7 @@ class Mainbody(QWidget):
         cursor.insertText(text)
         self.ConsoleTextDisplay.setTextCursor(cursor)
         self.ConsoleTextDisplay.ensureCursorVisible()  
-        
+    #%%
     """
     # =============================================================================
     #     FUNCTIONS FOR TOOL WIDGETS
@@ -1158,11 +1275,15 @@ class Mainbody(QWidget):
         self.InsightWindow = InsightX3.TwoPhotonLaserUI.InsightWidgetUI()
         self.InsightWindow.show()
         
-#    def openScreenAnalysisWidget(self):
-#        self.ScreenAnalysisWindow = EvolutionAnalysisGUI.MainGUI()
-#        self.ScreenAnalysisWindow.show()
+    def openScreenAnalysisWidget(self):
+        from ImageAnalysis import EvolutionAnalysisGUI_ML
+        
+        self.ScreenAnalysisWindow = EvolutionAnalysisGUI.MainGUI()
+        self.ScreenAnalysisWindow.show()
         
     def openScreenAnalysisMLWidget(self):
+        from ImageAnalysis import EvolutionAnalysisGUI_ML
+        
         self.ScreenAnalysisMLWindow = EvolutionAnalysisGUI_ML.MainGUI()
         self.ScreenAnalysisMLWindow.show()
         
@@ -1175,8 +1296,12 @@ class Mainbody(QWidget):
             else:
                 execute_tread_singlesample_AOTF_digital = execute_tread_singlesample_digital()
                 execute_tread_singlesample_AOTF_digital.set_waves(channel, 0)
-                execute_tread_singlesample_AOTF_digital.start() 
-        
+                execute_tread_singlesample_AOTF_digital.start()
+    
+    def closeEvent(self, event):
+        QtWidgets.QApplication.quit()
+        event.accept()
+    #%%
 if __name__ == "__main__":
     def run_app():
         app = QtWidgets.QApplication(sys.argv)

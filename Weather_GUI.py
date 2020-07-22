@@ -18,7 +18,10 @@ from PyQt5.QtWidgets import (QWidget, QButtonGroup, QLabel, QSlider, QSpinBox, Q
                              QFileDialog, QProgressBar, QTextEdit, QDial, QStyleFactory)
 
 import sys
-from pyowm import OWM
+try:
+    from pyowm import OWM
+except:
+    pass
 
 class WeatherUI(QWidget):
     """
@@ -68,8 +71,11 @@ class WeatherUI(QWidget):
         self.BasicEventLayout.addWidget(self.weather_temperature_label, 0, 1)
         
         BasicEventContainer.setLayout(self.BasicEventLayout)
-        self.layout.addWidget(BasicEventContainer, 0, 0)  
-
+        self.layout.addWidget(BasicEventContainer, 0, 0)
+        
+    def closeEvent(self, event):
+        QtWidgets.QApplication.quit()
+        event.accept()
         
 if __name__ == "__main__":
     def run_app():
