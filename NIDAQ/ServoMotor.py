@@ -20,6 +20,7 @@ import numpy as np
 import math
 from scipy import signal
 import matplotlib.pyplot as plt
+import time
 
 class Servo:
     
@@ -27,24 +28,30 @@ class Servo:
         super().__init__(*args, **kwargs)
         self.sampling_rate = 10000
         self.PWM_frequency = 50
-    
+        self.mission = DAQmission()
+        
     def power_on(self):
-        DAQmission.sendSingleDigital('servo_power', True)
-
+        self.mission.sendSingleDigital(channel = 'servo_power_1', value = True)
+#        time.sleep(1.5)
+        
     def power_off(self):
-        DAQmission.sendSingleDigital('servo_power', False)
+        self.mission.sendSingleDigital(channel = 'servo_power_1', value = False)
     
     def rotate(self, degree):
         # Convert degree to duty cycle in PWM.
-        if degree >= 0 and degree <= 180:
-            dutycycle = round((degree/180) * 0.05 + 0.05, 6)
+        if degree >= 0 and degree <= 360:
+            dutycycle = 0.02#round((degree/180) * 0.05 + 0.05, 6)
             
-            PWM_wave = self.blockWave(self.sampling_rate, self.PWM_frequency, dutycycle, repeats = 25)
+            PWM_wave = self.blockWave(self.sampling_rate, self.PWM_frequency, dutycycle, repeats = 50)
             
-            PWM_wave_organized = np.array([('servo_modulation', PWM_wave)],
-                          dtype=[('Sepcification', 'U20'), ('Waveform', float, (len(PWM_wave),))])
+            PWM_wave = np.where(PWM_wave == 0, False, True)
+#            plt.figure()
+#            plt.plot(PWM_wave)
+#            plt.show()
+            PWM_wave_organized = np.array([('servo_modulation_1', PWM_wave), ('servo_power_1', np.ones(len(PWM_wave), dtype = bool))],
+                          dtype=[('Sepcification', 'U20'), ('Waveform', bool, (len(PWM_wave),))])
             
-            DAQmission.runWaveforms(clock_source = "DAQ", sampling_rate = self.sampling_rate, analog_signals = {},\
+            self.mission.runWaveforms(clock_source = "DAQ", sampling_rate = self.sampling_rate, analog_signals = {},\
                                     digital_signals = PWM_wave_organized, readin_channels = {})
             
         else:
@@ -77,7 +84,9 @@ class Servo:
 
 
 if __name__ == "__main__":
+     
      servo= Servo()
-     servo.power_on()
-     servo.rotate(90)
+#     servo.power_on()
+     servo.rotate(0)
+     servo.rotate(180)
 #     servo.power_off()

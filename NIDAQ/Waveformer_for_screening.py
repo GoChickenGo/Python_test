@@ -47,8 +47,7 @@ class WaveformGenerator(QWidget):
         
         self.layout = QGridLayout(self)
         # Setting tabs
-        self.tabs = QTabWidget()
-        self.tab2 = QWidget()
+        self.tabs = StylishQT.roundQGroupBox('Waveforms')
         self.savedirectory = None#r'M:\tnw\ist\do\projects\Neurophotonics\Brinkslab\Data\Patch clamp\2020-2-19 patch-perfusion-Archon1\cell1'
         
         # These contour scanning signals will be set from main panel.
@@ -57,8 +56,6 @@ class WaveformGenerator(QWidget):
         self.handle_viewbox_coordinate_position_array_expanded_x = None
         self.handle_viewbox_coordinate_position_array_expanded_y = None
         self.Daq_sample_rate_pmt = None
-        # Add tabs
-        self.tabs.addTab(self.tab2,"Waveform")
         
         #**************************************************************************************************************************************
         #--------------------------------------------------------------------------------------------------------------------------------------
@@ -672,7 +669,7 @@ class WaveformGenerator(QWidget):
         master_waveform.addWidget(ReadContainer, 0, 0)
         master_waveform.addWidget(self.pw, 3, 0)
 #        master_waveform.addWidget(self.pw_data, 4, 0)
-        self.tab2.setLayout(master_waveform)        
+        self.tabs.setLayout(master_waveform)        
         #**************************************************************************************************************************************        
 #        self.setLayout(pmtmaster)
         self.layout.addWidget(self.tabs, 0, 0)
