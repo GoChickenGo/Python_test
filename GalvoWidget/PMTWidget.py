@@ -641,10 +641,10 @@ class PMTWidgetUI(QWidget):
         self.pmtTest_contour.aboutToQuitHandler()
         self.MessageToMainGUI('---!! Contour stopped !!---'+'\n')
         
-    def closeEvent(self, event):
-            
-        QtWidgets.QApplication.quit()
-        event.accept()
+#    def closeEvent(self, event):
+#            
+#        QtWidgets.QApplication.quit()
+#        event.accept()
     '''    
     def closeEvent(self, event):
         """On closing the application we have to make sure that the measuremnt
