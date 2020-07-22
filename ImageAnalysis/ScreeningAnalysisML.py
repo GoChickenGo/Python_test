@@ -479,12 +479,12 @@ class ProcessImageML():
     
         return DataFrame_sorted
     
-    def showPlotlyScatter(self, DataFrame, x_axis, y_axis):
+    def showPlotlyScatter(self, DataFrame, x_axis, y_axis, saving_directory):
         
         fig = px.scatter(DataFrame, x = x_axis, y=y_axis, hover_name= DataFrame.index, color= 'Lib_Tag_contour_ratio',
                          hover_data= ['Contour_soma_ratio_Lib', 'Lib_Tag_contour_ratio', 'ImgNameInfor_Lib'], width=1050, height=950)
 #        fig.update_layout(hovermode="x")
-        fig.write_html('Screening scatters.html', auto_open=True)
+        fig.write_html(saving_directory, auto_open=True)
         
     #%%
     """

@@ -39,7 +39,7 @@ except:
 class MainGUI(QWidget):
     
     waveforms_generated = pyqtSignal(object, object, list, int)
-    
+    #%%
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         os.chdir('./')# Set directory to current folder.
@@ -267,7 +267,7 @@ class MainGUI(QWidget):
         cursor.insertText(text)
         self.ConsoleTextDisplay.setTextCursor(cursor)
         self.ConsoleTextDisplay.ensureCursorVisible()  
-        
+    #%%
     """
     # =============================================================================
     #     FUNCTIONS FOR DATA ANALYSIS AND DISPLAY
@@ -325,8 +325,9 @@ class MainGUI(QWidget):
         self.DataFrame_sorted = self.ProcessML.Sorting_onTwoaxes(DataFrames_filtered, axis_1 = self.X_axisBox.currentText(), axis_2 = self.Y_axisBox.currentText(), 
                                                                  weight_1 = self.WeightBoxSelectionFactor_1.value(), weight_2 = self.WeightBoxSelectionFactor_2.value())
         
+        self.SaveCellsDataframetoExcel()
         self.UpdateSelectionScatter()
-            
+    #%%
     def UpdateSelectionScatter(self):
 
         self.EvaluatingPara_list = [self.X_axisBox.currentText(), self.Y_axisBox.currentText()]
@@ -347,7 +348,8 @@ class MainGUI(QWidget):
             self.TotalCellNum = len(self.DataFrame_sorted)
             self.normalOutputWritten('---- Total cells selected: {}; Total cells: {}----\n'.format(self.TotaNumofCellSelected, self.TotalCellNum))
             
-            self.ProcessML.showPlotlyScatter(self.DataFrame_sorted, x_axis=self.EvaluatingPara_list[0], y_axis=self.EvaluatingPara_list[1])
+            saving_directory = os.path.join(self.Tag_folder, datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'_Screening scatters.html')
+            self.ProcessML.showPlotlyScatter(self.DataFrame_sorted, x_axis=self.EvaluatingPara_list[0], y_axis=self.EvaluatingPara_list[1], saving_directory = saving_directory)
                 
     def GoThroughTopCells(self, direction):
         """
@@ -582,7 +584,7 @@ class MainGUI(QWidget):
         
     def ResetRankCoord(self):
         self.popnexttopimgcounter = 0
-        
+    #%%
 if __name__ == "__main__":
     def run_app():
         app = QtWidgets.QApplication(sys.argv)
